@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/playlist.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+    .playlist-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+        .playlist-container {
+            flex-direction: row;
+        }
+        
+        .playlist-column, 
+        .bench-column {
+            flex: 1;
+            width: 50%;
+            min-width: 0;
+        }
+    }
+
+    .list-group-item {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        position: relative;
+        gap: 15px;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+
+    .drag-handle {
+        flex: 0 0 auto;
+        cursor: grab;
+        color: #666;
+    }
+
+    .photo-thumbnail {
+        flex: 0 0 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .flex-spacer {
+        flex: 1;
+        min-width: 10px;
+    }
+
+    /* Update button styling */
+    .list-group-item .btn {
+        flex: 0 0 auto;
+        margin-left: auto;
+        font-size: 0.875rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    /* Add specific styling for the bench items */
+    #photo-bench {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 10px;
+    }
+
+    #photo-bench .list-group-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 5px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        position: relative;
+        height: 160px;
+    }
+
+    #photo-bench .photo-thumbnail {
+        width: 140px;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 4px;
+        margin-bottom: 5px;
+    }
+
+    #photo-bench .btn {
+        position: absolute;
+        bottom: 5px;
+        width: calc(100% - 10px);
+        padding: 2px 0;
+        font-size: 0.8rem;
+    }
+
+    /* Add video indicator */
+    .video-indicator {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        padding: 4px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ playlist.name }}</h1>
+        <div class="btn-group">
+            <a href="{{ url_for('manage_playlists') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Playlists
+            </a>
+            <button id="applyToFrameBtn" class="btn btn-outline-primary">
+                <i class="fas fa-share-square"></i> Apply to Frame
+            </button>
+            <button id="deletePlaylistBtn" class="btn btn-outline-danger">
+                <i class="fas fa-trash"></i> Delete Playlist
+            </button>
+        </div>
+    </div>
+
+    <div class="playlist-container">
+        <div class="playlist-column">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Playlist Queue</h2>
+                <button id="deleteAllBtn" class="btn btn-outline-danger btn-sm" title="Delete All Photos">
+                    <i class="fas fa-trash"></i> Delete All
+                </button>
+            </div>
+            <div id="playlist" class="list-group">
+                {% if playlist.entries %}
+                    {% for entry in playlist.entries %}
+                    <div class="list-group-item" 
+                         data-entry-id="{{ entry.id }}"
+                         data-photo-id="{{ entry.photo.id }}"
+                         data-date-added="{{ entry.date_added.isoformat() if entry.date_added }}">
+                        <div class="drag-handle">☰</div>
+                        <img src="{{ url_for('serve_thumbnail', filename=entry.photo.thumbnail) if entry.photo.thumbnail else url_for('serve_photo', filename=entry.photo.filename) }}" 
+                             alt="{{ entry.photo.filename }}" 
+                             class="photo-thumbnail">
+                        <div class="flex-spacer"></div>
+                        <button class="btn btn-danger btn-sm" onclick="removeFromPlaylist(this)">Remove</button>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5 border rounded bg-light">
+                        <i class="fas fa-images fa-3x mb-3 text-muted"></i>
+                        <h4 class="text-muted">No Photos in Playlist</h4>
+                        <p class="text-muted mb-0">Add photos from the available photos section.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bench-column">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Available Photos</h2>
+                <select id="benchSort" class="form-select form-select-sm" style="width: auto;">
+                    <option value="desc">Newest First</option>
+                    <option value="asc">Oldest First</option>
+                </select>
+            </div>
+            <div id="photo-bench" class="list-group">
+                <!-- Photos will be loaded here via JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal for Delete Confirmation -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this playlist? This action cannot be undone.</p>
+                <p class="text-danger"><strong>Note:</strong> This will permanently delete the playlist and all its entries.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Playlist</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add this modal -->
+<div class="modal fade" id="applyToFrameModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Apply Playlist to Frame</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Warning: This will replace all existing photos in the selected frame's playlist.
+                </div>
+                <div class="mb-3">
+                    <label for="frameSelect" class="form-label">Select Frame</label>
+                    <select class="form-select" id="frameSelect">
+                        <option value="">Choose a frame...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmApplyBtn">
+                    Apply Playlist
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+// Move savePlaylist to global scope
+window.savePlaylist = async function() {
+    const playlistId = {{ playlist.id }};
+    const playlist = document.getElementById('playlist');
+    const entries = Array.from(playlist.querySelectorAll('.list-group-item[data-entry-id]'))
+        .map((item, index) => ({
+            id: parseInt(item.dataset.entryId),
+            order: index
+        }));
+
+    try {
+        const response = await fetch(`/api/custom-playlists/${playlistId}/entries/reorder`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ entries })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to save playlist order');
+        }
+    } catch (error) {
+        console.error('Error saving playlist order:', error);
+        alert('Failed to save playlist order');
+    }
+};
+
+// Keep existing global functions
+window.addPhotoToPlaylist = async function(photoId, button) {
+    const playlistId = {{ playlist.id }};
+    try {
+        const response = await fetch(`/api/custom-playlists/${playlistId}/entries`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ photo_ids: [photoId] })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to add photo');
+        }
+
+        const data = await response.json();
+        
+        // Get the photo thumbnail from the bench item
+        const benchItem = button.closest('.list-group-item');
+        const thumbnailImg = benchItem.querySelector('img');
+        const thumbnailSrc = thumbnailImg.src;
+        
+        // Get the playlist container
+        const playlistContainer = document.getElementById('playlist');
+        
+        // Remove empty state if it exists
+        const emptyState = playlistContainer.querySelector('.text-center.py-5');
+        if (emptyState) {
+            emptyState.remove();
+        }
+
+        // Add new item to playlist
+        const newItem = document.createElement('div');
+        newItem.className = 'list-group-item';
+        newItem.dataset.entryId = data.entries[0].id;
+        newItem.dataset.photoId = photoId;
+        newItem.innerHTML = `
+            <div class="drag-handle">☰</div>
+            <img src="${thumbnailSrc}" 
+                 alt="Photo" 
+                 class="photo-thumbnail">
+            <div class="flex-spacer"></div>
+            <button class="btn btn-danger btn-sm" onclick="removeFromPlaylist(this)">Remove</button>
+        `;
+        playlistContainer.appendChild(newItem);
+
+        // Update bench button
+        button.textContent = 'Added';
+        button.className = 'btn btn-secondary btn-sm';
+        button.disabled = true;
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to add photo to playlist');
+    }
+};
+
+window.removeFromPlaylist = async function(button) {
+    const item = button.closest('.list-group-item');
+    const entryId = item.dataset.entryId;
+    const photoId = item.dataset.photoId;
+    const playlistId = {{ playlist.id }};
+
+    try {
+        const response = await fetch(`/api/custom-playlists/${playlistId}/entries/${entryId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to remove photo');
+        }
+
+        // Remove from playlist
+        item.remove();
+
+        // Update bench button
+        const benchItem = document.querySelector(`#photo-bench .list-group-item[data-photo-id="${photoId}"]`);
+        if (benchItem) {
+            const benchButton = benchItem.querySelector('button');
+            benchButton.textContent = 'Add';
+            benchButton.className = 'btn btn-success btn-sm';
+            benchButton.disabled = false;
+        }
+
+        // Check if playlist is empty
+        const playlist = document.getElementById('playlist');
+        if (!playlist.querySelector('.list-group-item:not(.text-center)')) {
+            playlist.innerHTML = `
+                <div class="text-center py-5 border rounded bg-light">
+                    <i class="fas fa-images fa-3x mb-3 text-muted"></i>
+                    <h4 class="text-muted">No Photos in Playlist</h4>
+                    <p class="text-muted mb-0">Add photos from the available photos section.</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to remove photo from playlist');
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const playlist = document.getElementById('playlist');
+    const photoBench = document.getElementById('photo-bench');
+    const benchSort = document.getElementById('benchSort');
+
+    // Initialize Sortable with onEnd using window.savePlaylist
+    new Sortable(playlist, {
+        animation: 150,
+        handle: '.drag-handle',
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function() {
+            window.savePlaylist();
+        }
+    });
+
+    // Update loadPhotos to handle null thumbnails
+    async function loadPhotos() {
+        try {
+            const response = await fetch('/api/photos');
+            const photos = await response.json();
+            
+            const playlistItems = document.querySelectorAll('#playlist .list-group-item');
+            const playlistPhotoIds = Array.from(playlistItems)
+                .filter(item => item.dataset.photoId)
+                .map(item => parseInt(item.dataset.photoId));
+
+            const sortOrder = benchSort.value;
+            photos.sort((a, b) => {
+                const dateA = new Date(a.uploaded_at);
+                const dateB = new Date(b.uploaded_at);
+                return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+
+            photoBench.innerHTML = photos.map(photo => `
+                <div class="list-group-item" 
+                     data-photo-id="${photo.id}" 
+                     data-upload-date="${photo.uploaded_at}">
+                    <img src="${photo.thumbnail ? '/photos/thumbnails/' + photo.thumbnail : '/photos/' + photo.filename}" 
+                         alt="${photo.filename}" 
+                         class="photo-thumbnail">
+                    ${photo.media_type === 'video' ? `
+                        <div class="video-indicator">
+                            <i class="fas fa-video"></i>
+                        </div>
+                    ` : ''}
+                    <button class="btn ${playlistPhotoIds.includes(photo.id) ? 'btn-secondary' : 'btn-success'} btn-sm"
+                            onclick="addPhotoToPlaylist(${photo.id}, this)"
+                            ${playlistPhotoIds.includes(photo.id) ? 'disabled' : ''}>
+                        ${playlistPhotoIds.includes(photo.id) ? 'Added' : 'Add'}
+                    </button>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading photos:', error);
+        }
+    }
+
+    // Handle bench sorting
+    benchSort.addEventListener('change', loadPhotos);
+
+    // Add delete all functionality
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    if (deleteAllBtn) {
+        deleteAllBtn.addEventListener('click', async function() {
+            if (confirm('Are you sure you want to remove all photos from this playlist?')) {
+                try {
+                    const entries = Array.from(playlist.querySelectorAll('.list-group-item[data-entry-id]'));
+                    
+                    for (const entry of entries) {
+                        const entryId = entry.dataset.entryId;
+                        const response = await fetch(`/api/custom-playlists/${playlistId}/entries/${entryId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`Failed to delete entry ${entryId}`);
+                        }
+                    }
+
+                    // Reset playlist display
+                    playlist.innerHTML = `
+                        <div class="text-center py-5 border rounded bg-light">
+                            <i class="fas fa-images fa-3x mb-3 text-muted"></i>
+                            <h4 class="text-muted">No Photos in Playlist</h4>
+                            <p class="text-muted mb-0">Add photos from the available photos section.</p>
+                        </div>
+                    `;
+
+                    // Reset all bench buttons
+                    document.querySelectorAll('#photo-bench .list-group-item button').forEach(button => {
+                        button.textContent = 'Add';
+                        button.className = 'btn btn-success btn-sm';
+                        button.disabled = false;
+                    });
+
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Failed to clear playlist');
+                }
+            }
+        });
+    }
+
+    // Initial load
+    loadPhotos();
+
+    // Delete playlist functionality
+    const deletePlaylistBtn = document.getElementById('deletePlaylistBtn');
+    const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
+    deletePlaylistBtn.addEventListener('click', function() {
+        deleteConfirmModal.show();
+    });
+
+    confirmDeleteBtn.addEventListener('click', async function() {
+        const playlistId = {{ playlist.id }};
+        try {
+            const response = await fetch(`/api/custom-playlists/${playlistId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete playlist');
+            }
+
+            // Show success message and redirect
+            const successAlert = document.createElement('div');
+            successAlert.className = 'alert alert-success position-fixed top-0 end-0 m-3';
+            successAlert.textContent = 'Playlist deleted successfully!';
+            document.body.appendChild(successAlert);
+
+            // Redirect after a short delay
+            setTimeout(() => {
+                window.location.href = "{{ url_for('manage_playlists') }}";
+            }, 1000);
+
+        } catch (error) {
+            console.error('Error:', error);
+            deleteConfirmModal.hide();
+            
+            // Show error message
+            const errorAlert = document.createElement('div');
+            errorAlert.className = 'alert alert-danger position-fixed top-0 end-0 m-3';
+            errorAlert.textContent = 'Failed to delete playlist';
+            document.body.appendChild(errorAlert);
+            
+            // Remove error message after 3 seconds
+            setTimeout(() => {
+                errorAlert.remove();
+            }, 3000);
+        }
+    });
+
+    // Apply to Frame functionality
+    const applyToFrameBtn = document.getElementById('applyToFrameBtn');
+    const applyToFrameModal = new bootstrap.Modal(document.getElementById('applyToFrameModal'));
+    const frameSelect = document.getElementById('frameSelect');
+    const confirmApplyBtn = document.getElementById('confirmApplyBtn');
+
+    // Load frames when button is clicked
+    applyToFrameBtn.addEventListener('click', async function() {
+        try {
+            const response = await fetch('/api/frames/list');
+            const { frames } = await response.json();
+            
+            frameSelect.innerHTML = '<option value="">Choose a frame...</option>' +
+                frames.map(frame => {
+                    const statusIcon = frame.status === 2 ? 
+                        '<i class="fas fa-circle text-success"></i>' : 
+                        frame.status === 1 ? 
+                            '<i class="fas fa-circle text-warning"></i>' : 
+                            '<i class="fas fa-circle text-danger"></i>';
+                    
+                    const frameType = frame.type === 'virtual' ? 
+                        '<i class="fas fa-desktop ms-1" title="Virtual Frame"></i>' : 
+                        '<i class="fas fa-tablet-alt ms-1" title="Physical Frame"></i>';
+                    
+                    return `
+                        <option value="${frame.id}">
+                            ${frame.name} ${statusIcon} ${frameType}
+                        </option>
+                    `;
+                }).join('');
+            
+            applyToFrameModal.show();
+        } catch (error) {
+            console.error('Error loading frames:', error);
+            alert('Failed to load frames');
+        }
+    });
+
+    // Handle apply confirmation
+    confirmApplyBtn.addEventListener('click', async function() {
+        const frameId = frameSelect.value;
+        if (!frameId) {
+            alert('Please select a frame');
+            return;
+        }
+
+        const playlistId = {{ playlist.id }};
+        
+        try {
+            confirmApplyBtn.disabled = true;
+            confirmApplyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
+
+            const response = await fetch(`/api/frames/${frameId}/apply-playlist/${playlistId}`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to apply playlist');
+            }
+
+            // Hide modal
+            applyToFrameModal.hide();
+
+            // Show success message
+            const successAlert = document.createElement('div');
+            successAlert.className = 'alert alert-success position-fixed top-0 end-0 m-3';
+            successAlert.innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                Playlist successfully applied to frame!
+            `;
+            document.body.appendChild(successAlert);
+
+            // Remove success message after 3 seconds
+            setTimeout(() => {
+                successAlert.remove();
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to apply playlist to frame');
+        } finally {
+            confirmApplyBtn.disabled = false;
+            confirmApplyBtn.innerHTML = 'Apply Playlist';
+        }
+    });
+});
+</script>
+{% endblock %} 

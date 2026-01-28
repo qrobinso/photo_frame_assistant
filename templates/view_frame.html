@@ -1,0 +1,1183 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: #000;
+        color: #fff;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+    }
+    
+    .frame-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #000;
+    }
+    
+    .blurred-background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+        filter: blur(30px);
+        opacity: 0.5;
+        transform: scale(1.1); /* Slightly larger to avoid blur edges */
+        z-index: 1;
+        transition: background-image 1s ease-in-out;
+    }
+    
+    .photo-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2;
+    }
+    
+    .photo {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        opacity: 1;
+        transition: opacity 1s ease-in-out;
+    }
+    
+    .photo.fade-out {
+        opacity: 0;
+    }
+    
+    .controls {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 100;
+        display: flex;
+        gap: 10px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    .controls.visible {
+        opacity: 1;
+    }
+    
+    .control-btn {
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    
+    .control-btn:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+    
+    .frame-info {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        border-radius: 5px;
+        z-index: 100;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    .frame-info.visible {
+        opacity: 1;
+    }
+    
+    .loading {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 1.5rem;
+        z-index: 10;
+    }
+    
+    video.photo {
+        max-width: 100%;
+        max-height: 100%;
+    }
+    
+    /* Navigation overlay for touch controls */
+    .nav-overlay {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 50%;
+        z-index: 90;
+        cursor: pointer;
+    }
+    
+    .nav-overlay.left {
+        left: 0;
+    }
+    
+    .nav-overlay.right {
+        right: 0;
+    }
+    
+    /* Navigation arrows that appear on hover */
+    .nav-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 95;
+    }
+    
+    .nav-arrow.left {
+        left: 20px;
+    }
+    
+    .nav-arrow.right {
+        right: 20px;
+    }
+    
+    .nav-arrow.visible {
+        opacity: 0.7;
+    }
+    
+    .nav-arrow:hover {
+        opacity: 1 !important;
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+    
+    /* Deep sleep mode styles */
+    .deep-sleep-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.6);
+        z-index: 99;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 1s ease-in-out;
+    }
+    
+    .deep-sleep-overlay.active {
+        opacity: 1;
+    }
+    
+    .deep-sleep-icon {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        width: 40px;
+        height: 40px;
+        background-color: rgba(111, 66, 193, 0.8);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out;
+    }
+    
+    .deep-sleep-icon.active {
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="frame-container">
+    <!-- Blurred background based on current image -->
+    <div class="blurred-background" id="blurredBackground"></div>
+    
+    <div class="frame-info">
+        <h3>{{ frame.name }}</h3>
+        <p>Sleep interval: {{ frame.sleep_interval }} minutes</p>
+    </div>
+    
+    <div class="photo-container" id="photoContainer">
+        {% if current_photo %}
+            {% if current_photo.media_type == 'video' %}
+                <video class="photo" id="currentPhoto" autoplay loop muted>
+                    <source src="{{ url_for('serve_photo', filename=current_photo.filename) }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            {% else %}
+                <img class="photo" id="currentPhoto" src="{{ url_for('serve_photo', filename=current_photo.filename) }}" alt="{{ frame.name }} - Current Photo">
+            {% endif %}
+        {% else %}
+            <div class="loading">No photos available in playlist</div>
+        {% endif %}
+        
+        <!-- Touch navigation overlays -->
+        <div class="nav-overlay left" id="prevPhotoOverlay"></div>
+        <div class="nav-overlay right" id="nextPhotoOverlay"></div>
+        
+        <!-- Navigation arrows -->
+        <div class="nav-arrow left" id="prevArrow">
+            <i class="fas fa-chevron-left"></i>
+        </div>
+        <div class="nav-arrow right" id="nextArrow">
+            <i class="fas fa-chevron-right"></i>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="control-btn" id="prevBtn" title="Previous Photo">
+            <i class="fas fa-step-backward"></i>
+        </button>
+        <button class="control-btn" id="fullscreenBtn" title="Toggle Fullscreen">
+            <i class="fas fa-expand"></i>
+        </button>
+        <button class="control-btn" id="refreshBtn" title="Refresh Now">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+        <button class="control-btn" id="nextBtn" title="Next Photo">
+            <i class="fas fa-step-forward"></i>
+        </button>
+    </div>
+    
+    <!-- Deep sleep overlay -->
+    <div class="deep-sleep-overlay" id="deepSleepOverlay"></div>
+    
+    <!-- Deep sleep icon -->
+    <div class="deep-sleep-icon" id="deepSleepIcon">
+        <i class="fas fa-moon"></i>
+    </div>
+</div>
+
+<script>
+// Browser detection and force fullscreen for older Chrome
+(function() {
+    function getChromeVersion() {
+        var raw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
+        return raw ? parseInt(raw[2], 10) : false;
+    }
+    
+    function requestFullscreenCompat() {
+        var docEl = document.documentElement;
+        
+        if (docEl.requestFullscreen) {
+            docEl.requestFullscreen();
+        } else if (docEl.mozRequestFullScreen) { /* Firefox */
+            docEl.mozRequestFullScreen();
+        } else if (docEl.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+            docEl.webkitRequestFullscreen();
+        } else if (docEl.msRequestFullscreen) { /* IE/Edge */
+            docEl.msRequestFullscreen();
+        }
+    }
+    
+    document.addEventListener("DOMContentLoaded", function() {
+        var chromeVersion = getChromeVersion();
+        console.log("Detected Chrome version:", chromeVersion);
+        
+        if (chromeVersion && chromeVersion < 70) {
+            console.log("Chrome version less than 70, forcing fullscreen mode");
+            // Use setTimeout to ensure the browser is ready to handle the fullscreen request
+            setTimeout(function() {
+                requestFullscreenCompat();
+            }, 1000);
+        }
+    });
+})();
+
+document.addEventListener('DOMContentLoaded', function() {
+    var photoContainer = document.getElementById('photoContainer');
+    var fullscreenBtn = document.getElementById('fullscreenBtn');
+    var refreshBtn = document.getElementById('refreshBtn');
+    var prevBtn = document.getElementById('prevBtn');
+    var nextBtn = document.getElementById('nextBtn');
+    var prevPhotoOverlay = document.getElementById('prevPhotoOverlay');
+    var nextPhotoOverlay = document.getElementById('nextPhotoOverlay');
+    var prevArrow = document.getElementById('prevArrow');
+    var nextArrow = document.getElementById('nextArrow');
+    var blurredBackground = document.getElementById('blurredBackground');
+    var frameContainer = document.querySelector('.frame-container');
+    var controls = document.querySelector('.controls');
+    var frameInfo = document.querySelector('.frame-info');
+    
+    // Variables for control visibility timeout
+    var controlsTimeout;
+    var controlsVisible = false;
+    var CONTROLS_TIMEOUT_DURATION = 5000; // 5 seconds
+    
+    // Memory management variables
+    var imageCache = {};
+    var maxCachedImages = 3; // Limit cache size
+    var imageQueue = [];
+    var isLowMemoryMode = false;
+    
+    // Check for low memory conditions
+    function checkMemory() {
+        // Use performance API if available to detect memory pressure
+        if (window.performance && window.performance.memory) {
+            var memoryInfo = window.performance.memory;
+            if (memoryInfo.usedJSHeapSize > memoryInfo.jsHeapSizeLimit * 0.8) {
+                console.warn("High memory usage detected, enabling low memory mode");
+                isLowMemoryMode = true;
+                clearImageCache();
+            } else {
+                isLowMemoryMode = false;
+            }
+        }
+    }
+    
+    // Clear image cache to free memory
+    function clearImageCache() {
+        console.log("Clearing image cache to free memory");
+        imageCache = {};
+        imageQueue = [];
+        
+        // Force garbage collection in Chrome (if possible)
+        if (window.gc) {
+            window.gc();
+        } else if (window.performance && window.performance.memory) {
+            // Try to force garbage collection indirectly
+            var largeArray = new Array(10000000).fill(0);
+            largeArray = null;
+        }
+    }
+    
+    // Function to show controls
+    function showControls() {
+        controls.classList.add('visible');
+        frameInfo.classList.add('visible');
+        prevArrow.classList.add('visible');
+        nextArrow.classList.add('visible');
+        controlsVisible = true;
+        
+        // Clear any existing timeout
+        if (controlsTimeout) {
+            clearTimeout(controlsTimeout);
+        }
+        
+        // Set timeout to hide controls after 5 seconds
+        controlsTimeout = setTimeout(hideControls, CONTROLS_TIMEOUT_DURATION);
+    }
+    
+    // Function to hide controls
+    function hideControls() {
+        controls.classList.remove('visible');
+        frameInfo.classList.remove('visible');
+        prevArrow.classList.remove('visible');
+        nextArrow.classList.remove('visible');
+        controlsVisible = false;
+    }
+    
+    // Show controls on mouse movement
+    frameContainer.addEventListener('mousemove', function() {
+        showControls();
+    });
+    
+    // Show controls on touch
+    frameContainer.addEventListener('touchstart', function() {
+        showControls();
+    });
+    
+    // Show controls initially and start the timeout
+    showControls();
+    
+    // Parse server-provided values safely
+    var nextWakeTimeRaw = "{{ next_wake_time|default('null') }}";
+    var nextWakeTime = nextWakeTimeRaw === "null" ? null : parseFloat(nextWakeTimeRaw);
+    var sleepInterval = parseInt("{{ sleep_interval_ms }}");
+    
+    console.log("Initial values - Next wake time: " + nextWakeTime + ", Sleep interval: " + sleepInterval + "ms (" + sleepInterval/1000/60 + " minutes)");
+    
+    // Server-side timing variables
+    var serverLastWakeTimeRaw = "{{ frame.last_wake_time.timestamp() * 1000 if frame.last_wake_time else 'null' }}";
+    var serverLastWakeTime = serverLastWakeTimeRaw === "null" ? null : parseFloat(serverLastWakeTimeRaw);
+    var serverNextWakeTime = nextWakeTime;
+    var lastServerSync = Date.now();
+    
+    // Deep sleep mode variables
+    var deepSleepEnabled = "{{ frame.deep_sleep_enabled|default(False) }}" === "True";
+    var deepSleepOverlay = document.getElementById('deepSleepOverlay');
+    var deepSleepIcon = document.getElementById('deepSleepIcon');
+    var isInDeepSleep = false;
+    
+    // If nextWakeTime is null or invalid, set it to current time + sleep interval
+    if (!nextWakeTime || isNaN(nextWakeTime) || nextWakeTime <= 0) {
+        nextWakeTime = Date.now() + sleepInterval;
+        console.log("Invalid next wake time, setting to " + new Date(nextWakeTime).toISOString());
+    }
+    
+    // Sanity check: If next wake time is too far in the future, adjust it
+    var now = Date.now();
+    if (nextWakeTime - now > sleepInterval * 1.5) {
+        console.warn("Next wake time (" + new Date(nextWakeTime).toISOString() + ") is too far in the future, adjusting to sleep interval");
+        nextWakeTime = now + sleepInterval;
+    }
+    
+    // Calculate the start time (when the current photo was loaded)
+    var startTime = now - (sleepInterval * 0.1); // Start with 10% progress by default
+    
+    // If we have valid server timestamps, use them to calculate the exact progress
+    if (serverLastWakeTime && serverNextWakeTime) {
+        // Sanity check the server timestamps
+        if (serverNextWakeTime - serverLastWakeTime <= sleepInterval * 1.5) {
+            startTime = serverLastWakeTime;
+            console.log("Using server timestamps: Last wake: " + new Date(serverLastWakeTime).toISOString() + ", Next wake: " + new Date(serverNextWakeTime).toISOString());
+        } else {
+            console.warn("Server timestamps are unreasonable, using default timing");
+        }
+    } else if (nextWakeTime > now) {
+        // Fallback to client-side calculation if server timestamps aren't available
+        startTime = nextWakeTime - sleepInterval;
+        // If the calculated start time is in the future, adjust it
+        if (startTime > now) {
+            startTime = now - (sleepInterval * 0.1);
+        }
+    }
+    
+    console.log("Initial start time: " + new Date(startTime).toISOString());
+    
+    var refreshTimeout;
+    var isNavigating = false; // Flag to prevent multiple navigation requests
+    
+    // Function to update blurred background with memory optimization
+    function updateBlurredBackground() {
+        var currentPhoto = document.getElementById('currentPhoto');
+        if (currentPhoto && currentPhoto.tagName === 'IMG') {
+            // In low memory mode, use a simpler background or none at all
+            if (isLowMemoryMode) {
+                blurredBackground.style.backgroundImage = 'none';
+                blurredBackground.style.backgroundColor = '#000';
+            } else {
+                blurredBackground.style.backgroundImage = "url(" + currentPhoto.src + ")";
+            }
+        } else if (currentPhoto && currentPhoto.tagName === 'VIDEO') {
+            // For videos, use a black background
+            blurredBackground.style.backgroundImage = 'none';
+            blurredBackground.style.backgroundColor = '#000';
+        }
+    }
+    
+    // Initial background setup
+    updateBlurredBackground();
+    
+    // Function to sync with server
+    function syncWithServer(force) {
+        force = force || false;
+        // Avoid unnecessary syncs if we've synced recently (within the last 10 seconds)
+        // But allow forced syncs by passing a 'force' parameter
+        var now = Date.now();
+        if (arguments.length === 0 && now - lastServerSync < 10000) {
+            console.log('Skipping server sync - last sync was less than 10 seconds ago');
+            return Promise.resolve(null);
+        }
+        
+        console.log('Syncing with server...');
+        return fetch("/api/frame/{{ frame.id }}")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    console.error('Error syncing with server:', data.error);
+                    return null;
+                }
+                
+                // Update server timing variables
+                if (data.last_wake_time) {
+                    serverLastWakeTime = new Date(data.last_wake_time).getTime();
+                    console.log("Server last wake time: " + new Date(serverLastWakeTime).toISOString());
+                }
+                
+                if (data.next_wake_time) {
+                    serverNextWakeTime = new Date(data.next_wake_time).getTime();
+                    nextWakeTime = serverNextWakeTime;
+                    console.log("Server next wake time: " + new Date(serverNextWakeTime).toISOString());
+                    
+                    // Update start time based on server data
+                    if (serverLastWakeTime) {
+                        startTime = serverLastWakeTime;
+                    } else {
+                        startTime = serverNextWakeTime - sleepInterval;
+                        // If the calculated start time is in the future, adjust it
+                        var now = Date.now();
+                        if (startTime > now) {
+                            startTime = now - (sleepInterval * 0.1);
+                        }
+                    }
+                    
+                    // If the current photo has changed, update it
+                    // But only if we're not currently navigating (to avoid double updates)
+                    if (data.current_photo && data.current_photo !== getCurrentPhotoFilename() && !isNavigating) {
+                        console.log('Photo changed on server, updating...');
+                        updatePhoto(data.current_photo);
+                    }
+                    
+                    // Check deep sleep status if enabled
+                    if (deepSleepEnabled && data.deep_sleep_status !== undefined) {
+                        updateDeepSleepStatus(data.deep_sleep_status);
+                    }
+                    
+                    // Reschedule the next refresh based on server timing
+                    scheduleNextRefresh();
+                }
+                
+                lastServerSync = Date.now();
+                console.log("Synced with server. Next wake: " + new Date(nextWakeTime).toISOString() + ", Start time: " + new Date(startTime).toISOString());
+                return data;
+            })
+            .catch(function(error) {
+                console.error('Error syncing with server:', error);
+                return null;
+            });
+    }
+    
+    // Function to update deep sleep status
+    function updateDeepSleepStatus(isDeepSleep) {
+        if (isDeepSleep === isInDeepSleep) {
+            return; // No change needed
+        }
+        
+        isInDeepSleep = isDeepSleep;
+        console.log("Deep sleep status changed to: " + isDeepSleep);
+        
+        if (isDeepSleep) {
+            // Activate deep sleep mode
+            deepSleepOverlay.classList.add('active');
+            deepSleepIcon.classList.add('active');
+        } else {
+            // Deactivate deep sleep mode
+            deepSleepOverlay.classList.remove('active');
+            deepSleepIcon.classList.remove('active');
+        }
+    }
+    
+    // Get the filename of the current photo
+    function getCurrentPhotoFilename() {
+        var currentPhoto = document.getElementById('currentPhoto');
+        if (!currentPhoto) return null;
+        
+        if (currentPhoto.tagName === 'IMG') {
+            var src = currentPhoto.src;
+            // Extract just the filename without path or query parameters
+            var filename = src.split('/').pop().split('?')[0];
+            return filename;
+        } else if (currentPhoto.tagName === 'VIDEO') {
+            var source = currentPhoto.querySelector('source');
+            if (source) {
+                var src = source.src;
+                // Extract just the filename without path or query parameters
+                var filename = src.split('/').pop().split('?')[0];
+                return filename;
+            }
+        }
+        return null;
+    }
+    
+    // Function to toggle fullscreen
+    fullscreenBtn.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(function(err) {
+                console.error("Error attempting to enable fullscreen: " + err.message);
+            });
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+                fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+            }
+        }
+    });
+    
+    // Function to navigate to previous photo
+    function navigateToPrevPhoto() {
+        if (isNavigating) return;
+        isNavigating = true;
+        
+        fetch("/api/frame/{{ frame.id }}/prev")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    console.error('Error navigating to previous photo:', data.error);
+                    isNavigating = false;
+                    return;
+                }
+                
+                updatePhoto(data.current_photo);
+                
+                // Update server timing variables
+                if (data.next_wake_time) {
+                    serverNextWakeTime = new Date(data.next_wake_time).getTime();
+                    
+                    // Sanity check: If next wake time is too far in the future, adjust it
+                    var now = Date.now();
+                    if (serverNextWakeTime - now > sleepInterval * 1.5) {
+                        console.warn("Server next wake time (" + new Date(serverNextWakeTime).toISOString() + ") is too far in the future, adjusting to sleep interval");
+                        serverNextWakeTime = now + sleepInterval;
+                    }
+                    
+                    nextWakeTime = serverNextWakeTime;
+                    serverLastWakeTime = now;
+                    startTime = now;
+                    
+                    scheduleNextRefresh();
+                }
+                
+                // Update last sync time to prevent immediate re-sync
+                lastServerSync = Date.now();
+                
+                // Set a timeout before allowing navigation again
+                setTimeout(function() {
+                    isNavigating = false;
+                }, 2000);
+                
+                // Only do one sync after a delay to help other instances catch up
+                // but avoid multiple syncs that could cause double loading
+                setTimeout(function() { 
+                    syncWithServer(true); 
+                }, 3000);
+            })
+            .catch(function(error) {
+                console.error('Error navigating to previous photo:', error);
+                isNavigating = false;
+            });
+    }
+    
+    // Function to navigate to next photo
+    function navigateToNextPhoto() {
+        if (isNavigating) return;
+        isNavigating = true;
+        
+        fetch("/api/frame/{{ frame.id }}/next")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    console.error('Error navigating to next photo:', data.error);
+                    isNavigating = false;
+                    return;
+                }
+                
+                updatePhoto(data.current_photo);
+                
+                // Update server timing variables
+                if (data.next_wake_time) {
+                    serverNextWakeTime = new Date(data.next_wake_time).getTime();
+                    
+                    // Sanity check: If next wake time is too far in the future, adjust it
+                    var now = Date.now();
+                    if (serverNextWakeTime - now > sleepInterval * 1.5) {
+                        console.warn("Server next wake time (" + new Date(serverNextWakeTime).toISOString() + ") is too far in the future, adjusting to sleep interval");
+                        serverNextWakeTime = now + sleepInterval;
+                    }
+                    
+                    nextWakeTime = serverNextWakeTime;
+                    serverLastWakeTime = now;
+                    startTime = now;
+                    
+                    scheduleNextRefresh();
+                }
+                
+                // Update last sync time to prevent immediate re-sync
+                lastServerSync = Date.now();
+                
+                // Set a timeout before allowing navigation again
+                setTimeout(function() {
+                    isNavigating = false;
+                }, 2000);
+                
+                // Only do one sync after a delay to help other instances catch up
+                // but avoid multiple syncs that could cause double loading
+                setTimeout(function() { 
+                    syncWithServer(true); 
+                }, 3000);
+            })
+            .catch(function(error) {
+                console.error('Error navigating to next photo:', error);
+                isNavigating = false;
+            });
+    }
+    
+    // Function to update the displayed photo with memory optimization
+    function updatePhoto(photoFilename) {
+        if (!photoFilename) {
+            console.warn("Attempted to update photo with null or empty filename");
+            return;
+        }
+        
+        // Check if this is the same photo we're already displaying
+        var currentFilename = getCurrentPhotoFilename();
+        if (currentFilename) {
+            // Extract just the filename from photoFilename if it contains a path
+            var newFilename = photoFilename;
+            if (photoFilename.includes('/')) {
+                newFilename = photoFilename.split('/').pop().split('?')[0];
+            }
+            
+            if (currentFilename === newFilename) {
+                console.log("Photo is already displayed, skipping update: " + newFilename);
+                return;
+            }
+        }
+        
+        console.log("Updating photo to: " + photoFilename);
+        
+        var currentPhoto = document.getElementById('currentPhoto');
+        if (currentPhoto) {
+            // Start fade out
+            currentPhoto.classList.add('fade-out');
+            
+            // After fade out completes, update the source and fade back in
+            setTimeout(function() {
+                // Ensure the photoFilename has the correct path
+                // If it already starts with "/photos/", use it as is, otherwise prepend "/photos/"
+                var photoPath = photoFilename.startsWith('/photos/') ? photoFilename : "/photos/" + photoFilename;
+                
+                // Check if it's a video or image
+                if (photoFilename.endsWith('.mp4') || photoFilename.endsWith('.mov')) {
+                    // Create new video element
+                    var newVideo = document.createElement('video');
+                    newVideo.className = 'photo fade-out';
+                    newVideo.id = 'currentPhoto';
+                    newVideo.autoplay = true;
+                    newVideo.loop = true;
+                    newVideo.muted = true;
+                    
+                    var source = document.createElement('source');
+                    source.src = photoPath;
+                    source.type = 'video/mp4';
+                    
+                    newVideo.appendChild(source);
+                    
+                    // Replace old element
+                    currentPhoto.parentNode.replaceChild(newVideo, currentPhoto);
+                    
+                    // Set black background for videos
+                    blurredBackground.style.backgroundImage = 'none';
+                    
+                    // Fade in after a short delay
+                    setTimeout(function() {
+                        newVideo.classList.remove('fade-out');
+                    }, 50);
+                    
+                    // Memory optimization for videos
+                    newVideo.addEventListener('loadeddata', function() {
+                        // Reduce video quality for low memory mode
+                        if (isLowMemoryMode && newVideo.videoHeight > 720) {
+                            newVideo.style.maxHeight = '720px';
+                        }
+                        checkMemory();
+                    });
+                    
+                    console.log("Video updated successfully: " + photoPath);
+                } else {
+                    // Create new image element
+                    var newImage = document.createElement('img');
+                    newImage.className = 'photo fade-out';
+                    newImage.id = 'currentPhoto';
+                    newImage.src = photoPath;
+                    newImage.alt = '{{ frame.name }} - Current Photo';
+                    
+                    // Replace old element
+                    currentPhoto.parentNode.replaceChild(newImage, currentPhoto);
+                    
+                    // Update blurred background when image loads
+                    newImage.onload = function() {
+                        blurredBackground.style.backgroundImage = "url(" + newImage.src + ")";
+                        console.log("Image loaded and background updated: " + photoPath);
+                    };
+                    
+                    // Fade in after a short delay
+                    setTimeout(function() {
+                        newImage.classList.remove('fade-out');
+                    }, 50);
+                    
+                    // Memory optimization for images
+                    newImage.onload = function() {
+                        // Update blurred background
+                        updateBlurredBackground();
+                        
+                        // Cache management
+                        if (!isLowMemoryMode) {
+                            cacheImage(photoPath, newImage);
+                        }
+                        
+                        checkMemory();
+                        console.log("Image loaded and background updated: " + photoPath);
+                    };
+                    
+                    console.log("Image update initiated: " + photoPath);
+                }
+            }, 1000); // Match the CSS transition duration
+            
+            // Remove old elements that are no longer in view
+            setTimeout(function() {
+                var oldElements = document.querySelectorAll('.photo.fade-out');
+                oldElements.forEach(function(element) {
+                    if (element.id !== 'currentPhoto') {
+                        element.parentNode.removeChild(element);
+                    }
+                });
+            }, 2000);
+        }
+    }
+    
+    // Image caching with LRU (Least Recently Used) strategy
+    function cacheImage(path, img) {
+        // Don't cache in low memory mode
+        if (isLowMemoryMode) return;
+        
+        // If we already have this image cached, move it to the front of the queue
+        if (imageCache[path]) {
+            var index = imageQueue.indexOf(path);
+            if (index > -1) {
+                imageQueue.splice(index, 1);
+            }
+            imageQueue.unshift(path);
+            return;
+        }
+        
+        // Add to cache
+        imageCache[path] = img.src;
+        imageQueue.unshift(path);
+        
+        // Remove oldest items if cache is too large
+        while (imageQueue.length > maxCachedImages) {
+            var oldestPath = imageQueue.pop();
+            delete imageCache[oldestPath];
+        }
+    }
+    
+    // Preload next image if not in low memory mode
+    function preloadNextImage() {
+        if (isLowMemoryMode) return;
+        
+        fetch("/api/frame/{{ frame.id }}/peek_next")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.next_photo && !data.next_photo.endsWith('.mp4') && !data.next_photo.endsWith('.mov')) {
+                    var photoPath = data.next_photo.startsWith('/photos/') ? data.next_photo : "/photos/" + data.next_photo;
+                    
+                    // Only preload if not already cached
+                    if (!imageCache[photoPath]) {
+                        var preloadImg = new Image();
+                        preloadImg.src = photoPath;
+                        console.log("Preloading next image: " + photoPath);
+                    }
+                }
+            })
+            .catch(function(error) {
+                console.error('Error preloading next image:', error);
+            });
+    }
+    
+    // Function to refresh the frame with memory optimization
+    function refreshFrame() {
+        fetch("/api/frame/{{ frame.id }}")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    console.error('Error fetching frame data:', data.error);
+                    return;
+                }
+                
+                // Update the current photo with fade effect
+                if (data.current_photo) {
+                    updatePhoto(data.current_photo);
+                }
+                
+                // Update server timing variables
+                if (data.last_wake_time) {
+                    serverLastWakeTime = new Date(data.last_wake_time).getTime();
+                }
+                
+                if (data.next_wake_time) {
+                    serverNextWakeTime = new Date(data.next_wake_time).getTime();
+                    
+                    // Sanity check: If next wake time is too far in the future, adjust it
+                    var now = Date.now();
+                    if (serverNextWakeTime - now > sleepInterval * 1.5) {
+                        console.warn("Server next wake time (" + new Date(serverNextWakeTime).toISOString() + ") is too far in the future, adjusting to sleep interval");
+                        serverNextWakeTime = now + sleepInterval;
+                    }
+                    
+                    nextWakeTime = serverNextWakeTime;
+                    
+                    // Update start time based on server data or reasonable defaults
+                    if (serverLastWakeTime && serverNextWakeTime - serverLastWakeTime <= sleepInterval * 1.5) {
+                        startTime = serverLastWakeTime;
+                    } else {
+                        // If server timestamps are unreasonable, calculate based on sleep interval
+                        startTime = now - (sleepInterval * 0.1); // 10% progress
+                    }
+                    
+                    scheduleNextRefresh();
+                } else {
+                    // If no next wake time is provided, use sleep interval
+                    nextWakeTime = now + sleepInterval;
+                    startTime = now;
+                    scheduleNextRefresh();
+                }
+                
+                lastServerSync = Date.now();
+                console.log("Refreshed frame. Next wake: " + new Date(nextWakeTime).toISOString() + ", Start time: " + new Date(startTime).toISOString());
+                
+                // Check memory after loading new content
+                setTimeout(checkMemory, 1000);
+                
+                // Preload next image if not in low memory mode
+                if (!isLowMemoryMode) {
+                    setTimeout(preloadNextImage, 5000);
+                }
+            })
+            .catch(function(error) {
+                console.error('Error refreshing frame:', error);
+            });
+    }
+    
+    // Schedule the next refresh
+    function scheduleNextRefresh() {
+        if (refreshTimeout) {
+            clearTimeout(refreshTimeout);
+        }
+        
+        var now = Date.now();
+        var delay = nextWakeTime - now;
+        
+        // If the next wake time is in the past or too far in the future, use the sleep interval
+        if (delay < 0 || delay > sleepInterval * 1.5) {
+            console.warn("Invalid delay (" + delay/1000 + "s), using sleep interval (" + sleepInterval/1000 + "s)");
+            delay = sleepInterval;
+            nextWakeTime = now + sleepInterval;
+            
+            // Also sync with server to get the correct timing
+            syncWithServer();
+        }
+        
+        console.log("Scheduling next refresh in " + delay/1000 + " seconds");
+        refreshTimeout = setTimeout(refreshFrame, delay);
+    }
+    
+    // Function to check frame status and force transition if needed
+    function checkFrameStatus() {
+        // Avoid unnecessary status checks if we've checked recently or if we're navigating
+        var now = Date.now();
+        if (now - lastServerSync < 10000 || isNavigating) {
+            console.log('Skipping frame status check - ' + (isNavigating ? 'navigation in progress' : 'synced with server recently'));
+            return;
+        }
+        
+        fetch("/api/frame/{{ frame.id }}/status")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                console.log("Frame status:", data);
+                lastServerSync = now; // Update last sync time
+                
+                // Check deep sleep status if enabled
+                if (deepSleepEnabled && data.deep_sleep_status !== undefined) {
+                    updateDeepSleepStatus(data.deep_sleep_status);
+                }
+                
+                // If the server forced a transition, update our UI
+                if (data.forced_transition && data.transition_result && data.transition_result.current_photo) {
+                    console.log("Server forced a transition, updating UI");
+                    updatePhoto(data.transition_result.current_photo);
+                    
+                    // Update timing variables
+                    if (data.transition_result.next_wake_time) {
+                        serverNextWakeTime = new Date(data.transition_result.next_wake_time).getTime();
+                        nextWakeTime = serverNextWakeTime;
+                    }
+                    
+                    if (data.transition_result.last_wake_time) {
+                        serverLastWakeTime = new Date(data.transition_result.last_wake_time).getTime();
+                        startTime = serverLastWakeTime;
+                    }
+                    
+                    // Reschedule
+                    scheduleNextRefresh();
+                } else if (data.needs_transition && !isNavigating) {
+                    // If the server says it needs transition but didn't force one, try navigating to next photo
+                    // But only if we're not already navigating
+                    console.warn("Server says frame needs transition but didn't force one, trying client-side navigation");
+                    navigateToNextPhoto();
+                }
+            })
+            .catch(function(error) {
+                console.error("Error checking frame status:", error);
+                // As a last resort, try client-side navigation, but only if not already navigating
+                if (!isNavigating) {
+                    navigateToNextPhoto();
+                }
+            });
+    }
+    
+    // Event listeners for navigation
+    prevBtn.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        navigateToPrevPhoto();
+    });
+    
+    nextBtn.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        navigateToNextPhoto();
+    });
+    
+    prevPhotoOverlay.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        navigateToPrevPhoto();
+    });
+    
+    nextPhotoOverlay.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        navigateToNextPhoto();
+    });
+    
+    prevArrow.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        navigateToPrevPhoto();
+    });
+    
+    nextArrow.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        navigateToNextPhoto();
+    });
+    
+    // Manual refresh button
+    refreshBtn.addEventListener('click', function() {
+        showControls(); // Reset the timeout
+        refreshFrame();
+    });
+    
+    // Keyboard navigation
+    document.addEventListener('keydown', function(event) {
+        showControls(); // Reset the timeout
+        if (event.key === 'ArrowLeft') {
+            navigateToPrevPhoto();
+        } else if (event.key === 'ArrowRight') {
+            navigateToNextPhoto();
+        }
+    });
+    
+    // Initial schedule
+    scheduleNextRefresh();
+    
+    // Set up periodic sync with server (every 10 seconds for better synchronization)
+    setInterval(syncWithServer, 10000);
+    
+    // Check deep sleep status on page load if enabled
+    if (deepSleepEnabled) {
+        // Initial check for deep sleep status
+        fetch("/api/frame/{{ frame.id }}/status")
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.deep_sleep_status !== undefined) {
+                    updateDeepSleepStatus(data.deep_sleep_status);
+                }
+            })
+            .catch(function(error) {
+                console.error("Error checking initial deep sleep status:", error);
+            });
+        
+        // Set up periodic check for deep sleep status (every 30 seconds)
+        setInterval(function() {
+            if (!isNavigating) {
+                fetch("/api/frame/{{ frame.id }}/status")
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.deep_sleep_status !== undefined) {
+                            updateDeepSleepStatus(data.deep_sleep_status);
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error("Error checking deep sleep status:", error);
+                    });
+            }
+        }, 30000);
+    }
+    
+    // Handle document visibility changes
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            // Show controls when tab becomes visible
+            showControls();
+            
+            // When tab becomes visible again, sync with server
+            // But only if it's been at least 10 seconds since the last sync
+            var now = Date.now();
+            if (now - lastServerSync > 10000) {
+                console.log('Tab became visible, syncing with server...');
+                syncWithServer();
+            } else {
+                console.log('Tab became visible, but skipping sync (synced recently)');
+            }
+        } else {
+            // Clear image cache when tab is not visible
+            clearImageCache();
+        }
+    });
+    
+    // If we've passed the next wake time, check if we need to sync with server
+    // Only sync if we're significantly past the wake time (5 seconds) to avoid unnecessary syncs
+    setInterval(function() {
+        var now = Date.now();
+        var timeRemaining = nextWakeTime - now;
+        
+        if (timeRemaining < -5000) {
+            // If it's been more than 10 seconds since our last sync, sync with server
+            if (now - lastServerSync > 10000) {
+                console.log("Wake time passed by 5+ seconds, syncing with server...");
+                syncWithServer();
+            }
+            
+            // If we're more than 10 seconds past the wake time and the server hasn't updated,
+            // force a client-side transition as a fallback
+            if (timeRemaining < -10000) {
+                console.warn("Server transition appears to have failed, forcing client-side transition");
+                // Check frame status first to see if server needs to be nudged
+                checkFrameStatus();
+            }
+        }
+    }, 5000); // Check every 5 seconds
+    
+    // Periodically check memory status
+    setInterval(checkMemory, 30000);
+    
+    // Listen for memory pressure events if supported
+    if ('onmemorypressure' in window) {
+        window.addEventListener('memorypressure', function(e) {
+            console.warn("Memory pressure event detected: " + e.pressure);
+            isLowMemoryMode = true;
+            clearImageCache();
+        });
+    }
+});
+</script>
+{% endblock %} 

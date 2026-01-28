@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.env
+
+# Docker
+docker/Dockerfile
+docker/docker-compose.yml
+docker/.dockerignore
+
+# Application data
+uploads/*
+logs/*
+credentials/*
+app.db
+
+# Other
+.DS_Store
+.cursor/
+*.swp
+*.swo 

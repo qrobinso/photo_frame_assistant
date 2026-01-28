@@ -1,0 +1,745 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .photo-thumbnail {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+    
+    /* Responsive table styles */
+    @media (max-width: 768px) {
+        .table-responsive {
+            display: block;
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Stack buttons on mobile */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .btn {
+            width: 100%;
+            margin: 0 !important;
+        }
+    }
+    
+    /* Constrain table width */
+    .table {
+        width: auto;
+        min-width: 100%;
+    }
+    
+    /* Ensure consistent column widths */
+    .col-name {
+        min-width: 120px;
+    }
+    
+    .col-sleep {
+        width: 100px;
+    }
+    
+    .col-next {
+        width: 80px;
+    }
+    
+    .col-wake {
+        width: 120px;
+    }
+    
+    .col-actions {
+        width: 160px;
+    }
+    
+    .photo-display {
+        margin: -10px;  /* Compensate for row gutters */
+    }
+    
+    .matted-frame {
+        display: inline-block;
+        padding: 12px;
+        background: black;
+        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+    
+    .photo-container {
+        padding: 25px;
+        background: white;
+        line-height: 0;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 576px) {
+        .matted-frame {
+            padding: 8px;
+        }
+        
+        .photo-container {
+            padding: 15px;
+        }
+        
+        .col-6 {
+            padding: 5px;
+        }
+        
+        img.thumbnail {
+            max-height: 120px !important;  /* Smaller images on mobile */
+        }
+    }
+    
+    /* For very small screens */
+    @media (max-width: 350px) {
+        .col-6 {
+            flex: 0 0 100%;  /* Stack photos vertically */
+            max-width: 100%;
+        }
+    }
+    
+    /* Ensure cards have consistent width */
+    .card {
+        height: 100%;
+    }
+    
+    .card-body {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .btn-group {
+        margin-top: auto;
+    }
+    
+    /* Add highlight animation for rediscovered frames */
+    @keyframes highlightFrame {
+        0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+    }
+
+    .frame-highlight {
+        animation: highlightFrame 1s ease-in-out;
+    }
+    
+    .status-dot {
+        font-size: 1.2em;
+        line-height: 1;
+        margin-left: 8px;
+    }
+    .status-text {
+        font-size: 0.8em;
+        margin-left: 4px;
+    }
+    
+    .bg-purple {
+        background-color: #6f42c1;
+    }
+    
+    .badge {
+        display: inline-block;
+        margin-top: 4px;
+        margin-bottom: 4px;
+        padding: 4px 8px;
+        font-size: 0.875em;
+    }
+    
+    .badge:hover {
+        opacity: 0.9;
+    }
+    
+    /* Add to existing styles */
+    .frame-card {
+        touch-action: auto;
+        -webkit-user-select: none;  /* Safari */
+        -moz-user-select: none;     /* Firefox */
+        -ms-user-select: none;      /* IE/Edge */
+        user-select: none;          /* Standard syntax */
+    }
+    
+    .drag-handle {
+        color: #666;
+        padding: 10px;
+        margin: -10px 5px -10px -10px;
+        cursor: grab;
+        touch-action: none;
+        /* Prevent text selection specifically on handle */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+    
+    /* When dragging is happening anywhere in the container */
+    .sortable-in-progress {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        cursor: grabbing;
+    }
+    
+    .sortable-ghost {
+        opacity: 0.5;
+        background: #f8f9fa;
+    }
+    
+    .sortable-drag {
+        cursor: grabbing;
+    }
+    
+    /* Make handle more prominent on mobile */
+    @media (max-width: 768px) {
+        .drag-handle {
+            padding: 15px; /* Larger touch target on mobile */
+        }
+        
+        .drag-handle i {
+            font-size: 1.2em; /* Larger icon on mobile */
+        }
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<!-- Add JavaScript for frame discovery -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const discoverBtn = document.getElementById('discoverFramesBtn');
+    const notifications = document.getElementById('discoveryNotifications');
+    const discoveredList = document.getElementById('discoveredFramesList');
+    const manualAddBtn = document.getElementById('manualAddBtn');
+    let discoveryInterval;
+
+    // Handle frame type selection
+    const physicalFrameRadio = document.getElementById('physicalFrame');
+    const virtualFrameRadio = document.getElementById('virtualFrame');
+    const deviceIdField = document.getElementById('deviceIdField');
+    const deviceIdInput = document.getElementById('device_id');
+    
+    if (physicalFrameRadio && virtualFrameRadio) {
+        physicalFrameRadio.addEventListener('change', function() {
+            if (this.checked) {
+                deviceIdField.style.display = 'block';
+                deviceIdInput.setAttribute('required', 'required');
+            }
+        });
+        
+        virtualFrameRadio.addEventListener('change', function() {
+            if (this.checked) {
+                deviceIdField.style.display = 'block';
+                deviceIdInput.removeAttribute('required');
+            }
+        });
+    }
+
+    function highlightFrame(frameId) {
+        const frameElement = document.querySelector(`[data-frame-id="${frameId}"] .card`);
+        if (frameElement) {
+            frameElement.classList.add('frame-highlight');
+            setTimeout(() => {
+                frameElement.classList.remove('frame-highlight');
+            }, 1000);
+        }
+    }
+
+    function checkForNewFrames() {
+        fetch('/api/discovered_frames')
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(frame => {
+                    const frameId = frame.device_id;
+                    const existingFrame = document.querySelector(`[data-frame-id="${frameId}"]`);
+                    
+                    if (existingFrame) {
+                        // Frame exists - highlight it
+                        highlightFrame(frameId);
+                    } else {
+                        // New frame discovered - add to list
+                        const frameItem = document.createElement('div');
+                        frameItem.className = 'mt-1';
+                        frameItem.innerHTML = `
+                            <small>📡 Found new frame: ${frame.device_id} 
+                            <button class="btn btn-sm btn-outline-success" onclick="addDiscoveredFrame('${frame.device_id}')">
+                                Add Frame
+                            </button></small>
+                        `;
+                        discoveredList.appendChild(frameItem);
+                    }
+                });
+            })
+            .catch(error => console.error('Error checking for frames:', error));
+    }
+
+    discoverBtn.addEventListener('click', function() {
+        // Reset discovery state
+        discoveredList.innerHTML = '';
+        notifications.style.display = 'block';
+        
+        // Restart discovery service
+        fetch('/api/restart_discovery', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Start checking for new frames
+                    clearInterval(discoveryInterval);
+                    discoveryInterval = setInterval(checkForNewFrames, 2000);
+                    
+                    // Stop checking after 30 seconds
+                    setTimeout(() => {
+                        clearInterval(discoveryInterval);
+                        notifications.style.display = 'none';
+                    }, 30000);
+                }
+            })
+            .catch(error => {
+                console.error('Error restarting discovery:', error);
+            });
+    });
+
+    // Function to update frame status and photos
+    function updateFrames() {
+        const frames = document.querySelectorAll('[data-frame-id]');
+        
+        frames.forEach(frameElement => {
+            const frameId = frameElement.dataset.frameId;
+            
+            // Fetch frame status and photos
+            fetch(`/api/frame/${frameId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return;
+                    
+                    // Update status
+                    const statusContainer = frameElement.querySelector('.status-container');
+                    if (statusContainer) {
+                        const status = data.status;
+                        statusContainer.innerHTML = `
+                            <span class="status-dot" title="${status[1]}" style="color: ${status[2]}">●</span>
+                            <span class="status-text" style="color: ${status[2]}">${status[1]}</span>
+                        `;
+                    }
+                    
+                    // Update current photo
+                    if (data.current_photo) {
+                        const currentPhotoImg = frameElement.querySelector('.current-photo');
+                        if (currentPhotoImg) {
+                            currentPhotoImg.src = `/photos/thumbnails/thumb_${data.current_photo}`;
+                            currentPhotoImg.onerror = function() {
+                                this.onerror = null;
+                                this.src = `/photos/${data.current_photo}`;
+                            };
+                        }
+                    }
+                    
+                    // Update next photo
+                    if (data.next_photo) {
+                        const nextPhotoImg = frameElement.querySelector('.next-photo');
+                        if (nextPhotoImg) {
+                            nextPhotoImg.src = `/photos/thumbnails/thumb_${data.next_photo}`;
+                            nextPhotoImg.onerror = function() {
+                                this.onerror = null;
+                                this.src = `/photos/${data.next_photo}`;
+                            };
+                        }
+                    }
+                    
+                    // Update last seen time
+                    const lastSeenElement = frameElement.querySelector('.last-seen');
+                    if (lastSeenElement && data.last_wake_time) {
+                        lastSeenElement.textContent = `Last seen: ${new Date(data.last_wake_time).toLocaleString()}`;
+                    }
+                })
+                .catch(error => console.error('Error updating frame:', error));
+        });
+    }
+    
+    // Update frames every 10 seconds
+    setInterval(updateFrames, 10000);
+    
+    // Initial update
+    updateFrames();
+});
+
+// Function to add discovered frame
+function addDiscoveredFrame(deviceId) {
+    const formData = new FormData();
+    formData.append('device_id', deviceId);
+    formData.append('name', `Frame ${deviceId}`);
+    formData.append('sleep_interval', '5');
+    formData.append('frame_type', 'physical');
+
+    fetch('', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(() => {
+        // Reload the page to show the new frame
+        window.location.reload();
+    })
+    .catch(error => console.error('Error adding frame:', error));
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Manage Frames</h1>
+        <div>
+            <!-- Add discovery button -->
+            <button type="button" class="btn btn-secondary me-2" id="discoverFramesBtn">
+                <i class="fas fa-sync"></i> Start Discovery
+            </button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFrameModal" id="manualAddBtn">
+                <i class="fas fa-plus"></i> Add Frame
+            </button>
+        </div>
+    </div>
+
+    <!-- Add notification area -->
+    <div id="discoveryNotifications" class="mb-4" style="display: none;">
+        <div class="alert alert-info">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Discovering...</span>
+                </div>
+                <span>Discovering frames...</span>
+            </div>
+            <div id="discoveredFramesList" class="mt-2">
+            </div>
+        </div>
+    </div>
+
+    <!-- Existing frames row -->
+    <div class="row" id="framesContainer">
+        {% if frames %}
+            {% for frame in frames %}
+            <div class="col-md-4 mb-4" data-frame-id="{{ frame.id }}">
+                <div class="card frame-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="drag-handle" role="button" aria-label="Drag to reorder">
+                                <i class="fas fa-grip-vertical"></i>
+                            </span>
+                            <h5 class="card-title mb-0">
+                                <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="text-dark text-decoration-none">
+                                    {{ frame.name or frame.id }}
+                                </a>
+                            </h5>
+                        </div>
+                        
+                        <!-- Photos Display -->
+                        <div class="photo-display mb-3">
+                            <div class="row g-2">
+                                <!-- Currently Displaying -->
+                                <div class="col-6">
+                                    <div class="text-center mb-2">
+                                        <span class="text-muted">On Display</span>
+                                    </div>
+                                    {% if frame.current_photo_id %}
+                                        {% set current_photo = Photo.query.get(frame.current_photo_id) %}
+                                        {% if current_photo %}
+                                            <div class="text-center">
+                                                <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="text-decoration-none">
+                                                    <div class="matted-frame">
+                                                        <div class="photo-container">
+                                                            {% if current_photo.media_type == 'video' %}
+                                                                <video class="img-fluid thumbnail current-photo" 
+                                                                       autoplay="true"
+                                                                       muted
+                                                                       preload="metadata"
+                                                                       style="max-height: 150px; width: auto; height: calc(150px * ({{ frame.aspect_ratio or 1 }}));">
+                                                                    <source src="{{ url_for('serve_photo', filename=current_photo.filename) }}" type="video/mp4">
+                                                                    Your browser does not support the video tag.
+                                                                </video>
+                                                            {% else %}
+                                                                <img src="{{ url_for('serve_thumbnail', filename=current_photo.filename.replace('thumb_', '')) }}" 
+                                                                     onerror="this.onerror=null; this.src='{{ url_for('serve_photo', filename=current_photo.filename) }}'"
+                                                                     class="img-fluid thumbnail current-photo" 
+                                                                     alt="Current photo"
+                                                                     style="max-height: 150px; width: auto; height: calc(150px * ({{ frame.aspect_ratio or 1 }}));">
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        {% else %}
+                                            <div class="text-center">
+                                                <div class="matted-frame">
+                                                    <div class="photo-container">
+                                                        <img src="{{ url_for('static', filename='images/placeholder-portrait.png') }}" 
+                                                             class="img-fluid" 
+                                                             alt="No photo"
+                                                             style="max-height: 150px; width: auto;">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="text-center">
+                                            <div class="matted-frame">
+                                                <div class="photo-container">
+                                                    <img src="{{ url_for('static', filename='images/placeholder-portrait.png') }}" 
+                                                         class="img-fluid" 
+                                                         alt="No photo"
+                                                         style="max-height: 150px; width: auto;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Next Up -->
+                                <div class="col-6">
+                                    <div class="text-center mb-2">
+                                        <span class="text-muted">Next Up</span>
+                                    </div>
+                                    {% if frame.shuffle_enabled %}
+                                        <div class="text-center">
+                                            <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="text-decoration-none">
+                                                <div class="matted-frame">
+                                                    <div class="photo-container">
+                                                        <img src="{{ url_for('static', filename='images/shuffle.png') }}" 
+                                                             class="img-fluid" 
+                                                             alt="Shuffle enabled"
+                                                             style="max-height: 150px; width: auto;">
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    {% else %}
+                                        {% set next_photo = get_current_photo(frame.id) %}
+                                        {% if next_photo %}
+                                            <div class="text-center">
+                                                <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="text-decoration-none">
+                                                    <div class="matted-frame">
+                                                        <div class="photo-container">
+                                                            {% if next_photo.media_type == 'video' %}
+                                                                <video class="img-fluid thumbnail next-photo" 
+                                                                       autoplay="true"
+                                                                       muted
+                                                                       preload="metadata"
+                                                                       style="max-height: 150px; width: auto; object-fit: contain;">
+                                                                    <source src="{{ url_for('serve_photo', filename=next_photo.filename) }}" type="video/mp4">
+                                                                    Your browser does not support the video tag.
+                                                                </video>
+                                                            {% else %}
+                                                                <img src="{{ url_for('serve_thumbnail', filename=next_photo.filename) }}" 
+                                                                     onerror="this.onerror=null; this.src='{{ url_for('serve_photo', filename=next_photo.filename) }}'"
+                                                                     class="img-fluid thumbnail next-photo" 
+                                                                     alt="Next photo"
+                                                                     style="max-height: 150px; width: auto; object-fit: contain;">
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Online Status -->
+                        <div class="d-flex align-items-center mb-3 status-container">
+                            <span class="text-muted me-2">Status:</span>
+                            {% set status = frame.get_status(now) %}
+                            <span class="status-dot" title="{{ status[1] }}" style="color: {{ status[2] }}">●</span>
+                            <span class="status-text" style="color: {{ status[2] }}">{{ status[1] }}</span>
+                        </div>
+                        
+                        <!-- Frame Details -->
+                        <p class="card-text">
+                            {% if frame.sync_group %}
+                            <a href="{{ url_for('manage_sync_groups') }}" class="badge bg-purple text-decoration-none">
+                                {{ frame.sync_group.name }}
+                            </a><br>
+                            {% endif %}                    
+                            <small class="text-muted">ID: {{ frame.id }}</small><br>
+                            <small class="text-muted">Sleep Interval: {{ frame.sleep_interval }} minutes</small><br>
+                            {% if frame.deep_sleep_enabled %}
+                                <small class="text-muted">Deep Sleep: Enabled</small><br>
+                            {% endif %}
+                            <small class="text-muted">Orientation: {{ frame.orientation }}</small><br>
+                            {% if frame.frame_type == 'virtual' %}
+                                <small class="text-muted">Type: Virtual Frame</small><br>
+                                <small><a href="/frame/{{ frame.id }}" target="_blank" class="text-decoration-none">
+                                    <i class="fas fa-external-link-alt"></i> Open Frame
+                                </a></small><br>
+                            {% else %}
+                                <small class="text-muted">Type: Physical Frame</small><br>
+                            {% endif %}
+                            {% if frame.last_wake_time %}
+                                <small class="text-muted">Last Seen: {{ frame.last_wake_relative }}</small><br>
+                                <small class="text-muted">Next Wake: {{ frame.next_wake_relative }}</small>
+                            {% endif %}
+                        </p>
+
+                        <!-- Action Buttons -->
+                        <div class="btn-group">
+                            <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" 
+                               class="btn btn-primary btn-sm">Edit Playlist</a>
+                            <a href="{{ url_for('edit_frame_settings', frame_id=frame.id) }}" 
+                               class="btn btn-secondary btn-sm">Settings</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="card shadow-sm p-4 text-center">
+                    <div class="py-5">
+                        <i class="fas fa-image fa-4x mb-3 text-muted"></i>
+                        <h3>No Frames Added Yet</h3>
+                        <p class="text-muted mb-4">Get started by adding your first Photo Frame Assistant compatible device.</p>
+                        <div class="d-flex justify-content-center gap-2">
+                            <button type="button" class="btn btn-secondary me-2" id="emptyStateDiscoverBtn">
+                                <i class="fas fa-sync"></i> Discover Frames
+                            </button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFrameModal">
+                                <i class="fas fa-plus"></i> Add Frame Manually
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Add Frame Modal -->
+    <div class="modal fade" id="addFrameModal" tabindex="-1" aria-labelledby="addFrameModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addFrameModalLabel">Add Frame</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="post">
+                        <div class="mb-3">
+                            <label class="form-label">Frame Type</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="frame_type" id="physicalFrame" value="physical" checked>
+                                <label class="form-check-label" for="physicalFrame">
+                                    Physical Frame
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="frame_type" id="virtualFrame" value="virtual">
+                                <label class="form-check-label" for="virtualFrame">
+                                    Virtual Frame (Web Browser)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3" id="deviceIdField">
+                            <label for="device_id" class="form-label">Device ID</label>
+                            <input type="text" class="form-control" id="device_id" name="device_id">
+                            <small class="form-text text-muted">Required for physical frames. For virtual frames, a random ID will be generated if left blank.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="name" name="name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="sleep_interval" class="form-label">Sleep Interval (minutes)</label>
+                            <input type="number" class="form-control" id="sleep_interval" name="sleep_interval" value="5" step="0.1">
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add Frame</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <p class="mt-3"><a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a></p>
+</div>
+
+<!-- Add JavaScript for drag and drop -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const framesContainer = document.getElementById('framesContainer');
+    
+    new Sortable(framesContainer, {
+        animation: 150,
+        handle: '.drag-handle',
+        draggable: '.col-md-4',
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        forceFallback: true,
+        touchStartThreshold: 5,
+        delayOnTouchOnly: true,
+        delay: 100,
+        
+        // Add class while dragging is in progress
+        onStart: function() {
+            document.body.classList.add('sortable-in-progress');
+        },
+        
+        // Remove class when dragging ends
+        onEnd: function(evt) {
+            document.body.classList.remove('sortable-in-progress');
+            
+            const frameOrder = Array.from(framesContainer.children)
+                .map(item => item.dataset.frameId);
+            
+            // Show saving indicator
+            const saveIndicator = document.createElement('div');
+            saveIndicator.className = 'alert alert-info position-fixed top-0 end-0 m-3';
+            saveIndicator.textContent = 'Saving frame order...';
+            document.body.appendChild(saveIndicator);
+            
+            // Save the new order
+            fetch('/api/frames/reorder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ frame_order: frameOrder })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    saveIndicator.className = 'alert alert-success position-fixed top-0 end-0 m-3';
+                    saveIndicator.textContent = 'Frame order saved!';
+                } else {
+                    throw new Error(data.error || 'Failed to save frame order');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                saveIndicator.className = 'alert alert-danger position-fixed top-0 end-0 m-3';
+                saveIndicator.textContent = 'Error saving frame order';
+            })
+            .finally(() => {
+                setTimeout(() => saveIndicator.remove(), 2000);
+            });
+        }
+    });
+});
+</script>
+
+<!-- Add JavaScript for empty state discovery button -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Connect empty state discovery button if it exists
+    const emptyStateDiscoverBtn = document.getElementById('emptyStateDiscoverBtn');
+    if (emptyStateDiscoverBtn) {
+        emptyStateDiscoverBtn.addEventListener('click', function() {
+            document.getElementById('discoverFramesBtn').click();
+        });
+    }
+});
+</script>
+{% endblock %} 

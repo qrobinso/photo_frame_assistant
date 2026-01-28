@@ -1,0 +1,637 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Overlays</h2>
+
+    <!-- Metadata Overlay Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-text-paragraph"></i> Metadata
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Configuration Panel -->
+                <div class="col-12">
+                    <form id="metadataForm">
+                        <!-- Global Padding Setting -->
+                        <div class="mb-4">
+                            <label for="globalPadding" class="form-label">Global Padding (px)</label>
+                            <div class="input-group" style="max-width: 200px;">
+                                <input type="number" class="form-control" id="globalPadding" min="0" max="500" value="0">
+                                <span class="input-group-text">px</span>
+                            </div>
+                            <small class="text-muted">Additional space from image edges before metadata starts</small>
+                        </div>
+
+                        <!-- Field Configuration Tabs -->
+                        <ul class="nav nav-tabs" id="fieldTabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#dateConfig">Date</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#timeConfig">Time</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#headingConfig">Heading</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#cameraConfig">Camera</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#locationConfig">Location</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#backgroundConfig">Background</a>
+                            </li>
+                        </ul>
+
+                        <!-- Tab Content -->
+                        <div class="tab-content mt-3">
+                            <!-- Date Configuration -->
+                            <div class="tab-pane fade show active" id="dateConfig">
+                                <div class="field-settings" data-field="date">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Time Configuration -->
+                            <div class="tab-pane fade" id="timeConfig">
+                                <div class="field-settings" data-field="time">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Heading Configuration -->
+                            <div class="tab-pane fade" id="headingConfig">
+                                <div class="field-settings" data-field="heading">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Camera Configuration -->
+                            <div class="tab-pane fade" id="cameraConfig">
+                                <div class="field-settings" data-field="camera">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Location Configuration -->
+                            <div class="tab-pane fade" id="locationConfig">
+                                <div class="field-settings" data-field="location">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Background Configuration -->
+                            <div class="tab-pane fade" id="backgroundConfig">
+                                <div class="mb-3">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="backgroundEnabled">
+                                        <label class="form-check-label" for="backgroundEnabled">Enable Background</label>
+                                    </div>
+                                    <label class="form-label">Background Color</label>
+                                    <input type="color" class="form-control form-control-color" id="backgroundColor">
+                                    <label class="form-label mt-2">Opacity</label>
+                                    <input type="range" class="form-range" id="backgroundOpacity" min="0" max="100" step="1">
+                                    <span id="opacityValue">50%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Global Settings -->
+                        <div class="mt-3">
+                            <label class="form-label">Vertical Spacing</label>
+                            <input type="number" class="form-control" id="verticalSpacing" min="0" max="200">
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary me-2">Save Settings</button>
+                            <button type="button" class="btn btn-outline-secondary" id="resetDefaults">Reset to Defaults</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Overlay Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-qr-code"></i> QR Code
+            </h5>
+        </div>
+        <div class="card-body">
+            <form id="qrcodeForm">
+                <div class="mb-3">
+                    <label for="qrcodeSize" class="form-label">Size</label>
+                    <select class="form-select" id="qrcodeSize" name="size">
+                        <option value="small">Small</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="qrcodePosition" class="form-label">Position</label>
+                    <select class="form-select" id="qrcodePosition" name="position">
+                        <option value="top-left">Top Left</option>
+                        <option value="top-right">Top Right</option>
+                        <option value="top-center">Top Center</option>
+                        <option value="bottom-left">Bottom Left</option>
+                        <option value="bottom-right" selected>Bottom Right</option>
+                        <option value="bottom-center">Bottom Center</option>
+                        <option value="center">Center</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="qrcodeLinkType" class="form-label">Link Type</label>
+                    <select class="form-select" id="qrcodeLinkType" name="link_type">
+                        <option value="frame_playlist" selected>Frame Playlist</option>
+                        <option value="server_home">Server Homepage</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+<script>
+// Metadata Overlay Editor
+document.addEventListener('DOMContentLoaded', function() {
+    // Common field settings template
+    const fieldSettingsTemplate = `
+        <div class="mb-3">
+            <div class="form-check mb-2">
+                <input class="form-check-input field-enabled" type="checkbox" id="{field}Enabled" data-field="{field}">
+                <label class="form-check-label" for="{field}Enabled">Show {Field}</label>
+            </div>
+            <label class="form-label">Format</label>
+            <input type="text" class="form-control field-format" data-field="{field}">
+            <small class="text-muted">Available variables: {variables}</small>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Font Family</label>
+            <select class="form-select field-font-family" data-field="{field}">
+                <option value="BebasNeue-Regular.ttf" selected>Bebas Neue Regular</option>
+                <!-- Additional fonts will be populated by JavaScript -->
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Font Size</label>
+            <div class="input-group">
+                <input type="number" class="form-control field-font-size" data-field="{field}" min="1" max="100">
+                <span class="input-group-text">%</span>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Text Color</label>
+            <input type="color" class="form-control form-control-color field-color" data-field="{field}">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Position</label>
+            <select class="form-select field-position" data-field="{field}">
+                <option value="top-left">Top Left</option>
+                <option value="top-right">Top Right</option>
+                <option value="top-center">Top Center</option>
+                <option value="bottom-left">Bottom Left</option>
+                <option value="bottom-right">Bottom Right</option>
+                <option value="bottom-center">Bottom Center</option>
+                <option value="center">Center</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Margin</label>
+            <div class="input-group">
+                <input type="number" class="form-control field-margin" data-field="{field}" min="0" max="100">
+                <span class="input-group-text">%</span>
+            </div>
+        </div>
+    `;
+
+    // Field configurations
+    const fields = {
+        date: {
+            name: 'Date',
+            variables: '{date}'
+        },
+        time: {
+            name: 'Time',
+            variables: '{time}'
+        },
+        heading: {
+            name: 'Heading',
+            variables: '{heading}'
+        },
+        camera: {
+            name: 'Camera',
+            variables: '{camera_make}, {camera_model}'
+        },
+        location: {
+            name: 'Location',
+            variables: '{location}'
+        }
+    };
+
+    // Populate field settings for each field
+    Object.entries(fields).forEach(([field, config]) => {
+        const container = document.querySelector(`[data-field="${field}"]`);
+        if (container) {
+            let template = fieldSettingsTemplate
+                .replaceAll('{field}', field)
+                .replaceAll('{Field}', config.name)
+                .replaceAll('{variables}', config.variables);
+            container.innerHTML = template;
+        }
+    });
+
+    // Update background opacity value display
+    const backgroundOpacity = document.getElementById('backgroundOpacity');
+    const opacityValue = document.getElementById('opacityValue');
+    if (backgroundOpacity && opacityValue) {
+        backgroundOpacity.addEventListener('input', function() {
+            opacityValue.textContent = `${this.value}%`;
+        });
+    }
+
+    // First load available fonts, then load metadata settings
+    loadAvailableFonts().then(() => {
+        // Load current settings after fonts are loaded
+        loadMetadataSettings();
+    }).catch(error => {
+        console.error('Error loading fonts:', error);
+        // Still try to load settings even if font loading fails
+        loadMetadataSettings();
+    });
+
+    // Handle form submission
+    const metadataForm = document.getElementById('metadataForm');
+    if (metadataForm) {
+        metadataForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await saveMetadataSettings(true);
+        });
+    }
+
+    // Handle reset defaults button
+    const resetButton = document.getElementById('resetDefaults');
+    if (resetButton) {
+        resetButton.addEventListener('click', resetToDefaults);
+    }
+
+    // Update preview when settings change
+    document.querySelectorAll('input, select').forEach(input => {
+        input.removeEventListener('change', generatePreview);
+    });
+});
+
+async function loadMetadataSettings() {
+    try {
+        console.log("Starting loadMetadataSettings");
+        const response = await fetch('/api/metadata/styles');
+        const data = await response.json();
+        console.log("Loaded metadata settings:", data);
+        
+        if (data.success && data.styles) {
+            const styles = data.styles;
+            
+            // Load global padding
+            const globalPadding = document.getElementById('globalPadding');
+            if (globalPadding) {
+                globalPadding.value = styles.global_padding || 0;
+            }
+            
+            // Update fields
+            Object.entries(styles.fields).forEach(([field, config]) => {
+                console.log(`Loading settings for field ${field}:`, config);
+                
+                // Set the enabled checkbox state
+                const enabledCheckbox = document.querySelector(`#${field}Enabled`);
+                if (enabledCheckbox) {
+                    console.log(`Setting ${field} enabled to:`, config.enabled);
+                    enabledCheckbox.checked = config.enabled;
+                }
+                
+                const fieldContainer = document.querySelector(`[data-field="${field}"]`);
+                if (fieldContainer) {
+                    // Update format
+                    const formatInput = fieldContainer.querySelector('.field-format');
+                    if (formatInput) formatInput.value = config.format || '';
+
+                    // Update font family
+                    const fontFamilySelect = fieldContainer.querySelector('.field-font-family');
+                    if (fontFamilySelect) {
+                        const fontValue = config.font_family || 'BebasNeue-Regular.ttf';
+                        console.log(`Setting font family for ${field} to:`, fontValue);
+                        
+                        // First try to find an exact match
+                        let optionFound = false;
+                        for (const option of fontFamilySelect.options) {
+                            if (option.value === fontValue) {
+                                fontFamilySelect.value = fontValue;
+                                optionFound = true;
+                                console.log(`Found exact match for font: ${fontValue}`);
+                                break;
+                            }
+                        }
+                        
+                        // If no exact match, try to find a match without the .ttf extension
+                        if (!optionFound) {
+                            const fontValueNoExt = fontValue.replace('.ttf', '');
+                            for (const option of fontFamilySelect.options) {
+                                const optionValueNoExt = option.value.replace('.ttf', '');
+                                if (optionValueNoExt === fontValueNoExt) {
+                                    fontFamilySelect.value = option.value;
+                                    optionFound = true;
+                                    console.log(`Found match without extension for font: ${fontValue} -> ${option.value}`);
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!optionFound) {
+                            console.warn(`Could not find matching font option for: ${fontValue}`);
+                        }
+                    }
+
+                    // Update font size
+                    const fontSizeInput = fieldContainer.querySelector('.field-font-size');
+                    if (fontSizeInput) {
+                        const sizeValue = config.font_size?.replace('%', '') || '4';
+                        fontSizeInput.value = parseInt(sizeValue);
+                    }
+
+                    // Update color
+                    const colorInput = fieldContainer.querySelector('.field-color');
+                    if (colorInput) colorInput.value = config.color || '#FFFFFF';
+
+                    // Update position
+                    const positionSelect = fieldContainer.querySelector('.field-position');
+                    if (positionSelect) positionSelect.value = config.position || 'bottom-left';
+
+                    // Update margin
+                    const marginInput = fieldContainer.querySelector('.field-margin');
+                    if (marginInput) {
+                        const marginValue = config.margin?.replace('%', '') || '10';
+                        marginInput.value = parseInt(marginValue);
+                    }
+                }
+            });
+
+            // Update background settings
+            const backgroundEnabled = document.getElementById('backgroundEnabled');
+            const backgroundColor = document.getElementById('backgroundColor');
+            const backgroundOpacity = document.getElementById('backgroundOpacity');
+            const opacityValue = document.getElementById('opacityValue');
+
+            if (backgroundEnabled) backgroundEnabled.checked = styles.background?.enabled || false;
+            if (backgroundColor) backgroundColor.value = styles.background?.color || '#000000';
+            if (backgroundOpacity) {
+                const opacity = styles.background?.opacity || '50';
+                backgroundOpacity.value = parseInt(opacity);
+                if (opacityValue) opacityValue.textContent = `${opacity}%`;
+            }
+
+            // Update stack spacing
+            const verticalSpacing = document.getElementById('verticalSpacing');
+            if (verticalSpacing) {
+                const spacingValue = styles.stack_spacing?.replace('%', '') || '2';
+                verticalSpacing.value = parseInt(spacingValue);
+            }
+
+            // Generate preview after loading settings
+            await generatePreview();
+        }
+    } catch (error) {
+        console.error('Error loading metadata settings:', error);
+        alert('Error loading settings: ' + error.message);
+    }
+}
+
+async function saveMetadataSettings(showAlert = true) {
+    try {
+        console.log("Starting saveMetadataSettings");
+        const styles = {
+            fields: {},
+            background: {
+                enabled: document.getElementById('backgroundEnabled')?.checked || false,
+                color: document.getElementById('backgroundColor')?.value || '#000000',
+                opacity: document.getElementById('backgroundOpacity')?.value || '50'
+            },
+            stack_spacing: document.getElementById('verticalSpacing')?.value + '%',
+            max_text_width: '80%',
+            global_padding: parseInt(document.getElementById('globalPadding')?.value || '0')
+        };
+
+        // Collect field settings
+        ['date', 'time', 'heading', 'camera', 'location'].forEach((field, index) => {
+            const fieldContainer = document.querySelector(`[data-field="${field}"]`);
+            if (!fieldContainer) {
+                console.error(`Field container not found for ${field}`);
+                return;
+            }
+
+            const fontSelect = fieldContainer.querySelector('.field-font-family');
+            console.log(`Font select for ${field}:`, fontSelect);
+            console.log(`Selected font value:`, fontSelect?.value);
+
+            let fontFamily = fontSelect?.value || 'BebasNeue-Regular';
+            if (!fontFamily.endsWith('.ttf')) {
+                fontFamily += '.ttf';
+            }
+            console.log(`Final font family value:`, fontFamily);
+
+            styles.fields[field] = {
+                enabled: document.querySelector(`#${field}Enabled`)?.checked || false,
+                format: fieldContainer.querySelector('.field-format')?.value || '',
+                font_family: fontFamily,
+                font_size: (fieldContainer.querySelector('.field-font-size')?.value || '4') + '%',
+                color: fieldContainer.querySelector('.field-color')?.value || '#FFFFFF',
+                position: fieldContainer.querySelector('.field-position')?.value || 'bottom-left',
+                margin: (fieldContainer.querySelector('.field-margin')?.value || '10') + '%',
+                stack_order: index
+            };
+        });
+
+        console.log("Final styles object:", styles);
+
+        const response = await fetch('/api/metadata/styles', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(styles)
+        });
+
+        const result = await response.json();
+        console.log("API response:", result);
+
+        if (result.success) {
+            if (showAlert) {
+                alert('Metadata settings saved successfully');
+            }
+            // Reload settings after saving to verify changes
+            await loadMetadataSettings();
+        } else {
+            throw new Error(result.error || 'Failed to save settings');
+        }
+    } catch (error) {
+        console.error('Error saving metadata settings:', error);
+        alert('Error saving settings: ' + error.message);
+    }
+}
+
+async function generatePreview(showSaveAlert = false) {
+    const previewImage = document.getElementById('previewImage');
+    const previewLoading = document.getElementById('previewLoading');
+    
+    if (!previewImage || !previewLoading) {
+        console.error('Preview elements not found');
+        return;
+    }
+
+    try {
+        previewImage.style.opacity = '0.5';
+        previewLoading.style.display = 'block';
+
+        if (showSaveAlert) {
+            await saveMetadataSettings(true);
+        }
+        
+        const response = await fetch('/api/metadata/preview', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        });
+        const result = await response.json();
+        
+        if (result.success && result.preview_url) {
+            const newImage = new Image();
+            newImage.onload = function() {
+                previewImage.src = result.preview_url;
+                previewImage.style.opacity = '1';
+                previewLoading.style.display = 'none';
+            };
+            newImage.src = result.preview_url;
+        } else {
+            throw new Error(result.error || 'Failed to generate preview');
+        }
+    } catch (error) {
+        console.error('Error generating preview:', error);
+        previewImage.style.opacity = '1';
+        previewLoading.style.display = 'none';
+        alert('Error generating preview: ' + error.message);
+    }
+}
+
+async function resetToDefaults() {
+    if (confirm('Are you sure you want to reset to default settings?')) {
+        try {
+            const response = await fetch('/api/metadata/styles');
+            const data = await response.json();
+            if (data.success) {
+                await loadMetadataSettings();
+                alert('Settings reset to defaults');
+            }
+        } catch (error) {
+            console.error('Error resetting to defaults:', error);
+            alert('Error resetting to defaults: ' + error.message);
+        }
+    }
+}
+
+async function loadAvailableFonts() {
+    try {
+        const response = await fetch('/api/metadata/available-fonts');
+        const data = await response.json();
+        
+        if (data.success && data.fonts) {
+            const fontSelects = document.querySelectorAll('.field-font-family');
+            
+            const optionsHTML = data.fonts.map(font => {
+                const displayName = font.replace('.ttf', '')
+                    .replace(/([A-Z])/g, ' $1')
+                    .replace(/-/g, ' ')
+                    .trim();
+                return `<option value="${font}">${displayName}</option>`;
+            }).join('');
+            
+            fontSelects.forEach(select => {
+                select.innerHTML = optionsHTML;
+            });
+            
+            console.log('Fonts loaded successfully:', data.fonts);
+            return data.fonts;
+        }
+        return [];
+    } catch (error) {
+        console.error('Error loading available fonts:', error);
+        throw error;
+    }
+}
+
+// QR Code related functions
+document.addEventListener('DOMContentLoaded', function() {
+    loadQRCodeSettings();
+
+    const qrcodeForm = document.getElementById('qrcodeForm');
+    if (qrcodeForm) {
+        qrcodeForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await saveQRCodeSettings();
+        });
+    }
+});
+
+async function loadQRCodeSettings() {
+    try {
+        const response = await fetch('/api/qrcode/settings');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('qrcodeSize').value = data.settings.size;
+            document.getElementById('qrcodePosition').value = data.settings.position;
+            document.getElementById('qrcodeLinkType').value = data.settings.link_type;
+        }
+    } catch (error) {
+        console.error('Error loading QR code settings:', error);
+    }
+}
+
+async function saveQRCodeSettings() {
+    try {
+        const settings = {
+            size: document.getElementById('qrcodeSize').value,
+            position: document.getElementById('qrcodePosition').value,
+            link_type: document.getElementById('qrcodeLinkType').value
+        };
+
+        const response = await fetch('/api/qrcode/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            alert('QR code settings saved successfully');
+        } else {
+            throw new Error(data.error || 'Failed to save settings');
+        }
+    } catch (error) {
+        alert('Error saving QR code settings: ' + error.message);
+    }
+}
+</script>
+{% endblock %} 

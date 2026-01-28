@@ -1,0 +1,1125 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/playlist.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+    /* Add touch-action styling */
+    .draggable {
+        touch-action: none; /* Prevents scrolling while dragging on touch devices */
+        cursor: grab;
+    }
+    
+    .draggable:active {
+        cursor: grabbing;
+    }
+    
+    /* Add visual feedback for touch devices */
+    .dragging {
+        opacity: 0.5;
+        background: #f8f9fa;
+    }
+
+    .playlist-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+        .playlist-container {
+            flex-direction: row;
+        }
+        
+        /* Make both columns equal width */
+        .playlist-column, 
+        .bench-column {
+            flex: 1;
+            width: 50%;
+            min-width: 0; /* Allows columns to shrink below content size */
+        }
+    }
+
+    .playlist, .bench {
+        flex: 1;
+        min-width: 300px;
+    }
+
+    /* Update list-group-item for better mobile handling */
+    .list-group-item {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        position: relative;
+        gap: 15px;
+        flex-wrap: wrap;  /* Allow wrapping on mobile */
+        min-width: 0;    /* Allow container to shrink */
+    }
+
+    .drag-handle {
+        flex: 0 0 auto;
+        cursor: grab;
+        color: #666;
+    }
+
+    .photo-thumbnail {
+        flex: 0 0 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .next-up-badge,
+    .currently-displaying-badge {
+        flex: 0 0 auto;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        white-space: nowrap;
+    }
+
+    .next-up-badge {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .currently-displaying-badge {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .flex-spacer {
+        flex: 1;
+        min-width: 10px;  /* Reduced minimum spacing for mobile */
+    }
+
+    /* Update button styling for better mobile layout */
+    .list-group-item .btn {
+        flex: 0 0 auto;
+        margin-left: auto;
+        font-size: 0.875rem;  /* Slightly smaller text */
+        padding: 0.25rem 0.5rem;  /* Smaller padding */
+    }
+
+    /* Mobile-specific adjustments */
+    @media (max-width: 576px) {
+        .list-group-item {
+            gap: 10px;  /* Reduce gap on mobile */
+            padding: 8px;  /* Slightly less padding */
+        }
+
+        .photo-thumbnail {
+            flex: 0 0 80px;  /* Slightly smaller photos on mobile */
+            height: 80px;
+        }
+
+        .next-up-badge,
+        .currently-displaying-badge {
+            padding: 2px 8px;  /* Smaller badge padding */
+            font-size: 0.75em;  /* Smaller badge text */
+        }
+
+        .flex-spacer {
+            min-width: 5px;  /* Even smaller minimum spacing on mobile */
+        }
+    }
+
+    /* Ensure the container doesn't overflow */
+    .playlist-container {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .list-group {
+        width: 100%;
+    }
+
+    /* Styling for the next-up item */
+    .list-group-item.next-up {
+        border-left: 4px solid #28a745;  /* Green border */
+        background-color: rgba(40, 167, 69, 0.1);  /* Light green background */
+    }
+
+    /* Add styling for currently displaying item */
+    .list-group-item.currently-displaying {
+        border-left: 4px solid #007bff;  /* Blue border */
+        background-color: rgba(0, 123, 255, 0.1);  /* Light blue background */
+    }
+
+    /* Add specific styling for the bench items */
+    #photo-bench .list-group-item {
+        position: relative;
+    }
+
+    #photo-bench .btn-group {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    /* Add specific styling for the sortable ghost */
+    .sortable-ghost {
+        background-color: #f8f9fa;
+        opacity: 0.5;
+    }
+
+    /* Add specific styling for the sortable drag */
+    .sortable-drag {
+        background-color: #fff;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    /* Ensure consistent layout during drag */
+    .list-group-item, 
+    .sortable-ghost,
+    .sortable-drag {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 10px;
+    }
+
+    /* Add Font Awesome if not already included */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
+
+    /* Mobile adjustments for the header */
+    @media (max-width: 576px) {
+        .d-flex {
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        h1 {
+            font-size: 1.75rem;  /* Smaller heading on mobile */
+            margin-bottom: 0;
+        }
+    }
+
+    /* Add new grid styles for the bench */
+    #photo-bench {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 10px;
+        padding: 10px;
+    }
+
+    #photo-bench .list-group-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 5px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        position: relative;
+        height: 140px; /* Fixed height for consistency */
+    }
+
+    #photo-bench .photo-thumbnail {
+        width: 90px;
+        height: 90px;
+        object-fit: cover;
+        border-radius: 4px;
+        margin-bottom: 5px;
+    }
+
+    #photo-bench .btn {
+        position: absolute;
+        bottom: 5px;
+        width: calc(100% - 10px);
+        padding: 2px 0;
+        font-size: 0.8rem;
+    }
+
+    /* Mobile-specific adjustments */
+    @media (max-width: 576px) {
+        #photo-bench {
+            grid-template-columns: repeat(3, 1fr); /* Ensure at least 3 columns on mobile */
+            gap: 8px;
+            padding: 8px;
+        }
+
+        #photo-bench .list-group-item {
+            height: 120px; /* Slightly smaller on mobile */
+        }
+
+        #photo-bench .photo-thumbnail {
+            width: 70px;
+            height: 70px;
+        }
+    }
+
+    /* Update bench column styles - remove max-height and overflow */
+    .bench-column {
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* Add styles for sort direction button */
+    #sortDirectionBtn {
+        padding: 0.25rem 0.5rem;
+        min-width: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    #sortDirectionBtn i {
+        font-size: 1rem;
+    }
+
+    /* Add styles for video icon overlay */
+    .video-indicator {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        padding: 4px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded event fired');
+    
+    const playlist = document.getElementById('playlist');
+    const photoBench = document.getElementById('photo-bench');
+    const playlistSort = document.getElementById('playlistSort');
+    const sortDirectionBtn = document.getElementById('sortDirectionBtn');
+    let isDescending = true;
+    let sortOrder = playlistSort.value;
+    
+    // Initialize Sortable for playlist
+    if (playlist) {
+        new Sortable(playlist, {
+            animation: 150,
+            handle: '.drag-handle',
+            delay: 100,
+            delayOnTouchOnly: true,
+            touchStartThreshold: 5,
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            forceFallback: true,
+            onEnd: function() {
+                savePlaylist();
+                updateNextUpIndicator();
+            }
+        });
+    }
+
+    function updateSortIcon() {
+        const icon = sortDirectionBtn.querySelector('i');
+        if (isDescending) {
+            icon.className = 'fas fa-sort-down';
+            sortDirectionBtn.title = sortOrder === 'date_added' ? 'Newest First' : 'Latest Date First';
+        } else {
+            icon.className = 'fas fa-sort-up';
+            sortDirectionBtn.title = sortOrder === 'date_added' ? 'Oldest First' : 'Earliest Date First';
+        }
+    }
+
+    function sortPlaylist() {
+        if (!playlist) return;
+        
+        const items = Array.from(playlist.children);
+        if (items.length === 0) return;
+
+        items.sort((a, b) => {
+            let comparison = 0;
+            if (sortOrder === 'date_added') {
+                const dateA = a.dataset.dateAdded ? new Date(a.dataset.dateAdded) : new Date(0);
+                const dateB = b.dataset.dateAdded ? new Date(b.dataset.dateAdded) : new Date(0);
+                comparison = dateB - dateA;
+            } else if (sortOrder === 'chronological') {
+                // Parse EXIF DateTime format (YYYY:MM:DD HH:MM:SS) or fallback to ISO format
+                const parseDate = (dateStr) => {
+                    if (!dateStr) return new Date(0);
+                    // Try EXIF format first
+                    if (dateStr.includes(':')) {
+                        const [date, time] = dateStr.split(' ');
+                        const [year, month, day] = date.split(':');
+                        const [hour, minute, second] = time ? time.split(':') : [0, 0, 0];
+                        return new Date(year, month - 1, day, hour, minute, second);
+                    }
+                    // Fallback to ISO format
+                    return new Date(dateStr);
+                };
+                
+                const dateA = parseDate(a.dataset.photoDate);
+                const dateB = parseDate(b.dataset.photoDate);
+                comparison = dateA - dateB;
+            }
+            return isDescending ? comparison : -comparison;
+        });
+
+        // Update DOM and save new order
+        items.forEach(item => playlist.appendChild(item));
+        savePlaylist();
+        updateNextUpIndicator();
+    }
+
+    if (playlistSort) {
+        playlistSort.addEventListener('change', () => {
+            sortOrder = playlistSort.value;
+            updateSortIcon();
+            sortPlaylist();
+        });
+    }
+
+    if (sortDirectionBtn) {
+        sortDirectionBtn.addEventListener('click', () => {
+            isDescending = !isDescending;
+            updateSortIcon();
+            sortPlaylist();
+        });
+    }
+
+    // Initialize bench sorting
+    if (photoBench) {
+        function sortBenchPhotos(order) {
+            const items = Array.from(photoBench.children);
+            
+            items.sort((a, b) => {
+                const dateA = new Date(a.dataset.uploadDate);
+                const dateB = new Date(b.dataset.uploadDate);
+                return order === 'asc' ? dateA - dateB : dateB - dateA;
+            });
+            
+            items.forEach(item => photoBench.appendChild(item));
+        }
+
+        const benchSort = document.getElementById('benchSort');
+        if (benchSort) {
+            // Sort initially with newest first
+            sortBenchPhotos('desc');
+            
+            benchSort.addEventListener('change', function() {
+                sortBenchPhotos(benchSort.value);
+            });
+        }
+    }
+});
+
+window.addToPlaylist = function(button) {
+    const benchItem = button.closest('.list-group-item');
+    const photoId = benchItem.dataset.photoId;
+    const imgSrc = benchItem.querySelector('img').src;
+    
+    // Check if photo is already in playlist
+    const existingItem = document.querySelector(`#playlist .list-group-item[data-photo-id="${photoId}"]`);
+    if (existingItem) {
+        return; // Don't add if already in playlist
+    }
+    
+    const playlist = document.getElementById('playlist');
+    
+    // Remove empty state if it exists
+    const emptyState = playlist.querySelector('.text-center.py-5');
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    const newItem = document.createElement('div');
+    newItem.className = 'list-group-item';
+    newItem.dataset.photoId = photoId;
+    newItem.innerHTML = `
+        <div class="drag-handle">☰</div>
+        <img src="${imgSrc}" alt="Photo" class="photo-thumbnail">
+        <div class="flex-spacer"></div>
+        <button class="btn btn-danger btn-sm" onclick="removeFromPlaylist(this)">Remove</button>
+    `;
+    
+    playlist.appendChild(newItem);
+    
+    // Change the bench item's button to "Added"
+    button.textContent = 'Added';
+    button.className = 'btn btn-secondary btn-sm';
+    button.disabled = true;
+    
+    savePlaylist();
+    updateNextUpIndicator();
+}
+
+window.removeFromPlaylist = function(button) {
+    const playlistItem = button.closest('.list-group-item');
+    const photoId = playlistItem.dataset.photoId;
+    
+    // Find the corresponding bench item and reset its button
+    const benchItem = document.querySelector(`#photo-bench .list-group-item[data-photo-id="${photoId}"]`);
+    if (benchItem) {
+        const benchButton = benchItem.querySelector('button');
+        benchButton.textContent = 'Add';
+        benchButton.className = 'btn btn-success btn-sm';
+        benchButton.disabled = false;
+    }
+    
+    playlistItem.remove();
+    
+    // Check if playlist is now empty and add empty state if needed
+    const playlist = document.getElementById('playlist');
+    if (!playlist.querySelector('.list-group-item')) {
+        playlist.innerHTML = `
+            <div class="text-center py-5 border rounded bg-light">
+                <i class="fas fa-images fa-3x mb-3 text-muted"></i>
+                <h4 class="text-muted">No Photos in Queue</h4>
+                <p class="text-muted mb-0">Add photos from the available photos section to start building your playlist.</p>
+            </div>
+        `;
+    }
+    
+    savePlaylist();
+    updateNextUpIndicator();
+}
+
+// Add function to initialize bench items based on playlist
+function initializeBenchItems() {
+    const playlistItems = document.querySelectorAll('#playlist .list-group-item');
+    const photoIds = Array.from(playlistItems).map(item => item.dataset.photoId);
+    
+    // Update bench items that are already in playlist
+    photoIds.forEach(photoId => {
+        const benchItem = document.querySelector(`#photo-bench .list-group-item[data-photo-id="${photoId}"]`);
+        if (benchItem) {
+            const button = benchItem.querySelector('button');
+            button.textContent = 'Added';
+            button.className = 'btn btn-secondary btn-sm';
+            button.disabled = true;
+        }
+    });
+}
+
+// Simpler styles for drag handle
+const style = document.createElement('style');
+style.textContent = `
+    .drag-handle {
+        padding: 8px;
+        cursor: grab;
+    }
+    .list-group-item {
+        user-select: none;
+    }
+`;
+document.head.appendChild(style);
+
+function savePlaylist() {
+    const playlist = document.getElementById('playlist');
+    const photoIds = Array.from(playlist.children)
+        .map(item => item.dataset.photoId)
+        .join(',');
+
+    // Show saving indicator
+    const saveIndicator = document.createElement('div');
+    saveIndicator.className = 'alert alert-info position-fixed top-0 end-0 m-3';
+    saveIndicator.textContent = 'Saving playlist...';
+    document.body.appendChild(saveIndicator);
+
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            photo_ids: photoIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            saveIndicator.className = 'alert alert-success position-fixed top-0 end-0 m-3';
+            saveIndicator.textContent = 'Playlist saved!';
+        } else {
+            throw new Error(data.error || 'Failed to save playlist');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        saveIndicator.className = 'alert alert-danger position-fixed top-0 end-0 m-3';
+        saveIndicator.textContent = 'Error saving playlist';
+    })
+    .finally(() => {
+        setTimeout(() => saveIndicator.remove(), 2000);
+    });
+}
+
+// Update the next-up indicator when items are reordered
+function updateNextUpIndicator() {
+    const currentPhotoId = '{{ frame.current_photo_id }}';
+    const shuffleEnabled = {{ frame.shuffle_enabled|tojson }};  // Get shuffle state from server
+    
+    // Remove existing indicators
+    document.querySelectorAll('#playlist .list-group-item').forEach((item, index, items) => {
+        item.classList.remove('next-up', 'currently-displaying');
+        const badges = item.querySelectorAll('.next-up-badge, .currently-displaying-badge');
+        badges.forEach(badge => badge.remove());
+        const spacer = item.querySelector('.flex-spacer');
+        if (spacer) spacer.remove();
+    });
+
+    // Get all playlist items
+    const playlistItems = document.querySelectorAll('#playlist .list-group-item');
+    
+    // Add next-up indicator to first item only if shuffle is disabled
+    const firstItem = playlistItems[0];
+    if (firstItem && !shuffleEnabled) {
+        firstItem.classList.add('next-up');
+        
+        // Create and add the next-up badge
+        const nextUpBadge = document.createElement('span');
+        nextUpBadge.className = 'next-up-badge';
+        nextUpBadge.textContent = 'Next Up';
+        
+        // Create and add the spacer
+        const spacer = document.createElement('div');
+        spacer.className = 'flex-spacer';
+        
+        // Insert badge and spacer after the image
+        const image = firstItem.querySelector('img');
+        image.insertAdjacentElement('afterend', nextUpBadge);
+        nextUpBadge.insertAdjacentElement('afterend', spacer);
+    }
+
+    // Add currently-displaying indicator based on current_photo_id
+    const currentItem = document.querySelector(`#playlist .list-group-item[data-photo-id="${currentPhotoId}"]`);
+    if (currentItem) {
+        currentItem.classList.add('currently-displaying');
+        
+        // Create and add the currently-displaying badge
+        const currentBadge = document.createElement('span');
+        currentBadge.className = 'currently-displaying-badge';
+        currentBadge.textContent = 'Currently Displaying';
+        
+        // Create and add the spacer if not already present
+        let spacer = currentItem.querySelector('.flex-spacer');
+        if (!spacer) {
+            spacer = document.createElement('div');
+            spacer.className = 'flex-spacer';
+        }
+        
+        // Insert badge and spacer after the image
+        const image = currentItem.querySelector('img');
+        image.insertAdjacentElement('afterend', currentBadge);
+        currentBadge.insertAdjacentElement('afterend', spacer);
+    }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>{{ frame.name }} Playlist</h1>
+    <div class="btn-group">
+        <label for="playlistPhotoInput" class="btn btn-outline-primary">
+            <i class="fas fa-upload"></i> Upload
+        </label>
+        <input type="file" id="playlistPhotoInput" multiple accept=".jpg,.jpeg,.png,.gif,.heic,.heif,.mp4,.mov,.avi,.webm" style="display: none;">
+        
+        <button id="shuffleBtn" class="btn btn-outline-primary {% if frame.shuffle_enabled %}active{% endif %}">
+            <i class="fas fa-random"></i> Shuffle
+        </button>
+        {% if frame.frame_type == 'virtual' %}
+        <a href="{{ url_for('view_frame', frame_id=frame.id) }}" class="btn btn-outline-primary" target="_blank">
+            <i class="fas fa-external-link-alt"></i> Open Frame
+        </a>
+        {% endif %}
+        <a href="{{ url_for('edit_frame_settings', frame_id=frame.id) }}" class="btn btn-outline-primary">
+            <i class="fas fa-cog"></i> Settings
+        </a>
+    </div>
+</div>
+
+<div id="uploadStatus" class="upload-status mb-3"></div>
+
+<!-- Add console log to verify template is being rendered -->
+<script>console.log('Template rendering started');</script>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <div class="d-flex align-items-center mt-2">
+                {% set status = frame.get_status(now) %}
+                <div class="d-flex align-items-center">
+                    <span class="status-dot me-2" title="{{ status[1] }}" style="color: {{ status[2] }}">●</span>
+                    <span class="status-text" style="color: {{ status[2] }}">{{ status[1] }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            {% if status[0] == 2 %}  {# Only show force update for online frames #}
+            <button id="forceUpdateBtn" class="btn btn-outline-success">
+                <i class="fas fa-sync"></i> Force Update
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% if ai_analysis_enabled %}
+    <div class="dynamic-playlist-section mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">
+                    Dynamic Playlist
+                    <span class="badge bg-warning text-dark" style="font-size: 0.5em; vertical-align: middle;">Experimental</span>
+                </h3>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="dynamicPlaylistEnabled" 
+                           {% if frame.dynamic_playlist_active %}checked{% endif %}>
+                    <label class="form-check-label" for="dynamicPlaylistEnabled">Enable Dynamic Updates</label>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="dynamicPlaylistForm">
+                    <div class="mb-3">
+                        <label for="playlistPrompt" class="form-label">Photo Criteria</label>
+                        <textarea class="form-control" id="playlistPrompt" rows="2" 
+                                placeholder="Describe what photos you want in this playlist (e.g., 'outdoor photos with people smiling')"
+                                >{{ frame.dynamic_playlist_prompt or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        Update Playlist
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="playlist-container">
+        <div class="playlist-column">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Queue</h2>
+                <div class="d-flex align-items-center gap-2">
+                    <select id="playlistSort" class="form-select form-select-sm" style="width: auto;">
+                        <option value="date_added">Last Added</option>
+                        <option value="chronological">Photo Date</option>
+                    </select>
+                    <button id="sortDirectionBtn" class="btn btn-outline-secondary btn-sm" title="Newest First">
+                        <i class="fas fa-sort-down"></i>
+                    </button>
+                    <button id="deleteAllBtn" class="btn btn-outline-danger btn-sm" title="Delete All Photos">
+                        <i class="fas fa-trash"></i> Delete All
+                    </button>
+                </div>
+            </div>
+            <div id="playlist" class="list-group">
+                {% if playlist_photos %}
+                {% for photo in playlist_photos %}
+                <div class="list-group-item 
+                    {% if not frame.shuffle_enabled and loop.first %}next-up{% endif %} 
+                    {% if photo.id == frame.current_photo_id %}currently-displaying{% endif %}" 
+                    data-photo-id="{{ photo.id }}"
+                    data-date-added="{{ photo.playlist_entries[0].date_added.isoformat() if photo.playlist_entries and photo.playlist_entries[0].date_added else '' }}"
+                    data-photo-date="{% if photo.exif_metadata and photo.exif_metadata.get('DateTime') %}{{ photo.exif_metadata.DateTime }}{% elif photo.uploaded_at %}{{ photo.uploaded_at.isoformat() }}{% else %}{% endif %}">
+                    <div class="drag-handle">☰</div>
+                    <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
+                         alt="{{ photo.filename }}" 
+                         class="photo-thumbnail">
+                    {% if not frame.shuffle_enabled and loop.first %}
+                    <span class="next-up-badge">Next Up</span>
+                    {% endif %}
+                    {% if photo.id == frame.current_photo_id %}
+                    <span class="currently-displaying-badge">Currently Displaying</span>
+                    {% endif %}
+                    <div class="flex-spacer"></div>
+                    <button class="btn btn-danger btn-sm" onclick="removeFromPlaylist(this)">Remove</button>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-5 border rounded bg-light">
+                    <i class="fas fa-images fa-3x mb-3 text-muted"></i>
+                    <h4 class="text-muted">No Photos in Queue</h4>
+                    <p class="text-muted mb-0">Add photos from the available photos section to start building your playlist.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="bench-column">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Available Photos</h2>
+                <select id="benchSort" class="form-select form-select-sm" style="width: auto;">
+                    <option value="desc">Newest First</option>
+                    <option value="asc">Oldest First</option>
+                </select>
+            </div>
+            <div id="photo-bench">
+                {% for photo in bench_photos %}
+                    {% if not (photo.media_type == 'video' and frame.capabilities and not frame.capabilities.get('video_support', true)) %}
+                    <div class="list-group-item" 
+                         data-photo-id="{{ photo.id }}" 
+                         data-upload-date="{{ photo.uploaded_at.isoformat() }}"
+                         onclick="addToPlaylist(this.querySelector('.btn'))"
+                         style="cursor: pointer;"
+                    >
+                        <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
+                             alt="{{ photo.filename }}" 
+                             class="photo-thumbnail">
+                        {% if photo.media_type == 'video' %}
+                        <div class="video-indicator">
+                            <i class="fas fa-video"></i>
+                        </div>
+                        {% endif %}
+                        <button class="btn btn-success btn-sm" onclick="addToPlaylist(this); event.stopPropagation()">Add</button>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <a href="{{ url_for('manage_frames') }}" class="btn btn-secondary">Back to Frames</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script>
+    console.log('Script block loading');
+
+    // Immediately log if we can find the element
+    console.log('Input element (immediate check):', document.getElementById('playlistPhotoInput'));
+
+    // Function to handle file uploads
+    function handleFileUpload(e) {
+        console.log('File change event triggered', e);
+        const files = e.target.files;
+        console.log('Files selected:', files?.length);
+
+        if (!files?.length) {
+            console.log('No files selected');
+            return;
+        }
+
+        const uploadStatus = document.getElementById('uploadStatus');
+        console.log('Upload status element:', uploadStatus);
+
+        uploadStatus.style.display = 'block';
+        uploadStatus.innerHTML = `<div class="progress mb-2">
+            <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+        </div>
+        <div class="status-text">Preparing to upload ${files.length} files...</div>`;
+
+        processFiles(files, uploadStatus);
+    }
+
+    // Separate function to process files
+    async function processFiles(files, uploadStatus) {
+        console.log('Starting file processing');
+        const frameId = '{{ frame.id }}';
+        console.log('Frame ID:', frameId);
+
+        for (let i = 0; i < files.length; i++) {
+            console.log(`Processing file ${i + 1} of ${files.length}: ${files[i].name}`);
+            
+            const formData = new FormData();
+            formData.append('photo', files[i]);
+            formData.append('frame_id', frameId);
+            formData.append('add_to_playlist', 'true');
+
+            try {
+                console.log('Sending fetch request');
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+
+                const result = await response.json();
+                console.log('Response data:', result);
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Upload failed');
+                }
+
+                const progress = ((i + 1) / files.length) * 100;
+                uploadStatus.querySelector('.progress-bar').style.width = `${progress}%`;
+                uploadStatus.querySelector('.status-text').textContent = 
+                    `Uploaded ${i + 1} of ${files.length} photos...`;
+            } catch (error) {
+                console.error('Error during upload:', error);
+                uploadStatus.innerHTML = `<div class="alert alert-danger">
+                    Error uploading photos: ${error.message}
+                </div>`;
+                return;
+            }
+        }
+
+        console.log('All files processed successfully');
+        uploadStatus.innerHTML = `<div class="alert alert-success">
+            Successfully uploaded ${files.length} photos! Refreshing playlist...
+        </div>`;
+        setTimeout(() => location.reload(), 1500);
+    }
+
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOMContentLoaded event fired');
+        
+        const photoInput = document.getElementById('playlistPhotoInput');
+        console.log('Photo input element found:', photoInput);
+
+        if (photoInput) {
+            console.log('Adding change event listener');
+            photoInput.addEventListener('change', handleFileUpload);
+            console.log('Change event listener added');
+            
+            // Also log when the input is clicked
+            photoInput.addEventListener('click', () => {
+                console.log('File input clicked');
+            });
+        } else {
+            console.error('Photo input element not found in DOMContentLoaded');
+        }
+        
+        // Add Delete All functionality
+        const deleteAllBtn = document.getElementById('deleteAllBtn');
+        if (deleteAllBtn) {
+            deleteAllBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to remove all photos from this playlist?')) {
+                    // Disable button and show loading state
+                    deleteAllBtn.disabled = true;
+                    deleteAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+                    
+                    // Send request to clear playlist
+                    fetch(`/api/frames/${frameId}/clear_playlist`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Reset all bench buttons
+                            document.querySelectorAll('#photo-bench .list-group-item button').forEach(button => {
+                                button.textContent = 'Add';
+                                button.className = 'btn btn-success btn-sm';
+                                button.disabled = false;
+                            });
+                            
+                            // Clear playlist and show empty state
+                            const playlist = document.getElementById('playlist');
+                            playlist.innerHTML = `
+                                <div class="text-center py-5 border rounded bg-light">
+                                    <i class="fas fa-images fa-3x mb-3 text-muted"></i>
+                                    <h4 class="text-muted">No Photos in Queue</h4>
+                                    <p class="text-muted mb-0">Add photos from the available photos section to start building your playlist.</p>
+                                </div>
+                            `;
+                            
+                            // Show success message
+                            const successIndicator = document.createElement('div');
+                            successIndicator.className = 'alert alert-success position-fixed top-0 end-0 m-3';
+                            successIndicator.textContent = 'All photos removed from playlist!';
+                            document.body.appendChild(successIndicator);
+                            setTimeout(() => successIndicator.remove(), 2000);
+                        } else {
+                            throw new Error(data.error || 'Failed to clear playlist');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        const errorIndicator = document.createElement('div');
+                        errorIndicator.className = 'alert alert-danger position-fixed top-0 end-0 m-3';
+                        errorIndicator.textContent = 'Error clearing playlist';
+                        document.body.appendChild(errorIndicator);
+                        setTimeout(() => errorIndicator.remove(), 2000);
+                    })
+                    .finally(() => {
+                        // Reset button state
+                        deleteAllBtn.disabled = false;
+                        deleteAllBtn.innerHTML = '<i class="fas fa-trash"></i> Delete All';
+                    });
+                }
+            });
+        }
+    });
+
+    // Additional event listener for when the label is clicked
+    document.addEventListener('DOMContentLoaded', function() {
+        const uploadLabel = document.querySelector('label[for="playlistPhotoInput"]');
+        if (uploadLabel) {
+            uploadLabel.addEventListener('click', () => {
+                console.log('Upload label clicked');
+            });
+        } else {
+            console.error('Upload label not found');
+        }
+    });
+
+    // Log when the window is fully loaded
+    window.addEventListener('load', function() {
+        console.log('Window load event fired');
+        console.log('Final check for input element:', document.getElementById('playlistPhotoInput'));
+    });
+
+    const frameId = '{{ frame.id }}';
+    
+    // Add force update functionality
+    const forceUpdateBtn = document.getElementById('forceUpdateBtn');
+    if (forceUpdateBtn) {
+        forceUpdateBtn.addEventListener('click', function() {
+            // Disable button and show loading state
+            forceUpdateBtn.disabled = true;
+            forceUpdateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            
+            // Send force update request
+            fetch(`/api/frames/${frameId}/force_update`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success state briefly
+                    forceUpdateBtn.classList.replace('btn-outline-success', 'btn-success');
+                    forceUpdateBtn.innerHTML = '<i class="fas fa-check"></i> Updated';
+                    setTimeout(() => {
+                        // Reset button state
+                        forceUpdateBtn.disabled = false;
+                        forceUpdateBtn.classList.replace('btn-success', 'btn-outline-success');
+                        forceUpdateBtn.innerHTML = '<i class="fas fa-sync"></i> Force Update';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Update failed');
+                }
+            })
+            .catch(error => {
+                // Show error state
+                forceUpdateBtn.classList.replace('btn-outline-success', 'btn-danger');
+                forceUpdateBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                setTimeout(() => {
+                    // Reset button state
+                    forceUpdateBtn.disabled = false;
+                    forceUpdateBtn.classList.replace('btn-danger', 'btn-outline-success');
+                    forceUpdateBtn.innerHTML = '<i class="fas fa-sync"></i> Force Update';
+                }, 2000);
+                console.error('Force update error:', error);
+            });
+        });
+    }
+
+    // Update the shuffle button functionality
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    if (shuffleBtn) {
+        shuffleBtn.addEventListener('click', function() {
+            fetch(`/api/frames/${frameId}/toggle_shuffle`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Toggle active state of button
+                    shuffleBtn.classList.toggle('active');
+                    
+                    // Get all playlist items
+                    const playlistItems = document.querySelectorAll('#playlist .list-group-item');
+                    const firstItem = playlistItems[0];
+                    
+                    if (shuffleBtn.classList.contains('active')) {
+                        // Remove next-up indicators when shuffle is enabled
+                        playlistItems.forEach(item => {
+                            item.classList.remove('next-up');
+                            const nextUpBadge = item.querySelector('.next-up-badge');
+                            if (nextUpBadge) nextUpBadge.remove();
+                        });
+                    } else {
+                        // Add next-up indicator to first item when shuffle is disabled
+                        if (firstItem) {
+                            firstItem.classList.add('next-up');
+                            
+                            // Create and add the next-up badge
+                            const nextUpBadge = document.createElement('span');
+                            nextUpBadge.className = 'next-up-badge';
+                            nextUpBadge.textContent = 'Next Up';
+                            
+                            // Create and add the spacer
+                            const spacer = document.createElement('div');
+                            spacer.className = 'flex-spacer';
+                            
+                            // Insert badge and spacer after the image
+                            const image = firstItem.querySelector('img');
+                            if (image) {
+                                image.insertAdjacentElement('afterend', nextUpBadge);
+                                nextUpBadge.insertAdjacentElement('afterend', spacer);
+                            }
+                        }
+                    }
+                }
+            })
+            .catch(error => console.error('Shuffle toggle error:', error));
+        });
+    }
+
+    // Note: The "Open Frame" button is a simple link that opens the virtual frame in a new tab
+    // No additional JavaScript is needed as it uses a standard anchor tag with target="_blank"
+
+    // Handle dynamic playlist toggle
+    document.getElementById('dynamicPlaylistEnabled').addEventListener('change', function(e) {
+        const isEnabled = e.target.checked;
+        fetch(`/api/frames/${frameId}/dynamic-playlist/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                enabled: isEnabled
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                // Revert toggle if failed
+                e.target.checked = !isEnabled;
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error updating dynamic playlist status: ' + error.message);
+        });
+    });
+
+    // Handle dynamic playlist form submission
+    document.getElementById('dynamicPlaylistForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const submitButton = this.querySelector('button[type="submit"]');
+        const originalText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        
+        fetch(`/api/frames/${frameId}/dynamic-playlist`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                prompt: document.getElementById('playlistPrompt').value
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                throw new Error(data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error updating dynamic playlist: ' + error.message);
+        })
+        .finally(() => {
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        });
+    });
+</script>
+{% endblock %} 

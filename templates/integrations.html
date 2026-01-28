@@ -1,0 +1,3317 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Integrations</h2>
+    
+    <!-- MQTT Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-broadcast"></i> MQTT Integration
+            </h5>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="mqttToggle" {% if mqtt_enabled %}checked{% endif %}>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Connection Settings -->
+            <h6 class="card-subtitle mb-3">Connection Settings</h6>
+            <form id="mqttForm">
+                <div class="mb-3">
+                    <label for="broker" class="form-label">MQTT Broker</label>
+                    <input type="text" class="form-control" id="broker" name="broker" value="{{ mqtt_settings.broker }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="port" class="form-label">Port</label>
+                    <input type="number" class="form-control" id="port" name="port" value="{{ mqtt_settings.port }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" value="{{ mqtt_settings.username }}">
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" value="{{ mqtt_settings.password }}">
+                </div>
+                <div class="mb-3">
+                    <label for="deviceName" class="form-label">Device Name</label>
+                    <input type="text" class="form-control" id="deviceName" name="deviceName" value="{{ mqtt_settings.device_name }}">
+                </div>
+                <div class="mb-3">
+                    <label for="status" class="form-label">Status</label>
+                    <input type="text" class="form-control" id="status" value="{{ mqtt_status }}" readonly>
+                </div>
+                <button type="submit" class="btn btn-primary me-2">Save Settings</button>
+                <button type="button" class="btn btn-secondary" id="testConnection">Test Connection</button>
+            </form>
+
+            <!-- Available MQTT Commands -->
+            <div class="accordion" id="mqttCommandsAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                            Available MQTT Commands
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#mqttCommandsAccordion">
+                        <div class="accordion-body p-3">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Command</th>
+                            <th>Payload</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Set Next Photo</td>
+                            <td><code>frame/[frame_id]/next_up/set</code></td>
+                            <td><code>"filename.jpg"</code></td>
+                            <td>Set the next photo for a specific frame</td>
+                        </tr>
+                        <tr>
+                            <td>Set Sleep Interval</td>
+                            <td><code>frame/[frame_id]/sleep_interval/set</code></td>
+                            <td><code>number</code></td>
+                            <td>Set the sleep interval in seconds (1-3600)</td>
+                        </tr>
+                        <tr>
+                            <td>Set Shuffle</td>
+                            <td><code>frame/[frame_id]/shuffle/set</code></td>
+                            <td><code>true/false</code></td>
+                            <td>Enable or disable shuffle mode</td>
+                        </tr>
+                        <tr>
+                            <td>Set Deep Sleep</td>
+                            <td><code>frame/[frame_id]/deep_sleep/set</code></td>
+                            <td><code>true/false</code></td>
+                            <td>Enable or disable deep sleep mode</td>
+                        </tr>
+                        <tr>
+                            <td>Apply Playlist</td>
+                            <td><code>frame/[frame_id]/apply_playlist/set</code></td>
+                            <td><code>"playlist_name [ID]"</code></td>
+                            <td>Apply a specific playlist to the frame</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Google Photos Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-camera"></i> Google Photos Integration
+            </h5>
+            <button class="btn btn-sm btn-outline-info" onclick="showGooglePhotosHelp()">
+                <i class="bi bi-question-circle"></i> Setup Help
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="googlePhotosStatus">
+                <!-- Status will be populated by JavaScript -->
+            </div>
+            <div id="googlePhotosActions" class="mt-3">
+                <!-- Actions will be populated by JavaScript -->
+            </div>
+            <!-- Auth Code Input Section (initially hidden) -->
+            <div id="authCodeSection" class="mt-3" style="display: none;">
+                <div class="alert alert-info">
+                    <p>Please enter the authorization code from Google:</p>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="authCodeInput" 
+                           placeholder="Enter authorization code">
+                    <button class="btn btn-primary" type="button" onclick="submitAuthCode()">
+                        Submit Code
+                    </button>
+                    <button class="btn btn-secondary" type="button" onclick="cancelAuth()">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Unsplash Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-image"></i> Unsplash Integration
+            </h5>
+            <button class="btn btn-sm btn-outline-info" onclick="showUnsplashHelp()">
+                <i class="bi bi-question-circle"></i> Setup Help
+            </button>
+        </div>
+        <div class="card-body">
+            <form id="unsplashForm">
+                <div class="mb-3">
+                    <label for="unsplashApiKey" class="form-label">Unsplash API Key</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="unsplashApiKey" name="api_key">
+                        <button class="btn btn-outline-secondary toggle-password" type="button" data-target="unsplashApiKey">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <a href="/unsplash" class="btn btn-primary">Manage Unsplash Schedules</a>
+                    <button type="submit" class="btn btn-success">Save API Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Pixabay Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="mb-0">Pixabay Integration</h3>
+        </div>
+        <div class="card-body">
+            <form id="pixabaySettingsForm">
+                <div class="mb-3">
+                    <label for="pixabayApiKey" class="form-label">API Key</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="pixabayApiKey" 
+                               placeholder="Enter your Pixabay API key">
+                        <button class="btn btn-outline-secondary" type="button" id="togglePixabayKey">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <small class="form-text text-muted">
+                        Get your API key from <a href="https://pixabay.com/api/docs/" target="_blank">Pixabay API Documentation</a>
+                    </small>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <a href="/pixabay" class="btn btn-outline-primary">
+                        Schedule Photos
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Network Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-folder-network"></i> Network Folders (SMB)
+            </h5>
+            <button class="btn btn-sm btn-outline-info" onclick="showNetworkHelp()">
+                <i class="bi bi-question-circle"></i> Setup Help
+            </button>
+        </div>
+        <div class="card-body">
+            <p class="card-text">
+                Add network locations to import photos from shared folders on your local network.
+            </p>
+            
+            <!-- Network Locations Table -->
+            <div class="table-responsive mb-3">
+                <table class="table table-striped" id="networkLocationsTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Network Path</th>
+                            <th>Username</th>
+                            <th>Auto Import</th>
+                            <th>Target Frame</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="networkLocationsBody">
+                        <!-- Locations will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Add/Edit Network Location Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0" id="locationFormTitle">Add Network Location</h6>
+                </div>
+                <div class="card-body">
+                    <form id="networkLocationForm">
+                        <input type="hidden" id="locationId">
+                        <div class="mb-3">
+                            <label for="locationName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="locationName" required>
+                            <small class="form-text text-muted">A friendly name for this location</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="networkPath" class="form-label">Network Path</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="networkPath" required>
+                                <button class="btn btn-outline-secondary" type="button" id="browseFoldersBtn" onclick="openNetworkBrowser()">
+                                    <i class="bi bi-folder2-open"></i> Browse
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">Example: \\server\share or /mnt/network/share</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username (optional)</label>
+                            <input type="text" class="form-control" id="networkUsername">
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password (optional)</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="networkPassword">
+                                <button class="btn btn-outline-secondary toggle-password" type="button" data-target="networkPassword">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoAddNewMedia">
+                                <label class="form-check-label" for="autoAddNewMedia">
+                                    Auto Import New Media
+                                </label>
+                                <small class="form-text text-muted d-block">Automatically import new media files from this location. Auto import can take up to 30 minutes to import new media.</small>
+                            </div>
+                        </div>
+                        <div class="mb-3" id="autoAddTargetFrameContainer" style="display: none;">
+                            <label for="autoAddTargetFrame" class="form-label">Target Frame</label>
+                            <select class="form-select" id="autoAddTargetFrame">
+                                <option value="">Select a frame</option>
+                                <!-- Options will be populated by JavaScript -->
+                            </select>
+                            <small class="form-text text-muted">New media will be added to this frame</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" id="saveLocationBtn">Save Location</button>
+                            <button type="button" class="btn btn-secondary" id="cancelEditBtn" style="display: none;">Cancel</button>
+                            <button type="button" class="btn btn-info" id="testConnectionBtn">Test Connection</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Immich Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-camera"></i> Immich Integration
+            </h5>
+            <button class="btn btn-sm btn-outline-info" onclick="showImmichHelp()">
+                <i class="bi bi-question-circle"></i> Setup Help
+            </button>
+        </div>
+        <div class="card-body">
+            <p class="card-text">
+                Connect to your Immich server to import photos from albums and faces.
+            </p>
+            
+            <!-- Immich Connection Settings -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Connection Settings</h6>
+                </div>
+                <div class="card-body">
+                    <form id="immichConnectionForm">
+                        <div class="mb-3">
+                            <label for="immichServerUrl" class="form-label">Immich Server URL</label>
+                            <input type="url" class="form-control" id="immichServerUrl" required placeholder="https://your-immich-server.com">
+                            <small class="form-text text-muted">The URL of your Immich server</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="immichApiKey" class="form-label">API Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="immichApiKey" required>
+                                <button class="btn btn-outline-secondary toggle-password" type="button" data-target="immichApiKey">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">Your Immich API key</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" id="saveImmichSettingsBtn">Save Settings</button>
+                            <button type="button" class="btn btn-info" id="testImmichConnectionBtn">Test Connection</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Immich Auto-Import Settings -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Auto-Import Settings</h6>
+                    <div>
+                        <button class="btn btn-sm btn-primary" id="addAlbumImportBtn">
+                            <i class="bi bi-plus"></i> Add Album Import
+                        </button>
+                        <button class="btn btn-sm btn-primary" id="addFaceImportBtn">
+                            <i class="bi bi-plus"></i> Add Face Import
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="immichAutoImportTable">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Name</th>
+                                    <th>Target Frame</th>
+                                    <th>Last Refreshed</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="immichAutoImportBody">
+                                <!-- Auto-import configurations will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noImmichImportsMessage" class="alert alert-info" style="display: none;">
+                        No auto-import configurations set up. Click "Add Album Import" or "Add Face Import" to get started.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Browser Modal -->
+    <div class="modal fade" id="networkBrowserModal" tabindex="-1" aria-labelledby="networkBrowserModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="networkBrowserModalLabel">Browse Network Shares</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="networkBrowserLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Scanning for network shares...</p>
+                    </div>
+                    
+                    <div id="networkBrowserError" class="alert alert-danger" style="display: none;"></div>
+                    
+                    <div id="networkBrowserContent" style="display: none;">
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="networkSearchInput" placeholder="Search shares...">
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="networkSharesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Server</th>
+                                        <th>Share Name</th>
+                                        <th>Description</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="networkSharesBody">
+                                    <!-- Shares will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="noSharesFound" class="alert alert-info" style="display: none;">
+                            No network shares found. Try entering the network path manually.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="refreshSharesBtn">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Immich Album Selection Modal -->
+    <div class="modal fade" id="immichAlbumModal" tabindex="-1" aria-labelledby="immichAlbumModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="immichAlbumModalLabel">Select Immich Album</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="immichAlbumLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading albums from Immich...</p>
+                    </div>
+                    
+                    <div id="immichAlbumError" class="alert alert-danger" style="display: none;"></div>
+                    
+                    <div id="immichAlbumContent" style="display: none;">
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="albumSearchInput" placeholder="Search albums...">
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="immichAlbumsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Album Name</th>
+                                        <th>Owner</th>
+                                        <th>Photos</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="immichAlbumsBody">
+                                    <!-- Albums will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="noAlbumsFound" class="alert alert-info" style="display: none;">
+                            No albums found in your Immich server.
+                        </div>
+                    </div>
+                    
+                    <div id="albumTargetFrameContainer" class="mt-3" style="display: none;">
+                        <label for="albumTargetFrame" class="form-label">Target Frame</label>
+                        <select class="form-select" id="albumTargetFrame">
+                            <option value="">Select a frame</option>
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                        <small class="form-text text-muted">Photos from this album will be added to this frame</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveAlbumImportBtn" disabled>
+                        Save Album Import
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Immich Face Selection Modal -->
+    <div class="modal fade" id="immichFaceModal" tabindex="-1" aria-labelledby="immichFaceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="immichFaceModalLabel">Select Immich Face</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="immichFaceLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading faces from Immich...</p>
+                    </div>
+                    
+                    <div id="immichFaceError" class="alert alert-danger" style="display: none;"></div>
+                    
+                    <div id="immichFaceContent" style="display: none;">
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="faceSearchInput" placeholder="Search faces...">
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="immichFacesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="immichFacesBody">
+                                    <!-- Faces will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="noFacesFound" class="alert alert-info" style="display: none;">
+                            No faces found in your Immich server.
+                        </div>
+                    </div>
+                    
+                    <div id="faceTargetFrameContainer" class="mt-3" style="display: none;">
+                        <label for="faceTargetFrame" class="form-label">Target Frame</label>
+                        <select class="form-select" id="faceTargetFrame">
+                            <option value="">Select a frame</option>
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                        <small class="form-text text-muted">Photos of this person will be added to this frame</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveFaceImportBtn" disabled>
+                        Save Face Import
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weather Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-cloud-sun"></i> Weather Overlay
+            </h5>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="weatherToggle">
+            </div>
+        </div>
+        <div class="card-body">
+            <form id="weatherForm">
+                <div class="mb-3">
+                    <label for="zipcode" class="form-label">Zipcode</label>
+                    <input type="text" class="form-control" id="zipcode" name="zipcode" required>
+                </div>
+                <div class="mb-3">
+                    <label for="apiKey" class="form-label">OpenWeather API Key</label>
+                    <input type="password" class="form-control" id="apiKey" name="apiKey" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Temperature Units</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="units" id="unitsF" value="F" checked>
+                        <label class="form-check-label" for="unitsF">Fahrenheit</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="units" id="unitsC" value="C">
+                        <label class="form-check-label" for="unitsC">Celsius</label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="updateInterval" class="form-label">Update Interval (hours)</label>
+                    <input type="number" class="form-control" id="updateInterval" name="updateInterval" 
+                           value="6" min="1" max="24">
+                </div>
+
+                <!-- Add Style Settings Section -->
+                <h6 class="mt-4 mb-3">Style Settings</h6>
+                
+                <!-- Add Format Field -->
+                <div class="mb-3">
+                    <label for="weatherFormat" class="form-label">Format</label>
+                    <input type="text" class="form-control" id="weatherFormat" name="format">
+                    <small class="form-text text-muted">
+                        Available variables:
+                        <ul class="mt-2">
+                            <li><code>{temp}</code> - Current temperature</li>
+                            <li><code>{temp_min}</code> - Minimum temperature</li>
+                            <li><code>{temp_max}</code> - Maximum temperature</li>
+                            <li><code>{feels_like}</code> - Feels like temperature</li>
+                            <li><code>{humidity}</code> - Humidity percentage</li>
+                            <li><code>{pressure}</code> - Pressure</li>
+                            <li><code>{description}</code> - Weather description</li>
+                            <li><code>{wind_speed}</code> - Wind speed</li>
+                            <li><code>{wind_deg}</code> - Wind direction</li>
+                            <li><code>{clouds}</code> - Cloud coverage</li>
+                            <li><code>{visibility}</code> - Visibility</li>
+                            <li><code>{sunrise}</code> - Sunrise time</li>
+                            <li><code>{sunset}</code> - Sunset time</li>
+                            <li><code>{city}</code> - City name</li>
+                        </ul>
+                    </small>
+                            </div>
+
+                <!-- Position Setting -->
+                                <div class="mb-3">
+                    <label for="weatherPosition" class="form-label">Position</label>
+                    <select class="form-select" id="weatherPosition" name="position">
+                        <option value="top-left">Top Left</option>
+                        <option value="top-right">Top Right</option>
+                        <option value="top-center">Top Center</option>
+                        <option value="bottom-left">Bottom Left</option>
+                        <option value="bottom-right">Bottom Right</option>
+                        <option value="bottom-center">Bottom Center</option>
+                        <option value="center">Center</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="weatherFontSize" class="form-label">Font Size</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="weatherFontSize" name="fontSize" min="1" max="100" value="5">
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="weatherMargin" class="form-label">Margin</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="weatherMargin" name="margin" min="0" max="100" value="5">
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="weatherColor" class="form-label">Text Color</label>
+                    <input type="color" class="form-control form-control-color" id="weatherColor" name="color" value="#ffffff">
+                </div>
+
+                <!-- Background Settings -->
+                <div class="mb-3">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="weatherBackgroundEnabled" name="backgroundEnabled">
+                        <label class="form-check-label" for="weatherBackgroundEnabled">
+                            Enable Background
+                        </label>
+                    </div>
+                    <div id="weatherBackgroundSettings" style="display: none;">
+                        <div class="mb-2">
+                            <label for="weatherBackgroundColor" class="form-label">Background Color</label>
+                            <input type="color" class="form-control form-control-color" id="weatherBackgroundColor" name="backgroundColor" value="#ffffff">
+                        </div>
+                        <div class="mb-2">
+                            <label for="weatherBackgroundOpacity" class="form-label">Background Opacity</label>
+                            <div class="input-group">
+                                <input type="range" class="form-range" id="weatherBackgroundOpacity" name="backgroundOpacity" min="0" max="100" value="30">
+                                <span id="weatherBackgroundOpacityValue" class="ms-2">30%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add this after the Format Field in the Weather Integration Card -->
+                <div class="mb-3">
+                    <label for="weatherFontFamily" class="form-label">Font Family</label>
+                    <select class="form-select" id="weatherFontFamily" name="fontFamily">
+                        <option value="BebasNeue-Regular.ttf">Bebas Neue Regular</option>
+                        <!-- Additional fonts will be populated by JavaScript -->
+                    </select>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <button type="button" class="btn btn-secondary" id="testWeather">Test Connection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Metadata Overlay Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-text-paragraph"></i> Metadata Overlay
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Configuration Panel -->
+                <div class="col-12">
+                    <form id="metadataForm">
+                        <!-- Global Padding Setting -->
+                        <div class="mb-4">
+                            <label for="globalPadding" class="form-label">Global Padding (px)</label>
+                            <div class="input-group" style="max-width: 200px;">
+                                <input type="number" class="form-control" id="globalPadding" min="0" max="500" value="0">
+                                <span class="input-group-text">px</span>
+                            </div>
+                            <small class="text-muted">Additional space from image edges before metadata starts</small>
+                        </div>
+
+                        <!-- Field Configuration Tabs -->
+                        <ul class="nav nav-tabs" id="fieldTabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#dateConfig">Date</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#timeConfig">Time</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#headingConfig">Heading</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#cameraConfig">Camera</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#locationConfig">Location</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#backgroundConfig">Background</a>
+                            </li>
+                        </ul>
+
+                        <!-- Tab Content -->
+                        <div class="tab-content mt-3">
+                            <!-- Date Configuration -->
+                            <div class="tab-pane fade show active" id="dateConfig">
+                                <div class="field-settings" data-field="date">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Time Configuration -->
+                            <div class="tab-pane fade" id="timeConfig">
+                                <div class="field-settings" data-field="time">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Heading Configuration -->
+                            <div class="tab-pane fade" id="headingConfig">
+                                <div class="field-settings" data-field="heading">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Camera Configuration -->
+                            <div class="tab-pane fade" id="cameraConfig">
+                                <div class="field-settings" data-field="camera">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Location Configuration -->
+                            <div class="tab-pane fade" id="locationConfig">
+                                <div class="field-settings" data-field="location">
+                                    <!-- These will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Background Configuration -->
+                            <div class="tab-pane fade" id="backgroundConfig">
+                                <div class="mb-3">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="backgroundEnabled">
+                                        <label class="form-check-label" for="backgroundEnabled">Enable Background</label>
+                                    </div>
+                                    <label class="form-label">Background Color</label>
+                                    <input type="color" class="form-control form-control-color" id="backgroundColor">
+                                    <label class="form-label mt-2">Opacity</label>
+                                    <input type="range" class="form-range" id="backgroundOpacity" min="0" max="100" step="1">
+                                    <span id="opacityValue">50%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Global Settings -->
+                        <div class="mt-3">
+                            <label class="form-label">Vertical Spacing</label>
+                            <input type="number" class="form-control" id="verticalSpacing" min="0" max="200">
+                        </div>
+
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary me-2">Save Settings</button>
+                            <button type="button" class="btn btn-outline-secondary" id="resetDefaults">Reset to Defaults</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this card after the Metadata Overlay Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-qr-code"></i> QR Code Overlay
+            </h5>
+        </div>
+        <div class="card-body">
+            <form id="qrcodeForm">
+                <div class="mb-3">
+                    <label for="qrcodeSize" class="form-label">Size</label>
+                    <select class="form-select" id="qrcodeSize" name="size">
+                        <option value="small">Small</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="qrcodePosition" class="form-label">Position</label>
+                    <select class="form-select" id="qrcodePosition" name="position">
+                        <option value="top-left">Top Left</option>
+                        <option value="top-right">Top Right</option>
+                        <option value="top-center">Top Center</option>
+                        <option value="bottom-left">Bottom Left</option>
+                        <option value="bottom-right" selected>Bottom Right</option>
+                        <option value="bottom-center">Bottom Center</option>
+                        <option value="center">Center</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="qrcodeLinkType" class="form-label">Link Type</label>
+                    <select class="form-select" id="qrcodeLinkType" name="link_type">
+                        <option value="frame_playlist" selected>Frame Playlist</option>
+                        <option value="server_home">Server Homepage</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add this modal for the setup instructions -->
+<div class="modal fade" id="googlePhotosHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Google Photos Setup Instructions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="googlePhotosHelpContent">
+                Loading instructions...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Update the Weather Help Modal -->
+<div class="modal fade" id="weatherHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">OpenWeather API Setup Instructions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="weatherHelpContent">
+                Loading instructions...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Unsplash help modal -->
+<div class="modal fade" id="unsplashHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Unsplash Setup Instructions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="unsplashHelpContent">
+                Loading instructions...
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    // Load MQTT settings
+    const mqttForm = document.getElementById('mqttForm');
+    const mqttToggle = document.getElementById('mqttToggle');
+    const testButton = document.getElementById('testConnection');
+    const statusInput = document.getElementById('status');
+
+    // Add MQTT event listeners
+    mqttToggle.addEventListener('change', async function() {
+        try {
+            const response = await fetch('/api/integrations/mqtt/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    enabled: this.checked,
+                    broker: document.getElementById('broker').value,
+                    port: parseInt(document.getElementById('port').value),
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                    device_name: document.getElementById('deviceName').value
+                })
+            });
+            
+            if (!response.ok) throw new Error('Failed to update settings');
+            
+            const result = await response.json();
+            statusInput.value = result.status;
+        } catch (error) {
+            alert('Error updating MQTT status: ' + error.message);
+            this.checked = !this.checked;  // Revert toggle
+        }
+    });
+
+    mqttForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        try {
+            const response = await fetch('/api/integrations/mqtt/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    enabled: mqttToggle.checked,
+                    broker: document.getElementById('broker').value,
+                    port: parseInt(document.getElementById('port').value),
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                    device_name: document.getElementById('deviceName').value
+                })
+            });
+            
+            if (!response.ok) throw new Error('Failed to save settings');
+            
+            const result = await response.json();
+            statusInput.value = result.status;
+            alert('Settings saved successfully!');
+        } catch (error) {
+            alert('Error saving settings: ' + error.message);
+        }
+    });
+
+    testButton.addEventListener('click', async function() {
+        try {
+            const response = await fetch('/api/integrations/mqtt/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    broker: document.getElementById('broker').value,
+                    port: parseInt(document.getElementById('port').value),
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                })
+            });
+            
+            if (!response.ok) throw new Error('Connection test failed');
+            
+            const result = await response.json();
+            statusInput.value = result.status;
+            alert(result.message);
+        } catch (error) {
+            alert('Connection test failed: ' + error.message);
+        }
+    });
+
+    // Load Google Photos status
+    updateGooglePhotosStatus();
+
+    // Load Unsplash settings
+    try {
+        const unsplashResponse = await fetch('/api/unsplash/settings');
+        const unsplashSettings = await unsplashResponse.json();
+        if (unsplashSettings.api_key) {
+            document.getElementById('unsplashApiKey').value = unsplashSettings.api_key;
+        }
+    } catch (error) {
+        console.error('Error loading Unsplash settings:', error);
+    }
+
+    // Load Pixabay settings
+    try {
+        const pixabayResponse = await fetch('/api/pixabay/settings');
+        const pixabaySettings = await pixabayResponse.json();
+        if (pixabaySettings.api_key) {
+            document.getElementById('pixabayApiKey').value = pixabaySettings.api_key;
+        }
+    } catch (error) {
+        console.error('Error loading Pixabay settings:', error);
+    }
+
+    // Load weather settings
+    loadWeatherSettings();
+
+    // Load metadata settings
+    loadMetadataSettings();
+
+    // Load available fonts
+    loadAvailableFonts();
+
+    // Load network locations
+    loadNetworkLocations();
+    
+    // Load available frames for auto-add dropdown
+    loadAvailableFrames();
+    
+    // Load available fonts for weather
+    await loadWeatherFonts();
+});
+
+function updateGooglePhotosStatus() {
+    fetch('/api/google-photos/status')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const statusDiv = document.getElementById('googlePhotosStatus');
+            const actionsDiv = document.getElementById('googlePhotosActions');
+            const authCodeSection = document.getElementById('authCodeSection');
+            
+            // Hide auth code section when updating status
+            authCodeSection.style.display = 'none';
+            
+            if (data.connected) {
+                statusDiv.innerHTML = '<div class="alert alert-success">Connected to Google Photos</div>';
+                actionsDiv.innerHTML = `
+                    <button class="btn btn-danger" onclick="disconnectGooglePhotos()">
+                        Disconnect from Google Photos
+                    </button>`;
+            } else {
+                statusDiv.innerHTML = '<div class="alert alert-warning">Not connected to Google Photos</div>';
+                actionsDiv.innerHTML = `
+                    <button class="btn btn-primary" onclick="connectGooglePhotos()">
+                        Connect to Google Photos
+                    </button>`;
+            }
+        })
+        .catch(error => {
+            console.error('Google Photos status error:', error);
+            const statusDiv = document.getElementById('googlePhotosStatus');
+            const actionsDiv = document.getElementById('googlePhotosActions');
+            
+            statusDiv.innerHTML = '<div class="alert alert-danger">Error checking Google Photos status</div>';
+            actionsDiv.innerHTML = `
+                <button class="btn btn-primary" onclick="connectGooglePhotos()">
+                    Try to Connect to Google Photos
+                </button>`;
+        });
+}
+
+function connectGooglePhotos() {
+    fetch('/api/google-photos/auth-url')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            if (data.auth_url) {
+                // Open the auth URL in a new tab
+                window.open(data.auth_url, '_blank');
+                
+                // Show the auth code input section
+                document.getElementById('authCodeSection').style.display = 'block';
+                document.getElementById('authCodeInput').focus();
+            } else {
+                throw new Error('No authorization URL received');
+            }
+        })
+        .catch(error => {
+            console.error('Google Photos connection error:', error);
+            alert('Error connecting to Google Photos: ' + error.message);
+        });
+}
+
+function submitAuthCode() {
+    const authCode = document.getElementById('authCodeInput').value.trim();
+    if (!authCode) {
+        alert('Please enter the authorization code');
+        return;
+    }
+
+    fetch('/api/google-photos/auth', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code: authCode })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        alert('Successfully connected to Google Photos');
+        document.getElementById('authCodeInput').value = '';
+        updateGooglePhotosStatus();
+    })
+    .catch(error => {
+        console.error('Google Photos auth error:', error);
+        alert('Error authenticating: ' + error.message);
+    });
+}
+
+function cancelAuth() {
+    document.getElementById('authCodeSection').style.display = 'none';
+    document.getElementById('authCodeInput').value = '';
+}
+
+function disconnectGooglePhotos() {
+    if (confirm('Are you sure you want to disconnect from Google Photos?')) {
+        fetch('/api/google-photos/disconnect', {
+            method: 'POST'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            alert('Successfully disconnected from Google Photos');
+            updateGooglePhotosStatus();
+        })
+        .catch(error => {
+            console.error('Google Photos disconnection error:', error);
+            alert('Error disconnecting from Google Photos: ' + error.message);
+        });
+    }
+}
+
+async function showGooglePhotosHelp() {
+    const modal = new bootstrap.Modal(document.getElementById('googlePhotosHelpModal'));
+    const contentDiv = document.getElementById('googlePhotosHelpContent');
+    
+    try {
+        const response = await fetch('/static/docs/google_photos_setup.md', {
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
+        
+        const text = await response.text();
+        if (!text) {
+            throw new Error('No content received');
+        }
+
+        // Use the marked.parse() method instead of calling marked directly
+        contentDiv.innerHTML = `<div class="markdown-body">${marked.parse(text)}</div>`;
+    } catch (error) {
+        console.error('Error in showGooglePhotosHelp:', error);
+        contentDiv.innerHTML = `
+            <div class="alert alert-danger">
+                Error loading setup instructions: ${error.message}<br>
+                Please check the browser console for more details.
+            </div>`;
+    }
+    
+    modal.show();
+}
+
+// Add some basic styling for the markdown content
+document.head.insertAdjacentHTML('beforeend', `
+    <style>
+        .markdown-body {
+            padding: 1rem;
+            line-height: 1.6;
+        }
+        .markdown-body h1 { font-size: 2em; margin-bottom: 1rem; }
+        .markdown-body h2 { font-size: 1.5em; margin: 1rem 0; }
+        .markdown-body ul { padding-left: 2rem; }
+        .markdown-body li { margin: 0.5rem 0; }
+        .markdown-body code { background: #f8f9fa; padding: 0.2rem 0.4rem; border-radius: 3px; }
+        .markdown-body a { color: #0d6efd; text-decoration: none; }
+        .markdown-body a:hover { text-decoration: underline; }
+    </style>
+`);
+
+function showWeatherHelp() {
+    const modal = new bootstrap.Modal(document.getElementById('weatherHelpModal'));
+    const contentDiv = document.getElementById('weatherHelpContent');
+    
+    fetch('/static/docs/openweather_setup.md', {
+        headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
+    })
+    .then(response => response.text())
+    .then(text => {
+        if (!text) {
+            throw new Error('No content received');
+        }
+        contentDiv.innerHTML = `<div class="markdown-body">${marked.parse(text)}</div>`;
+    })
+    .catch(error => {
+        console.error('Error loading OpenWeather setup instructions:', error);
+        contentDiv.innerHTML = `
+            <div class="alert alert-danger">
+                Error loading setup instructions: ${error.message}<br>
+                Please check the browser console for more details.
+            </div>`;
+    });
+    
+    modal.show();
+}
+
+// Update the form submission handler
+document.getElementById('weatherForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        enabled: document.getElementById('weatherToggle').checked,
+        zipcode: document.getElementById('zipcode').value,
+        api_key: document.getElementById('apiKey').value,
+        units: document.querySelector('input[name="units"]:checked').value,
+        update_interval: parseInt(document.getElementById('updateInterval').value),
+        style: {
+            format: document.getElementById('weatherFormat').value,
+            position: document.getElementById('weatherPosition').value,
+            font_family: document.getElementById('weatherFontFamily').value, // Add font family
+            font_size: `${document.getElementById('weatherFontSize').value}%`,
+            margin: `${document.getElementById('weatherMargin').value}%`,
+            color: document.getElementById('weatherColor').value,
+            background: {
+                enabled: document.getElementById('weatherBackgroundEnabled').checked,
+                color: document.getElementById('weatherBackgroundColor').value,
+                opacity: parseInt(document.getElementById('weatherBackgroundOpacity').value)
+            }
+        }
+    };
+
+    console.log('Saving weather settings:', formData); // Add logging
+
+    try {
+        const response = await fetch('/api/weather/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+        console.log('Server response:', data); // Add logging
+        
+        if (response.ok && data.success) {
+            alert('Weather settings saved successfully');
+            // Reload settings to ensure UI is in sync
+            await loadWeatherSettings();
+        } else {
+            throw new Error(data.error || 'Failed to save settings');
+        }
+    } catch (error) {
+        console.error('Error saving weather settings:', error);
+        alert('Error saving weather settings: ' + error.message);
+    }
+});
+
+// Update loadWeatherSettings function
+async function loadWeatherSettings() {
+    try {
+        const response = await fetch('/api/weather/settings');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load settings');
+        }
+        
+        const settings = data.settings;
+        
+        // Update basic settings
+        document.getElementById('weatherToggle').checked = settings.enabled || false;
+        document.getElementById('zipcode').value = settings.zipcode || '';
+        document.getElementById('apiKey').value = settings.api_key || '';
+        document.querySelector(`input[name="units"][value="${settings.units || 'F'}"]`).checked = true;
+        document.getElementById('updateInterval').value = settings.update_interval || 6;
+        
+        // Update style settings if they exist
+        if (settings.style) {
+            // Format
+            const formatInput = document.getElementById('weatherFormat');
+            if (formatInput) {
+                formatInput.value = settings.style.format || '{temp}° {units}';
+            }
+
+            // Position
+            const positionSelect = document.getElementById('weatherPosition');
+            if (positionSelect) {
+                positionSelect.value = settings.style.position || 'top-left';
+            }
+
+            // Font size (remove % if present)
+            const fontSize = document.getElementById('weatherFontSize');
+            if (fontSize) {
+                const fontSizeValue = settings.style.font_size || '5%';
+                fontSize.value = parseInt(fontSizeValue.replace('%', ''));
+            }
+
+            // Margin (remove % if present)
+            const margin = document.getElementById('weatherMargin');
+            if (margin) {
+                const marginValue = settings.style.margin || '5%';
+                margin.value = parseInt(marginValue.replace('%', ''));
+            }
+
+            // Color
+            const color = document.getElementById('weatherColor');
+            if (color) {
+                color.value = settings.style.color || '#ffffff';
+            }
+
+            // Background settings
+            const background = settings.style.background || {};
+            const bgEnabled = document.getElementById('weatherBackgroundEnabled');
+            const bgSettings = document.getElementById('weatherBackgroundSettings');
+            const bgColor = document.getElementById('weatherBackgroundColor');
+            const bgOpacity = document.getElementById('weatherBackgroundOpacity');
+            const bgOpacityValue = document.getElementById('weatherBackgroundOpacityValue');
+
+            if (bgEnabled) {
+                bgEnabled.checked = background.enabled || false;
+                if (bgSettings) {
+                    bgSettings.style.display = background.enabled ? 'block' : 'none';
+                }
+            }
+
+            if (bgColor) {
+                bgColor.value = background.color || '#ffffff';
+            }
+
+            if (bgOpacity) {
+                bgOpacity.value = background.opacity || 30;
+            }
+
+            if (bgOpacityValue) {
+                bgOpacityValue.textContent = `${background.opacity || 30}%`;
+            }
+
+            // Font Family
+            const fontFamilySelect = document.getElementById('weatherFontFamily');
+            if (fontFamilySelect) {
+                const fontValue = settings.style.font_family || 'BebasNeue-Regular.ttf';
+                // Make sure the value includes .ttf extension
+                const fullFontValue = fontValue.endsWith('.ttf') ? fontValue : `${fontValue}.ttf`;
+                fontFamilySelect.value = fullFontValue;
+                
+                // If the value wasn't set, log a warning
+                if (fontFamilySelect.value !== fullFontValue) {
+                    console.warn(`Font family ${fullFontValue} not found in options`);
+                }
+            }
+        }
+        
+        // Update form elements disabled state
+        const formElements = document.querySelectorAll('#weatherForm input:not(#weatherToggle), #weatherForm select');
+        formElements.forEach(input => {
+            input.disabled = !settings.enabled;
+        });
+    } catch (error) {
+        console.error('Error loading weather settings:', error);
+        alert('Error loading weather settings: ' + error.message);
+    }
+}
+
+// Handle weather toggle switch
+document.getElementById('weatherToggle').addEventListener('change', function(e) {
+    const formElements = document.querySelectorAll('#weatherForm input:not(#weatherToggle), #weatherForm select');
+    formElements.forEach(input => {
+        input.disabled = !e.target.checked;
+    });
+});
+
+// Handle test connection button
+document.getElementById('testWeather').addEventListener('click', async function() {
+    try {
+        const response = await fetch('/api/weather/test', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Weather connection test successful: ' + result.message);
+        } else {
+            alert('Weather connection test failed: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error testing weather connection: ' + error.message);
+    }
+});
+
+// Add background toggle handler
+document.getElementById('weatherBackgroundEnabled').addEventListener('change', function(e) {
+    document.getElementById('weatherBackgroundSettings').style.display = e.target.checked ? 'block' : 'none';
+});
+
+// Add opacity range handler
+document.getElementById('weatherBackgroundOpacity').addEventListener('input', function(e) {
+    document.getElementById('weatherBackgroundOpacityValue').textContent = `${e.target.value}%`;
+});
+
+// Metadata Overlay Editor
+document.addEventListener('DOMContentLoaded', function() {
+    // Common field settings template
+    const fieldSettingsTemplate = `
+        <div class="mb-3">
+            <div class="form-check mb-2">
+                <input class="form-check-input field-enabled" type="checkbox" id="{field}Enabled" data-field="{field}">
+                <label class="form-check-label" for="{field}Enabled">Show {Field}</label>
+            </div>
+            <label class="form-label">Format</label>
+            <input type="text" class="form-control field-format" data-field="{field}">
+            <small class="text-muted">Available variables: {variables}</small>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Font Family</label>
+            <select class="form-select field-font-family" data-field="{field}">
+                <option value="BebasNeue-Regular.ttf" selected>Bebas Neue Regular</option>
+                <!-- Additional fonts will be populated by JavaScript -->
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Font Size</label>
+            <div class="input-group">
+                <input type="number" class="form-control field-font-size" data-field="{field}" min="1" max="100">
+                <span class="input-group-text">%</span>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Text Color</label>
+            <input type="color" class="form-control form-control-color field-color" data-field="{field}">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Position</label>
+            <select class="form-select field-position" data-field="{field}">
+                <option value="top-left">Top Left</option>
+                <option value="top-right">Top Right</option>
+                <option value="top-center">Top Center</option>
+                <option value="bottom-left">Bottom Left</option>
+                <option value="bottom-right">Bottom Right</option>
+                <option value="bottom-center">Bottom Center</option>
+                <option value="center">Center</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Margin</label>
+            <div class="input-group">
+                <input type="number" class="form-control field-margin" data-field="{field}" min="0" max="100">
+                <span class="input-group-text">%</span>
+            </div>
+        </div>
+    `;
+
+    // Field configurations
+    const fields = {
+        date: {
+            name: 'Date',
+            variables: '{date}'
+        },
+        time: {
+            name: 'Time',
+            variables: '{time}'
+        },
+        heading: {
+            name: 'Heading',
+            variables: '{heading}'
+        },
+        camera: {
+            name: 'Camera',
+            variables: '{camera_make}, {camera_model}'
+        },
+        location: {
+            name: 'Location',
+            variables: '{location}'
+        }
+    };
+
+    // Populate field settings for each field
+    Object.entries(fields).forEach(([field, config]) => {
+        const container = document.querySelector(`[data-field="${field}"]`);
+        if (container) {
+            let template = fieldSettingsTemplate
+                .replaceAll('{field}', field)
+                .replaceAll('{Field}', config.name)
+                .replaceAll('{variables}', config.variables);
+            container.innerHTML = template;
+        }
+    });
+
+    // Update background opacity value display
+    const backgroundOpacity = document.getElementById('backgroundOpacity');
+    const opacityValue = document.getElementById('opacityValue');
+    if (backgroundOpacity && opacityValue) {
+        backgroundOpacity.addEventListener('input', function() {
+            opacityValue.textContent = `${this.value}%`;
+        });
+    }
+
+    // Load current settings
+    loadMetadataSettings();
+
+    // Handle form submission
+    const metadataForm = document.getElementById('metadataForm');
+    if (metadataForm) {
+        metadataForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await saveMetadataSettings(true);
+        });
+    }
+
+    // Handle reset defaults button
+    const resetButton = document.getElementById('resetDefaults');
+    if (resetButton) {
+        resetButton.addEventListener('click', resetToDefaults);
+    }
+
+    // Update preview when settings change
+    document.querySelectorAll('input, select').forEach(input => {
+        input.removeEventListener('change', generatePreview);
+    });
+});
+
+async function loadMetadataSettings() {
+    try {
+        const response = await fetch('/api/metadata/styles');
+        const data = await response.json();
+        
+        if (data.success && data.styles) {
+            const styles = data.styles;
+            
+            // First load available fonts
+            await loadAvailableFonts();
+            
+            // Then update the rest of the settings
+            Object.entries(styles.fields).forEach(([field, config]) => {
+                const enabledCheckbox = document.querySelector(`#${field}Enabled`);
+                if (enabledCheckbox) {
+                    enabledCheckbox.checked = config.enabled;
+                }
+
+                const fieldContainer = document.querySelector(`[data-field="${field}"]`);
+                if (fieldContainer) {
+                    // Update format
+                    const formatInput = fieldContainer.querySelector('.field-format');
+                    if (formatInput) formatInput.value = config.format || '';
+
+                    // Update font family (ensure we keep the .ttf extension in the value)
+                    const fontFamilySelect = document.querySelector(`[data-field="${field}"] .field-font-family`);
+                    if (fontFamilySelect) {
+                        const fontValue = config.font_family || 'BebasNeue-Regular.ttf';
+                        // Make sure the value includes .ttf extension
+                        const fullFontValue = fontValue.endsWith('.ttf') ? fontValue : `${fontValue}.ttf`;
+                        fontFamilySelect.value = fullFontValue;
+                        
+                        // If the value wasn't set, log a warning
+                        if (fontFamilySelect.value !== fullFontValue) {
+                            console.warn(`Font family ${fullFontValue} not found in options for field ${field}`);
+                        }
+                    }
+
+                    // Update font size (remove % for the input)
+                    const fontSizeInput = fieldContainer.querySelector('.field-font-size');
+                    if (fontSizeInput) {
+                        const sizeValue = config.font_size?.replace('%', '') || '4';
+                        fontSizeInput.value = parseInt(sizeValue);
+                    }
+
+                    // Update color
+                    const colorInput = fieldContainer.querySelector('.field-color');
+                    if (colorInput) colorInput.value = config.color || '#FFFFFF';
+
+                    // Update position
+                    const positionSelect = fieldContainer.querySelector('.field-position');
+                    if (positionSelect) positionSelect.value = config.position || 'bottom-left';
+
+                    // Update margin (remove % for the input)
+                    const marginInput = fieldContainer.querySelector('.field-margin');
+                    if (marginInput) {
+                        const marginValue = config.margin?.replace('%', '') || '10';
+                        marginInput.value = parseInt(marginValue);
+                    }
+                }
+            });
+
+            // Update background settings
+            const backgroundEnabled = document.getElementById('backgroundEnabled');
+            const backgroundColor = document.getElementById('backgroundColor');
+            const backgroundOpacity = document.getElementById('backgroundOpacity');
+            const opacityValue = document.getElementById('opacityValue');
+
+            if (backgroundEnabled) backgroundEnabled.checked = styles.background?.enabled || false;
+            if (backgroundColor) backgroundColor.value = styles.background?.color || '#000000';
+            if (backgroundOpacity) {
+                const opacity = styles.background?.opacity || '50';
+                backgroundOpacity.value = parseInt(opacity);
+                if (opacityValue) opacityValue.textContent = `${opacity}%`;
+            }
+
+            // Update stack spacing (remove % for the input)
+            const verticalSpacing = document.getElementById('verticalSpacing');
+            if (verticalSpacing) {
+                const spacingValue = styles.stack_spacing?.replace('%', '') || '2';
+                verticalSpacing.value = parseInt(spacingValue);
+            }
+
+            // Generate preview after loading settings
+            await generatePreview();
+        }
+    } catch (error) {
+        console.error('Error loading metadata settings:', error);
+        alert('Error loading settings: ' + error.message);
+    }
+}
+
+async function saveMetadataSettings(showAlert = true) {
+    try {
+        const styles = {
+            fields: {},
+            background: {
+                enabled: document.getElementById('backgroundEnabled')?.checked || false,
+                color: document.getElementById('backgroundColor')?.value || '#000000',
+                opacity: document.getElementById('backgroundOpacity')?.value || '50'
+            },
+            stack_spacing: document.getElementById('verticalSpacing')?.value + '%',
+            max_text_width: '80%',
+            global_padding: parseInt(document.getElementById('globalPadding')?.value || '0')
+        };
+
+        // Collect field settings
+        ['date', 'time', 'heading', 'camera', 'location'].forEach((field, index) => {
+            const fieldContainer = document.querySelector(`[data-field="${field}"]`);
+            if (!fieldContainer) {
+                console.error(`Field container not found for ${field}`);
+                return;
+            }
+
+            styles.fields[field] = {
+                enabled: document.querySelector(`#${field}Enabled`)?.checked || false,
+                format: fieldContainer.querySelector('.field-format')?.value || '',
+                font_family: fieldContainer.querySelector('.field-font-family')?.value || 'BebasNeue-Regular',
+                font_size: (fieldContainer.querySelector('.field-font-size')?.value || '4') + '%',
+                color: fieldContainer.querySelector('.field-color')?.value || '#FFFFFF',
+                position: fieldContainer.querySelector('.field-position')?.value || 'bottom-left',
+                margin: (fieldContainer.querySelector('.field-margin')?.value || '10') + '%',
+                stack_order: index
+            };
+        });
+
+        const response = await fetch('/api/metadata/styles', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(styles)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            if (showAlert) {
+                alert('Metadata settings saved successfully');
+            }
+        } else {
+            throw new Error(result.error || 'Failed to save settings');
+        }
+    } catch (error) {
+        console.error('Error saving metadata settings:', error);
+        alert('Error saving settings: ' + error.message);
+    }
+}
+
+async function generatePreview(showSaveAlert = false) {
+    const previewImage = document.getElementById('previewImage');
+    const previewLoading = document.getElementById('previewLoading');
+    
+    if (!previewImage || !previewLoading) {
+        console.error('Preview elements not found');
+        return;
+    }
+
+    try {
+        previewImage.style.opacity = '0.5';
+        previewLoading.style.display = 'block';
+
+        // Only save settings if explicitly requested
+        if (showSaveAlert) {
+            await saveMetadataSettings(true);
+        }
+        
+        const response = await fetch('/api/metadata/preview', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({}) // Send empty object as body since we're just requesting a preview
+        });
+        const result = await response.json();
+        
+        if (result.success && result.preview_url) {
+            const newImage = new Image();
+            newImage.onload = function() {
+                previewImage.src = result.preview_url;
+                previewImage.style.opacity = '1';
+                previewLoading.style.display = 'none';
+            };
+            newImage.src = result.preview_url;
+        } else {
+            throw new Error(result.error || 'Failed to generate preview');
+        }
+    } catch (error) {
+        console.error('Error generating preview:', error);
+        previewImage.style.opacity = '1';
+        previewLoading.style.display = 'none';
+        alert('Error generating preview: ' + error.message);
+    }
+}
+
+async function resetToDefaults() {
+    if (confirm('Are you sure you want to reset to default settings?')) {
+        try {
+            const response = await fetch('/api/metadata/styles');
+            const data = await response.json();
+            if (data.success) {
+                await loadMetadataSettings();
+                alert('Settings reset to defaults');
+            }
+        } catch (error) {
+            console.error('Error resetting to defaults:', error);
+            alert('Error resetting to defaults: ' + error.message);
+        }
+    }
+}
+
+// Add this new function to fetch and populate font options
+async function loadAvailableFonts() {
+    try {
+        const response = await fetch('/api/metadata/available-fonts');
+        const data = await response.json();
+        
+        if (data.success && data.fonts) {
+            // Get all font family select elements
+            const fontSelects = document.querySelectorAll('.field-font-family');
+            
+            // Create options HTML starting with the default option
+            const optionsHTML = `
+                <option value="BebasNeue-Regular.ttf">Bebas Neue Regular</option>
+                ${data.fonts.map(font => {
+                    // Remove .ttf extension and format the display name
+                    const displayName = font
+                        .replace('.ttf', '')
+                        .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+                        .replace(/-/g, ' ') // Replace hyphens with spaces
+                        .trim();
+                    return `<option value="${font}">${displayName}</option>`;
+                }).join('')}
+            `;
+            
+            // Update all font select elements
+            fontSelects.forEach(select => {
+                // Store the current value before updating options
+                const currentValue = select.value;
+                
+                // Update options
+                select.innerHTML = optionsHTML;
+                
+                // Restore the selected value if it exists in the new options
+                if (currentValue) {
+                    // Try to find the option with the current value
+                    const option = select.querySelector(`option[value="${currentValue}"]`);
+                    if (option) {
+                        select.value = currentValue;
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading available fonts:', error);
+    }
+}
+
+// Add this after your existing JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Load QR code settings
+    loadQRCodeSettings();
+
+    // Handle QR code form submission
+    const qrcodeForm = document.getElementById('qrcodeForm');
+    if (qrcodeForm) {
+        qrcodeForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await saveQRCodeSettings();
+        });
+    }
+});
+
+async function loadQRCodeSettings() {
+    try {
+        const response = await fetch('/api/qrcode/settings');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('qrcodeSize').value = data.settings.size;
+            document.getElementById('qrcodePosition').value = data.settings.position;
+            document.getElementById('qrcodeLinkType').value = data.settings.link_type;
+        }
+    } catch (error) {
+        console.error('Error loading QR code settings:', error);
+    }
+}
+
+async function saveQRCodeSettings() {
+    try {
+        const settings = {
+            size: document.getElementById('qrcodeSize').value,
+            position: document.getElementById('qrcodePosition').value,
+            link_type: document.getElementById('qrcodeLinkType').value
+        };
+
+        const response = await fetch('/api/qrcode/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            alert('QR code settings saved successfully');
+        } else {
+            throw new Error(data.error || 'Failed to save settings');
+        }
+    } catch (error) {
+        alert('Error saving QR code settings: ' + error.message);
+    }
+}
+
+// Add Unsplash form handler
+document.getElementById('unsplashForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    try {
+        const response = await fetch('/api/unsplash/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                api_key: document.getElementById('unsplashApiKey').value
+            })
+        });
+        
+        if (!response.ok) throw new Error('Failed to save settings');
+        
+        alert('Unsplash API settings saved successfully');
+    } catch (error) {
+        alert('Error saving Unsplash API settings: ' + error.message);
+    }
+});
+
+// Show Unsplash help modal
+async function showUnsplashHelp() {
+    const modal = new bootstrap.Modal(document.getElementById('unsplashHelpModal'));
+    const contentDiv = document.getElementById('unsplashHelpContent');
+    
+    try {
+        const response = await fetch('/static/docs/unsplash_setup.md');
+        const text = await response.text();
+        
+        if (!text) {
+            throw new Error('No content received');
+        }
+
+        contentDiv.innerHTML = `<div class="markdown-body">${marked.parse(text)}</div>`;
+    } catch (error) {
+        console.error('Error loading Unsplash setup instructions:', error);
+        contentDiv.innerHTML = `
+            <div class="alert alert-danger">
+                Error loading setup instructions: ${error.message}<br>
+                Please check the browser console for more details.
+            </div>`;
+    }
+    
+    modal.show();
+}
+
+// Add Pixabay settings handling
+document.getElementById('pixabaySettingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    try {
+        const response = await fetch('/api/pixabay/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                api_key: document.getElementById('pixabayApiKey').value
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to save settings');
+        
+        alert('Pixabay settings saved successfully');
+    } catch (error) {
+        alert('Error saving Pixabay settings: ' + error.message);
+    }
+});
+
+// Toggle Pixabay API key visibility
+document.getElementById('togglePixabayKey').addEventListener('click', function() {
+    const input = document.getElementById('pixabayApiKey');
+    const icon = this.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+});
+
+// Network Integration JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Load network locations
+    loadNetworkLocations();
+    
+    // Load available frames for auto-add dropdown
+    loadAvailableFrames();
+    
+    // Handle network location form submission
+    document.getElementById('networkLocationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveNetworkLocation();
+    });
+    
+    // Handle cancel edit button
+    document.getElementById('cancelEditBtn').addEventListener('click', function() {
+        resetLocationForm();
+    });
+    
+    // Handle test connection button
+    document.getElementById('testConnectionBtn').addEventListener('click', function() {
+        testNetworkConnection();
+    });
+    
+    // Handle auto add checkbox change
+    document.getElementById('autoAddNewMedia').addEventListener('change', function() {
+        const targetFrameContainer = document.getElementById('autoAddTargetFrameContainer');
+        targetFrameContainer.style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Handle toggle password visibility
+    document.querySelectorAll('.toggle-password').forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            const icon = this.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('bi-eye');
+                icon.classList.add('bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('bi-eye-slash');
+                icon.classList.add('bi-eye');
+            }
+        });
+    });
+});
+
+// Load network locations from the server
+async function loadNetworkLocations() {
+    try {
+        const response = await fetch('/api/network/locations');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load network locations');
+        }
+        
+        const tableBody = document.getElementById('networkLocationsBody');
+        tableBody.innerHTML = '';
+        
+        if (data.locations && data.locations.length > 0) {
+            // Load frames to get frame names
+            const framesResponse = await fetch('/manage_frames?format=json');
+            const framesData = await framesResponse.json();
+            const frames = framesData.frames || [];
+            
+            // Create a map of frame IDs to frame names for quick lookup
+            const frameMap = {};
+            frames.forEach(frame => {
+                frameMap[frame.id] = frame.name;
+            });
+            
+            data.locations.forEach(location => {
+                // Get target frame name if auto-add is enabled
+                const autoAddEnabled = location.autoAddNewMedia || false;
+                const targetFrameId = location.autoAddTargetFrameId || '';
+                const targetFrameName = targetFrameId ? (frameMap[targetFrameId] || 'Unknown Frame') : '';
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${location.name}</td>
+                    <td>${location.network_path}</td>
+                    <td>${location.username ? '✓' : '-'}</td>
+                    <td>${autoAddEnabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}</td>
+                    <td>${autoAddEnabled ? targetFrameName : '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary edit-location" data-id="${location.id}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-location" data-id="${location.id}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Add event listeners to edit and delete buttons
+            document.querySelectorAll('.edit-location').forEach(button => {
+                button.addEventListener('click', function() {
+                    const locationId = this.getAttribute('data-id');
+                    editNetworkLocation(locationId);
+                });
+            });
+            
+            document.querySelectorAll('.delete-location').forEach(button => {
+                button.addEventListener('click', function() {
+                    const locationId = this.getAttribute('data-id');
+                    deleteNetworkLocation(locationId);
+                });
+            });
+        } else {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center">No network locations configured</td>
+                </tr>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading network locations:', error);
+        alert('Error loading network locations: ' + error.message);
+    }
+}
+
+// Load available frames for the dropdown
+async function loadAvailableFrames() {
+    try {
+        // Use the existing endpoint that's used elsewhere in the application
+        const response = await fetch('/manage_frames?format=json');
+        const data = await response.json();
+        
+        const dropdown = document.getElementById('autoAddTargetFrame');
+        dropdown.innerHTML = '<option value="">Select a frame</option>';
+        
+        if (data.frames && data.frames.length > 0) {
+            data.frames.forEach(frame => {
+                const option = document.createElement('option');
+                option.value = frame.id;
+                option.textContent = frame.name;
+                dropdown.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading frames:', error);
+    }
+}
+
+// Save a network location (create or update)
+async function saveNetworkLocation() {
+    try {
+        const locationId = document.getElementById('locationId').value;
+        const locationData = {
+            name: document.getElementById('locationName').value,
+            network_path: document.getElementById('networkPath').value,
+            username: document.getElementById('networkUsername').value,
+            password: document.getElementById('networkPassword').value,
+            autoAddNewMedia: document.getElementById('autoAddNewMedia').checked,
+            autoAddTargetFrameId: document.getElementById('autoAddNewMedia').checked ? 
+                document.getElementById('autoAddTargetFrame').value : null
+        };
+        
+        // Test the connection first
+        const testResponse = await fetch('/api/network/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(locationData)
+        });
+        
+        const testResult = await testResponse.json();
+        
+        if (!testResult.success) {
+            throw new Error(testResult.error || 'Connection test failed. Unable to access the network location.');
+        }
+        
+        // Validate auto-add settings
+        if (locationData.autoAddNewMedia && !locationData.autoAddTargetFrameId) {
+            throw new Error('Please select a target frame for auto-adding new media');
+        }
+        
+        let url = '/api/network/locations';
+        let method = 'POST';
+        
+        // If we have a location ID, we're updating an existing location
+        if (locationId) {
+            url = `/api/network/locations/${locationId}`;
+            method = 'PUT';
+        }
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(locationData)
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save network location');
+        }
+        
+        // Reset form and reload locations
+        resetLocationForm();
+        loadNetworkLocations();
+        
+        alert(locationId ? 'Network location updated successfully' : 'Network location added successfully');
+    } catch (error) {
+        console.error('Error saving network location:', error);
+        alert('Error saving network location: ' + error.message);
+    }
+}
+
+// Edit a network location
+async function editNetworkLocation(locationId) {
+    try {
+        // Find the location in the table
+        const locations = await fetch('/api/network/locations').then(res => res.json());
+        if (!locations.success) {
+            throw new Error(locations.error || 'Failed to load network locations');
+        }
+        
+        const location = locations.locations.find(loc => loc.id == locationId);
+        if (!location) {
+            throw new Error('Location not found');
+        }
+        
+        // Populate the form
+        document.getElementById('locationId').value = location.id;
+        document.getElementById('locationName').value = location.name;
+        document.getElementById('networkPath').value = location.network_path;
+        document.getElementById('networkUsername').value = location.username || '';
+        document.getElementById('networkPassword').value = location.password || '';
+        
+        // Set auto-add fields
+        const autoAddCheckbox = document.getElementById('autoAddNewMedia');
+        autoAddCheckbox.checked = location.autoAddNewMedia || false;
+        
+        // Show/hide target frame dropdown based on checkbox
+        const targetFrameContainer = document.getElementById('autoAddTargetFrameContainer');
+        targetFrameContainer.style.display = autoAddCheckbox.checked ? 'block' : 'none';
+        
+        // Set target frame if available
+        if (location.autoAddTargetFrameId) {
+            document.getElementById('autoAddTargetFrame').value = location.autoAddTargetFrameId;
+        }
+        
+        // Update form title and show cancel button
+        document.getElementById('locationFormTitle').textContent = 'Edit Network Location';
+        document.getElementById('saveLocationBtn').textContent = 'Update Location';
+        document.getElementById('cancelEditBtn').style.display = 'block';
+        
+        // Scroll to the form
+        document.getElementById('networkLocationForm').scrollIntoView({ behavior: 'smooth' });
+    } catch (error) {
+        console.error('Error editing network location:', error);
+        alert('Error editing network location: ' + error.message);
+    }
+}
+
+// Delete a network location
+async function deleteNetworkLocation(locationId) {
+    if (!confirm('Are you sure you want to delete this network location?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/network/locations/${locationId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to delete network location');
+        }
+        
+        // Reload locations
+        loadNetworkLocations();
+        
+        alert('Network location deleted successfully');
+    } catch (error) {
+        console.error('Error deleting network location:', error);
+        alert('Error deleting network location: ' + error.message);
+    }
+}
+
+// Reset the location form
+function resetLocationForm() {
+    document.getElementById('locationId').value = '';
+    document.getElementById('locationName').value = '';
+    document.getElementById('networkPath').value = '';
+    document.getElementById('networkUsername').value = '';
+    document.getElementById('networkPassword').value = '';
+    document.getElementById('autoAddNewMedia').checked = false;
+    document.getElementById('autoAddTargetFrame').value = '';
+    document.getElementById('autoAddTargetFrameContainer').style.display = 'none';
+    
+    document.getElementById('locationFormTitle').textContent = 'Add Network Location';
+    document.getElementById('saveLocationBtn').textContent = 'Save Location';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+}
+
+// Show network help modal
+function showNetworkHelp() {
+    alert('Network Integration Help:\n\n' +
+          '1. Add network locations by providing a name and path\n' +
+          '2. For Windows shares, use format: \\\\server\\share\n' +
+          '3. For Linux/Mac, use format: /mnt/network/share\n' +
+          '4. Provide username/password if the share requires authentication\n' +
+          '5. Once configured, you can browse and import photos from these locations on the Upload page');
+}
+
+// Test network connection
+async function testNetworkConnection() {
+    try {
+        const testBtn = document.getElementById('testConnectionBtn');
+        const originalText = testBtn.textContent;
+        
+        // Update button to show testing state
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Testing...';
+        
+        const locationData = {
+            name: document.getElementById('locationName').value,
+            network_path: document.getElementById('networkPath').value,
+            username: document.getElementById('networkUsername').value,
+            password: document.getElementById('networkPassword').value
+        };
+        
+        // Validate required fields
+        if (!locationData.network_path) {
+            throw new Error('Network path is required for testing the connection');
+        }
+        
+        const response = await fetch('/api/network/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(locationData)
+        });
+        
+        const data = await response.json();
+        
+        // Reset button state
+        testBtn.disabled = false;
+        testBtn.textContent = originalText;
+        
+        if (data.success) {
+            alert('Connection successful! The network location is accessible.');
+        } else {
+            throw new Error(data.error || 'Failed to connect to the network location');
+        }
+    } catch (error) {
+        console.error('Error testing network connection:', error);
+        
+        // Reset button state if there was an error
+        const testBtn = document.getElementById('testConnectionBtn');
+        testBtn.disabled = false;
+        testBtn.textContent = 'Test Connection';
+        
+        alert('Connection test failed: ' + error.message);
+    }
+}
+
+// Network Browser Functions
+let networkShares = [];
+let networkBrowserModal;
+
+// Initialize the network browser modal
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the modal
+    networkBrowserModal = new bootstrap.Modal(document.getElementById('networkBrowserModal'));
+    
+    // Add event listener for search input
+    const searchInput = document.getElementById('networkSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterNetworkShares);
+    }
+    
+    // Add event listener for refresh button
+    const refreshBtn = document.getElementById('refreshSharesBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            fetchNetworkShares();
+        });
+    }
+});
+
+// Open the network browser modal
+function openNetworkBrowser() {
+    // Reset the UI
+    document.getElementById('networkBrowserLoading').style.display = 'block';
+    document.getElementById('networkBrowserError').style.display = 'none';
+    document.getElementById('networkBrowserContent').style.display = 'none';
+    document.getElementById('networkSearchInput').value = '';
+    
+    // Show the modal
+    networkBrowserModal.show();
+    
+    // Fetch network shares
+    fetchNetworkShares();
+}
+
+// Fetch network shares from the server
+async function fetchNetworkShares() {
+    try {
+        // Show loading state
+        document.getElementById('networkBrowserLoading').style.display = 'block';
+        document.getElementById('networkBrowserError').style.display = 'none';
+        document.getElementById('networkBrowserContent').style.display = 'none';
+        document.getElementById('networkSharesBody').innerHTML = '';
+        
+        // Fetch network shares
+        const response = await fetch('/api/network/discover');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to discover network shares');
+        }
+        
+        // Store shares and update UI
+        networkShares = data.shares || [];
+        displayNetworkShares(networkShares);
+        
+        // Hide loading, show content
+        document.getElementById('networkBrowserLoading').style.display = 'none';
+        document.getElementById('networkBrowserContent').style.display = 'block';
+        
+        // Show message if no shares found
+        if (networkShares.length === 0) {
+            document.getElementById('noSharesFound').style.display = 'block';
+        } else {
+            document.getElementById('noSharesFound').style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error fetching network shares:', error);
+        
+        // Show error message
+        document.getElementById('networkBrowserLoading').style.display = 'none';
+        document.getElementById('networkBrowserError').style.display = 'block';
+        document.getElementById('networkBrowserError').textContent = 'Error discovering network shares: ' + error.message;
+    }
+}
+
+// Display network shares in the table
+function displayNetworkShares(shares) {
+    const tbody = document.getElementById('networkSharesBody');
+    tbody.innerHTML = '';
+    
+    shares.forEach(share => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${share.server}</td>
+            <td>${share.name}</td>
+            <td>${share.comment || ''}</td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="selectNetworkShare('${share.path}', '${share.server} - ${share.name}')">
+                    Select
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Filter network shares based on search input
+function filterNetworkShares() {
+    const searchTerm = document.getElementById('networkSearchInput').value.toLowerCase();
+    
+    if (!searchTerm) {
+        // If no search term, show all shares
+        displayNetworkShares(networkShares);
+    } else {
+        // Filter shares based on search term
+        const filteredShares = networkShares.filter(share => {
+            return share.server.toLowerCase().includes(searchTerm) ||
+                   share.name.toLowerCase().includes(searchTerm) ||
+                   (share.comment && share.comment.toLowerCase().includes(searchTerm));
+        });
+        
+        // Display filtered shares
+        displayNetworkShares(filteredShares);
+        
+        // Show message if no matches found
+        if (filteredShares.length === 0) {
+            document.getElementById('noSharesFound').style.display = 'block';
+            document.getElementById('noSharesFound').textContent = 'No matching shares found.';
+        } else {
+            document.getElementById('noSharesFound').style.display = 'none';
+        }
+    }
+}
+
+// Select a network share
+function selectNetworkShare(path, name) {
+    // Set the network path in the form
+    document.getElementById('networkPath').value = path;
+    
+    // If the location name field is empty, suggest a name based on the share
+    const nameField = document.getElementById('locationName');
+    if (!nameField.value) {
+        nameField.value = name;
+    }
+    
+    // Close the modal
+    networkBrowserModal.hide();
+}
+
+// Add this after your existing JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Load Immich settings
+    loadImmichSettings();
+    
+    // Handle Immich connection form submission
+    const immichConnectionForm = document.getElementById('immichConnectionForm');
+    if (immichConnectionForm) {
+        immichConnectionForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await saveImmichSettings();
+        });
+    }
+    
+    // Handle test Immich connection button
+    const testImmichConnectionBtn = document.getElementById('testImmichConnectionBtn');
+    if (testImmichConnectionBtn) {
+        testImmichConnectionBtn.addEventListener('click', testImmichConnection);
+    }
+    
+    // Handle add album import button
+    const addAlbumImportBtn = document.getElementById('addAlbumImportBtn');
+    if (addAlbumImportBtn) {
+        addAlbumImportBtn.addEventListener('click', openAlbumSelectionModal);
+    }
+    
+    // Handle add face import button
+    const addFaceImportBtn = document.getElementById('addFaceImportBtn');
+    if (addFaceImportBtn) {
+        addFaceImportBtn.addEventListener('click', openFaceSelectionModal);
+    }
+    
+    // Load auto-import configurations
+    loadImmichAutoImports();
+});
+
+// Load Immich settings from the server
+async function loadImmichSettings() {
+    try {
+        const response = await fetch('/api/immich/settings');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('immichServerUrl').value = data.settings.url || '';
+            document.getElementById('immichApiKey').value = data.settings.api_key || '';
+        }
+    } catch (error) {
+        console.error('Error loading Immich settings:', error);
+    }
+}
+
+// Save Immich settings to the server
+async function saveImmichSettings() {
+    try {
+        const serverUrl = document.getElementById('immichServerUrl').value;
+        const apiKey = document.getElementById('immichApiKey').value;
+        
+        if (!serverUrl || !apiKey) {
+            alert('Please enter both server URL and API key');
+            return;
+        }
+        
+        const response = await fetch('/api/immich/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: serverUrl,
+                api_key: apiKey
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Immich settings saved successfully');
+            // Reload auto-import configurations
+            loadImmichAutoImports();
+        } else {
+            throw new Error(data.error || 'Failed to save settings');
+        }
+    } catch (error) {
+        console.error('Error saving Immich settings:', error);
+        alert('Error saving settings: ' + error.message);
+    }
+}
+
+// Test connection to Immich server
+async function testImmichConnection() {
+    try {
+        const serverUrl = document.getElementById('immichServerUrl').value;
+        const apiKey = document.getElementById('immichApiKey').value;
+        
+        if (!serverUrl || !apiKey) {
+            alert('Please enter both server URL and API key');
+            return;
+        }
+        
+        const testBtn = document.getElementById('testImmichConnectionBtn');
+        const originalText = testBtn.textContent;
+        
+        // Update button to show testing state
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Testing...';
+        
+        const response = await fetch('/api/immich/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: serverUrl,
+                api_key: apiKey
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Reset button state
+        testBtn.disabled = false;
+        testBtn.textContent = originalText;
+        
+        if (data.success) {
+            alert('Connection successful! The Immich server is accessible.');
+        } else {
+            throw new Error(data.error || 'Failed to connect to the Immich server');
+        }
+    } catch (error) {
+        console.error('Error testing Immich connection:', error);
+        
+        // Reset button state if there was an error
+        const testBtn = document.getElementById('testImmichConnectionBtn');
+        testBtn.disabled = false;
+        testBtn.textContent = 'Test Connection';
+        
+        alert('Connection test failed: ' + error.message);
+    }
+}
+
+// Show Immich help modal
+function showImmichHelp() {
+    alert('Immich Integration Help:\n\n' +
+          '1. Enter your Immich server URL and API key\n' +
+          '2. Test the connection to ensure it works\n' +
+          '3. Add albums or faces for auto-import\n' +
+          '4. Photos will be automatically imported from your Immich server');
+}
+
+// Load Immich auto-import configurations
+async function loadImmichAutoImports() {
+    try {
+        const response = await fetch('/api/immich/auto-imports');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load auto-import configurations');
+        }
+        
+        const tableBody = document.getElementById('immichAutoImportBody');
+        tableBody.innerHTML = '';
+        
+        // Load frames to get frame names
+        const framesResponse = await fetch('/manage_frames?format=json');
+        const framesData = await framesResponse.json();
+        const frames = framesData.frames || [];
+        
+        // Create a map of frame IDs to frame names for quick lookup
+        const frameMap = {};
+        frames.forEach(frame => {
+            frameMap[frame.id] = frame.name;
+        });
+        
+        if (data.auto_imports && data.auto_imports.length > 0) {
+            data.auto_imports.forEach(config => {
+                const frameName = config.frame_id ? (frameMap[config.frame_id] || 'Unknown Frame') : '';
+                const lastChecked = config.last_checked ? new Date(config.last_checked).toLocaleString() : 'Never';
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${config.source_type === 'album' ? '<i class="bi bi-images"></i> Album' : '<i class="bi bi-person"></i> Face'}</td>
+                    <td>${config.source_name}</td>
+                    <td>${frameName}</td>
+                    <td>${lastChecked}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger delete-auto-import" data-id="${config.id}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.delete-auto-import').forEach(button => {
+                button.addEventListener('click', function() {
+                    const configId = this.getAttribute('data-id');
+                    deleteAutoImport(configId);
+                });
+            });
+            
+            // Hide the "no imports" message
+            document.getElementById('noImmichImportsMessage').style.display = 'none';
+        } else {
+            // Show the "no imports" message
+            document.getElementById('noImmichImportsMessage').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error loading Immich auto-imports:', error);
+        document.getElementById('noImmichImportsMessage').style.display = 'block';
+        document.getElementById('noImmichImportsMessage').textContent = 'Error loading auto-import configurations: ' + error.message;
+    }
+}
+
+// Delete an auto-import configuration
+async function deleteAutoImport(configId) {
+    if (!confirm('Are you sure you want to delete this auto-import configuration?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/immich/auto-imports/${configId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to delete auto-import configuration');
+        }
+        
+        // Reload auto-import configurations
+        loadImmichAutoImports();
+        
+        alert('Auto-import configuration deleted successfully');
+    } catch (error) {
+        console.error('Error deleting auto-import configuration:', error);
+        alert('Error deleting auto-import configuration: ' + error.message);
+    }
+}
+
+// Album Selection Modal Functions
+let immichAlbums = [];
+let selectedAlbumId = null;
+let immichAlbumModal;
+
+// Initialize the album selection modal
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the modal
+    immichAlbumModal = new bootstrap.Modal(document.getElementById('immichAlbumModal'));
+    
+    // Add event listener for album search input
+    const albumSearchInput = document.getElementById('albumSearchInput');
+    if (albumSearchInput) {
+        albumSearchInput.addEventListener('input', filterAlbums);
+    }
+    
+    // Add event listener for album target frame selection
+    const albumTargetFrame = document.getElementById('albumTargetFrame');
+    if (albumTargetFrame) {
+        albumTargetFrame.addEventListener('change', function() {
+            document.getElementById('saveAlbumImportBtn').disabled = !this.value;
+        });
+    }
+    
+    // Add event listener for save album import button
+    const saveAlbumImportBtn = document.getElementById('saveAlbumImportBtn');
+    if (saveAlbumImportBtn) {
+        saveAlbumImportBtn.addEventListener('click', saveAlbumImport);
+    }
+});
+
+// Open the album selection modal
+function openAlbumSelectionModal() {
+    // Reset the UI
+    document.getElementById('immichAlbumLoading').style.display = 'block';
+    document.getElementById('immichAlbumError').style.display = 'none';
+    document.getElementById('immichAlbumContent').style.display = 'none';
+    document.getElementById('albumTargetFrameContainer').style.display = 'none';
+    document.getElementById('albumSearchInput').value = '';
+    document.getElementById('saveAlbumImportBtn').disabled = true;
+    selectedAlbumId = null;
+    
+    // Show the modal
+    immichAlbumModal.show();
+    
+    // Load available frames for the dropdown
+    loadFramesForAlbumDropdown();
+    
+    // Fetch albums from Immich
+    fetchImmichAlbums();
+}
+
+// Load available frames for the album dropdown
+async function loadFramesForAlbumDropdown() {
+    try {
+        // Use the existing endpoint that's used elsewhere in the application
+        const response = await fetch('/manage_frames?format=json');
+        const data = await response.json();
+        
+        const dropdown = document.getElementById('albumTargetFrame');
+        dropdown.innerHTML = '<option value="">Select a frame</option>';
+        
+        if (data.frames && data.frames.length > 0) {
+            data.frames.forEach(frame => {
+                const option = document.createElement('option');
+                option.value = frame.id;
+                option.textContent = frame.name;
+                dropdown.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading frames for album dropdown:', error);
+    }
+}
+
+// Fetch albums from Immich
+async function fetchImmichAlbums() {
+    try {
+        // Show loading state
+        document.getElementById('immichAlbumLoading').style.display = 'block';
+        document.getElementById('immichAlbumError').style.display = 'none';
+        document.getElementById('immichAlbumContent').style.display = 'none';
+        document.getElementById('immichAlbumsBody').innerHTML = '';
+        
+        // Fetch albums
+        const response = await fetch('/api/immich/albums');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to fetch albums from Immich');
+        }
+        
+        // Store albums and update UI
+        immichAlbums = data.albums || [];
+        displayAlbums(immichAlbums);
+        
+        // Hide loading, show content
+        document.getElementById('immichAlbumLoading').style.display = 'none';
+        document.getElementById('immichAlbumContent').style.display = 'block';
+        
+        // Show message if no albums found
+        if (immichAlbums.length === 0) {
+            document.getElementById('noAlbumsFound').style.display = 'block';
+        } else {
+            document.getElementById('noAlbumsFound').style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error fetching Immich albums:', error);
+        
+        // Show error message
+        document.getElementById('immichAlbumLoading').style.display = 'none';
+        document.getElementById('immichAlbumError').style.display = 'block';
+        document.getElementById('immichAlbumError').textContent = 'Error fetching albums: ' + error.message;
+    }
+}
+
+// Display albums in the table
+function displayAlbums(albums) {
+    const tbody = document.getElementById('immichAlbumsBody');
+    tbody.innerHTML = '';
+    
+    albums.forEach(album => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${album.albumName}</td>
+            <td>${album.owner ? album.owner.name : 'Unknown'}</td>
+            <td>${album.assetCount || 0}</td>
+            <td>
+                <button class="btn btn-sm btn-primary select-album" data-id="${album.id}" data-name="${album.albumName}">
+                    Select
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    // Add event listeners to select buttons
+    document.querySelectorAll('.select-album').forEach(button => {
+        button.addEventListener('click', function() {
+            const albumId = this.getAttribute('data-id');
+            const albumName = this.getAttribute('data-name');
+            selectAlbum(albumId, albumName);
+        });
+    });
+}
+
+// Filter albums based on search input
+function filterAlbums() {
+    const searchTerm = document.getElementById('albumSearchInput').value.toLowerCase();
+    
+    if (!searchTerm) {
+        // If no search term, show all albums
+        displayAlbums(immichAlbums);
+    } else {
+        // Filter albums based on search term
+        const filteredAlbums = immichAlbums.filter(album => {
+            return album.albumName.toLowerCase().includes(searchTerm) ||
+                   (album.owner && album.owner.name.toLowerCase().includes(searchTerm));
+        });
+        
+        // Display filtered albums
+        displayAlbums(filteredAlbums);
+        
+        // Show message if no matches found
+        if (filteredAlbums.length === 0) {
+            document.getElementById('noAlbumsFound').style.display = 'block';
+            document.getElementById('noAlbumsFound').textContent = 'No matching albums found.';
+        } else {
+            document.getElementById('noAlbumsFound').style.display = 'none';
+        }
+    }
+}
+
+// Select an album
+function selectAlbum(albumId, albumName) {
+    selectedAlbumId = albumId;
+    
+    // Highlight the selected album
+    document.querySelectorAll('#immichAlbumsBody tr').forEach(row => {
+        row.classList.remove('table-primary');
+    });
+    
+    document.querySelectorAll(`.select-album[data-id="${albumId}"]`).forEach(button => {
+        button.closest('tr').classList.add('table-primary');
+    });
+    
+    // Show the target frame selection
+    document.getElementById('albumTargetFrameContainer').style.display = 'block';
+    
+    // Enable the save button if a frame is selected
+    const frameSelect = document.getElementById('albumTargetFrame');
+    document.getElementById('saveAlbumImportBtn').disabled = !frameSelect.value;
+}
+
+// Save album import configuration
+async function saveAlbumImport() {
+    try {
+        if (!selectedAlbumId) {
+            throw new Error('Please select an album');
+        }
+        
+        const frameId = document.getElementById('albumTargetFrame').value;
+        if (!frameId) {
+            throw new Error('Please select a target frame');
+        }
+        
+        // Get the album name
+        const albumName = document.querySelector(`.select-album[data-id="${selectedAlbumId}"]`).getAttribute('data-name');
+        
+        const response = await fetch('/api/immich/auto-imports', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                source_type: 'album',
+                source_id: selectedAlbumId,
+                source_name: albumName,
+                frame_id: frameId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save album import configuration');
+        }
+        
+        // Close the modal
+        immichAlbumModal.hide();
+        
+        // Reload auto-import configurations
+        loadImmichAutoImports();
+        
+        alert('Album import configuration saved successfully');
+    } catch (error) {
+        console.error('Error saving album import configuration:', error);
+        alert('Error saving album import configuration: ' + error.message);
+    }
+}
+
+// Face Selection Modal Functions
+let immichFaces = [];
+let selectedFaceId = null;
+let immichFaceModal;
+
+// Initialize the face selection modal
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the modal
+    immichFaceModal = new bootstrap.Modal(document.getElementById('immichFaceModal'));
+    
+    // Add event listener for face search input
+    const faceSearchInput = document.getElementById('faceSearchInput');
+    if (faceSearchInput) {
+        faceSearchInput.addEventListener('input', filterFaces);
+    }
+    
+    // Add event listener for face target frame selection
+    const faceTargetFrame = document.getElementById('faceTargetFrame');
+    if (faceTargetFrame) {
+        faceTargetFrame.addEventListener('change', function() {
+            document.getElementById('saveFaceImportBtn').disabled = !this.value;
+        });
+    }
+    
+    // Add event listener for save face import button
+    const saveFaceImportBtn = document.getElementById('saveFaceImportBtn');
+    if (saveFaceImportBtn) {
+        saveFaceImportBtn.addEventListener('click', saveFaceImport);
+    }
+});
+
+// Open the face selection modal
+function openFaceSelectionModal() {
+    // Reset the UI
+    document.getElementById('immichFaceLoading').style.display = 'block';
+    document.getElementById('immichFaceError').style.display = 'none';
+    document.getElementById('immichFaceContent').style.display = 'none';
+    document.getElementById('faceTargetFrameContainer').style.display = 'none';
+    document.getElementById('faceSearchInput').value = '';
+    document.getElementById('saveFaceImportBtn').disabled = true;
+    selectedFaceId = null;
+    
+    // Show the modal
+    immichFaceModal.show();
+    
+    // Load available frames for the dropdown
+    loadFramesForFaceDropdown();
+    
+    // Fetch faces from Immich
+    fetchImmichFaces();
+}
+
+// Load available frames for the face dropdown
+async function loadFramesForFaceDropdown() {
+    try {
+        // Use the existing endpoint that's used elsewhere in the application
+        const response = await fetch('/manage_frames?format=json');
+        const data = await response.json();
+        
+        const dropdown = document.getElementById('faceTargetFrame');
+        dropdown.innerHTML = '<option value="">Select a frame</option>';
+        
+        if (data.frames && data.frames.length > 0) {
+            data.frames.forEach(frame => {
+                const option = document.createElement('option');
+                option.value = frame.id;
+                option.textContent = frame.name;
+                dropdown.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading frames for face dropdown:', error);
+    }
+}
+
+// Fetch faces from Immich
+async function fetchImmichFaces() {
+    try {
+        // Show loading state
+        document.getElementById('immichFaceLoading').style.display = 'block';
+        document.getElementById('immichFaceError').style.display = 'none';
+        document.getElementById('immichFaceContent').style.display = 'none';
+        document.getElementById('immichFacesBody').innerHTML = '';
+        
+        // Fetch faces
+        const response = await fetch('/api/immich/faces');
+        if (!response.ok) {
+            let errorMsg = `HTTP error! status: ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.error || `Server error ${response.status}`;
+            } catch (e) { 
+                errorMsg = `Server error ${response.status}`;
+            }
+            throw new Error(errorMsg);
+        }
+        
+        const data = await response.json();
+        console.log("Data received from /api/immich/faces:", data);
+
+        // Extract the people array from the response
+        if (!data || !data.people) {
+            console.error("Response does not contain people array:", data);
+            throw new Error('Invalid response format: missing people array');
+        }
+
+        // Store faces and update UI
+        immichFaces = data.people;
+        console.log(`Processing ${immichFaces.length} faces out of total ${data.total} (${data.hidden} hidden)`);
+        displayFaces(immichFaces);
+        
+        // Hide loading, show content
+        document.getElementById('immichFaceLoading').style.display = 'none';
+        document.getElementById('immichFaceContent').style.display = 'block';
+        
+        // Show message if no faces found
+        document.getElementById('noFacesFound').style.display = immichFaces.length === 0 ? 'block' : 'none';
+        
+    } catch (error) {
+        console.error('Error fetching Immich faces:', error);
+        
+        // Show error message
+        document.getElementById('immichFaceLoading').style.display = 'none';
+        document.getElementById('immichFaceError').style.display = 'block';
+        document.getElementById('immichFaceError').textContent = 'Error fetching faces: ' + error.message;
+        document.getElementById('immichFaceContent').style.display = 'none';
+    }
+}
+
+// Function to fetch image with authentication and convert to data URL
+async function fetchImageAsDataUrl(url, apiKey) {
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'image/jpeg',
+                'x-api-key': apiKey
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch (error) {
+        console.error('Error fetching image:', error);
+        return '/static/img/default-avatar.png';
+    }
+}
+
+// Display faces in the table
+function displayFaces(faces) {
+    const tbody = document.getElementById('immichFacesBody');
+    tbody.innerHTML = '';
+    
+    // Filter out unnamed faces and hidden faces
+    const namedFaces = faces.filter(face => 
+        face.name && 
+        face.name.trim() !== '' && 
+        face.name.toLowerCase() !== 'unknown' && 
+        !face.isHidden
+    );
+    
+    if (namedFaces.length > 0) {
+        console.log("Sample face object:", namedFaces[0]);
+        console.log(`Showing ${namedFaces.length} named faces out of ${faces.length} total faces`);
+    }
+
+    namedFaces.forEach(face => {
+        const faceId = face.id;
+        const faceName = face.name;
+        const isFavorite = face.isFavorite;
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                ${faceName}
+                ${isFavorite ? '<i class="bi bi-star-fill text-warning ms-1"></i>' : ''}
+            </td>
+            <td>
+                <button class="btn btn-sm btn-primary select-face" data-id="${faceId}" data-name="${faceName}">
+                    Select
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Add event listeners to select buttons
+    document.querySelectorAll('.select-face').forEach(button => {
+        button.addEventListener('click', function() {
+            const faceId = this.getAttribute('data-id');
+            const faceName = this.getAttribute('data-name');
+            selectFace(faceId, faceName);
+        });
+    });
+
+    // Show message if no named faces found
+    document.getElementById('noFacesFound').style.display = 
+        namedFaces.length === 0 ? 'block' : 'none';
+    if (namedFaces.length === 0) {
+        document.getElementById('noFacesFound').textContent = 
+            'No named faces found. Please name faces in Immich first.';
+    }
+}
+
+// Filter faces based on search input
+function filterFaces() {
+    const searchTerm = document.getElementById('faceSearchInput').value.toLowerCase();
+    
+    // First filter out unnamed and hidden faces
+    const namedFaces = immichFaces.filter(face => 
+        face.name && 
+        face.name.trim() !== '' && 
+        face.name.toLowerCase() !== 'unknown' && 
+        !face.isHidden
+    );
+    
+    if (!searchTerm) {
+        // If no search term, show all named faces
+        displayFaces(namedFaces);
+    } else {
+        // Filter named faces based on search term
+        const filteredFaces = namedFaces.filter(face => 
+            face.name.toLowerCase().includes(searchTerm)
+        );
+        
+        // Display filtered faces
+        displayFaces(filteredFaces);
+        
+        // Show message if no matches found
+        if (filteredFaces.length === 0) {
+            document.getElementById('noFacesFound').style.display = 'block';
+            document.getElementById('noFacesFound').textContent = 'No matching faces found.';
+        } else {
+            document.getElementById('noFacesFound').style.display = 'none';
+        }
+    }
+}
+
+// Select a face
+function selectFace(faceId, faceName) {
+    selectedFaceId = faceId;
+    
+    // Highlight the selected face
+    document.querySelectorAll('#immichFacesBody tr').forEach(row => {
+        row.classList.remove('table-primary');
+    });
+    
+    document.querySelectorAll(`.select-face[data-id="${faceId}"]`).forEach(button => {
+        button.closest('tr').classList.add('table-primary');
+    });
+    
+    // Show the target frame selection
+    document.getElementById('faceTargetFrameContainer').style.display = 'block';
+    
+    // Enable the save button if a frame is selected
+    const frameSelect = document.getElementById('faceTargetFrame');
+    document.getElementById('saveFaceImportBtn').disabled = !frameSelect.value;
+}
+
+// Save face import configuration
+async function saveFaceImport() {
+    try {
+        if (!selectedFaceId) {
+            throw new Error('Please select a face');
+        }
+        
+        const frameId = document.getElementById('faceTargetFrame').value;
+        if (!frameId) {
+            throw new Error('Please select a target frame');
+        }
+        
+        // Get the face name
+        const faceName = document.querySelector(`.select-face[data-id="${selectedFaceId}"]`).getAttribute('data-name');
+        
+        const response = await fetch('/api/immich/auto-imports', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                source_type: 'face',
+                source_id: selectedFaceId,
+                source_name: faceName,
+                frame_id: frameId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save face import configuration');
+        }
+        
+        // Close the modal
+        immichFaceModal.hide();
+        
+        // Reload auto-import configurations
+        loadImmichAutoImports();
+        
+        alert('Face import configuration saved successfully');
+    } catch (error) {
+        console.error('Error saving face import configuration:', error);
+        alert('Error saving face import configuration: ' + error.message);
+    }
+}
+
+// Add this new function to load fonts
+async function loadWeatherFonts() {
+    try {
+        const response = await fetch('/api/metadata/available-fonts');
+        const data = await response.json();
+        
+        if (data.success && data.fonts) {
+            const fontSelect = document.getElementById('weatherFontFamily');
+            if (!fontSelect) return;
+            
+            // Create options HTML starting with the default option
+            const optionsHTML = `
+                <option value="BebasNeue-Regular.ttf">Bebas Neue Regular</option>
+                ${data.fonts.map(font => {
+                    // Remove .ttf extension and format the display name
+                    const displayName = font
+                        .replace('.ttf', '')
+                        .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+                        .replace(/-/g, ' ') // Replace hyphens with spaces
+                        .trim();
+                    return `<option value="${font}">${displayName}</option>`;
+                }).join('')}
+            `;
+            
+            // Store the current value before updating options
+            const currentValue = fontSelect.value;
+            
+            // Update options
+            fontSelect.innerHTML = optionsHTML;
+            
+            // Restore the selected value if it exists in the new options
+            if (currentValue) {
+                const option = fontSelect.querySelector(`option[value="${currentValue}"]`);
+                if (option) {
+                    fontSelect.value = currentValue;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading available fonts:', error);
+    }
+}
+</script>
+{% endblock %} 

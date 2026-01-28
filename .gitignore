@@ -1,0 +1,56 @@
+# Credentials and sensitive files
+credentials/
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!*.config.json
+
+# Config files (contain API keys and sensitive data)
+config/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+db_backups/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Logs
+logs/
+*.log
+
+# User uploads
+uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+backup/
+*.bak
+*.backup

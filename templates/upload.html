@@ -1,0 +1,4077 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    .photo-item {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #f5f5f5;
+        overflow: hidden;
+    }
+    
+    .photo-item img {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        cursor: pointer;
+    }
+    
+    .photo-actions {
+        display: flex;
+        gap: 20px;
+        padding: 10px;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 0 0 8px 8px;
+    }
+
+    .send-to-playlist-btn, .delete-btn, .edit-btn {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s, color 0.2s;
+        color: #6c757d;
+        padding: 0;
+    }
+
+    .send-to-playlist-btn:hover, .edit-btn:hover {
+        transform: scale(1.1);
+        color: #007bff;
+    }
+    
+    .delete-btn:hover {
+        transform: scale(1.1);
+        color: #dc3545;
+    }
+
+    .upload-form {
+        margin: 20px;
+        padding: 20px;
+        background: #f5f5f5;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .frame-select {
+        width: 100%;
+        max-width: 300px;
+        margin: 10px auto;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+    }
+
+    .upload-button {
+        display: inline-block;
+        background: #007bff;
+        color: white;
+        padding: 15px 30px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1.2rem;
+        margin: 10px 0;
+        width: 100%;
+        max-width: 300px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .upload-button:active {
+        transform: scale(0.98);
+        background: #0056b3;
+    }
+
+    .upload-button:hover {
+        background: #0069d9;
+    }
+
+    .upload-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    #photoInput {
+        display: none;
+    }
+
+    .upload-status {
+        margin-top: 15px;
+        padding: 10px;
+        border-radius: 4px;
+        background: #e9ecef;
+        display: none;
+    }
+
+    @media (max-width: 576px) {
+        .upload-form {
+            margin: 10px;
+            padding: 15px;
+        }
+
+        .upload-button {
+            padding: 20px;
+            font-size: 1.3rem;
+            margin: 15px auto;
+        }
+    }
+
+    /* Modal styles */
+    .photo-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 1000;
+        padding: 20px;
+    }
+
+    .modal-content {
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        overflow-x: hidden;
+        border-radius: 0;
+        background-color: #000000;
+    }
+
+    .modal-body {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .image-preview-container {
+        background-color: #000000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: calc(100vh - 200px); /* Adjust height to leave room for controls */
+        padding: 20px;
+        position: relative;
+    }
+
+    .image-preview-container img, 
+    .image-preview-container video {
+        max-width: 90%;
+        max-height: 90%;
+        width: auto;
+        height: auto;
+        object-fit: contain;
+        object-position: center;
+    }
+
+    .edit-controls {
+        background-color: #000000;
+        padding: 20px;
+        width: 100%;
+        position: relative;
+    }
+
+    /* Mobile specific adjustments */
+    @media (max-width: 768px) {
+        .image-preview-container {
+            height: calc(100vh - 300px); /* More space for controls on mobile */
+            padding: 10px;
+        }
+        
+        .image-preview-container img,
+        .image-preview-container video {
+            max-width: 95%;
+            max-height: 95%;
+        }
+        
+        .edit-controls {
+            padding: 15px;
+        }
+    }
+
+    /* Ensure proper spacing at the bottom */
+    .edit-controls:last-child {
+        margin-bottom: env(safe-area-inset-bottom, 20px);
+    }
+
+    .close-modal {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        color: white;
+        font-size: 30px;
+        cursor: pointer;
+        z-index: 1001;
+    }
+
+    /* Frame selection modal styles */
+    .frame-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+    }
+
+    .frame-modal-content {
+        position: relative;
+        background: white;
+        margin: 10% auto;
+        padding: 20px;
+        width: 90%;
+        max-width: 500px;
+        border-radius: 8px;
+    }
+
+    .frame-list {
+        margin-top: 15px;
+    }
+
+    .frame-item {
+        padding: 10px;
+        margin: 5px 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .frame-item:hover {
+        background: #f5f5f5;
+    }
+
+    .success-message {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #28a745;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 4px;
+        display: none;
+        z-index: 1001;
+    }
+
+    .photo-item img.selected {
+        border: 3px solid #007bff;
+    }
+
+    #googlePhotosModal .modal-dialog {
+        max-width: 90%;
+        height: 90vh;
+        margin: 1rem auto;
+    }
+
+    #googlePhotosModal .modal-content {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #googlePhotosModal .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+    }
+
+    #googlePhotosGrid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+        padding: 0.5rem;
+    }
+
+    .google-photo-item {
+        position: relative;
+        aspect-ratio: 1;
+        cursor: pointer;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .google-photo-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .google-photo-item.selected {
+        border-color: #007bff;
+        transform: scale(0.98);
+    }
+
+    .google-photo-item:hover {
+        transform: scale(0.95);
+    }
+
+    /* Search bar styling */
+    #googlePhotosSearch {
+        border-radius: 20px;
+        padding: 0.5rem 1rem;
+        border: 1px solid #ddd;
+        margin-bottom: 1rem;
+        width: 100%;
+        max-width: 400px;
+    }
+
+    /* Loading indicator */
+    #googlePhotosLoader {
+        text-align: center;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        #googlePhotosModal .modal-dialog {
+            max-width: 95%;
+            margin: 0.5rem auto;
+        }
+
+        #googlePhotosGrid {
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.5rem;
+        }
+    }
+
+    @media (min-width: 1200px) {
+        #googlePhotosGrid {
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        }
+    }
+
+    .selected-count {
+        font-size: 0.9rem;
+        color: #666;
+    }
+    
+    #selectedPhotoCount {
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    #importProgressModal .modal-content {
+        border-radius: 1rem;
+    }
+
+    #importProgressModal .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+
+    /* Update bulk actions styling */
+    .bulk-mode-section {
+        padding-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .bulk-actions {
+        background: #f8f9fa;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 8px;
+        display: none; /* Hidden by default */
+    }
+
+    .bulk-actions.visible {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    /* Add fixed positioning when scrolling */
+    .bulk-actions.visible.fixed {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1030; /* Higher than Bootstrap's default navbar */
+        background: #f8f9fa;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin: 0;
+        padding: 1rem 2rem;
+    }
+
+    /* Add container padding when fixed */
+    .bulk-actions.visible.fixed .btn-group,
+    .bulk-actions.visible.fixed .d-flex {
+        max-width: 1200px;
+        margin: 0 auto;
+        width: 100%;
+        padding: 0 15px;
+    }
+
+    /* Add padding to prevent content jump when bulk actions becomes fixed */
+    .bulk-actions-spacer {
+        display: none;
+        height: 0;
+    }
+
+    .bulk-actions-spacer.visible {
+        height: 72px;
+        margin-bottom: 1rem;
+    }
+
+    .photo-item .select-checkbox {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        width: 20px;
+        height: 20px;
+        z-index: 2;
+        display: none; /* Change from opacity: 0 to display: none */
+        cursor: pointer;
+    }
+
+    /* Show checkboxes only in bulk mode */
+    .photo-item.bulk-mode .select-checkbox {
+        display: block;
+    }
+
+    .photo-item:hover .select-checkbox,
+    .bulk-mode .select-checkbox {
+        opacity: 1;
+    }
+
+    .photo-item.selected {
+        border: 2px solid #007bff;
+    }
+
+    .bulk-select-all {
+        margin-right: 1rem;
+    }
+
+    /* Add new styles for photo editing */
+    /* Edit button styling is now consolidated with other buttons */
+
+    /* Simplified modal styles */
+    #photoEditModal .modal-dialog {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+    }
+
+    #photoEditModal .modal-content {
+        height: 100vh;
+        border: none;
+        border-radius: 0;
+        background: #000;
+    }
+
+    #photoEditModal .modal-header {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.5rem 1rem;
+        border: none;
+    }
+
+    #photoEditModal .modal-body {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .editor-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+    }
+
+    #photoEditor {
+        max-height: calc(100vh - 120px);
+        width: auto;
+        max-width: 100%;
+        object-fit: contain;
+        transition: transform 0.3s ease;
+    }
+
+    .editor-controls {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 1rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .editor-controls button {
+        flex: 1;
+        max-width: 150px;
+        padding: 0.75rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    /* Add new styles for albums section */
+    .albums-section {
+        margin: 2rem 0;
+    }
+
+    .albums-scroll {
+        overflow-x: auto;
+        padding: 1rem 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .albums-container {
+        display: flex;
+        gap: 1rem;
+        padding: 0.5rem;
+    }
+
+    .album-item {
+        flex: 0 0 auto;
+        width: 200px;
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: transform 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .album-item:hover {
+        transform: translateY(-2px);
+    }
+
+    .album-cover {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+    }
+
+    .album-info {
+        padding: 0.75rem;
+        background: white;
+    }
+
+    .album-title {
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .album-count {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 0.25rem;
+    }
+
+    /* Add responsive styles */
+    @media (max-width: 768px) {
+        .album-item {
+            width: 160px;
+        }
+
+        .album-cover {
+            height: 120px;
+        }
+    }
+
+    /* Add styles for albums loader */
+    .albums-loader {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        width: 100%;
+        gap: 0.5rem;
+    }
+
+    .loader-text {
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    /* Ensure albums container has minimum height while loading */
+    .albums-container {
+        min-height: 200px;
+    }
+
+    /* Update section spacing */
+    .google-photos-section {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .bulk-mode-section {
+        padding-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Google Photos Albums Styling */
+    .google-photos-section {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .albums-grid {
+        display: flex;
+        overflow-x: auto;
+        gap: 1rem;
+        padding: 1rem 0;
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+        scrollbar-width: thin; /* Firefox */
+        scroll-behavior: smooth;
+    }
+
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .albums-grid::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .albums-grid::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    .albums-grid::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 3px;
+    }
+
+    .albums-grid::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+
+    .album-item {
+        flex: 0 0 auto;
+        width: 200px;
+        cursor: pointer;
+        transition: transform 0.2s;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .album-item:hover {
+        transform: translateY(-2px);
+    }
+
+    .album-cover {
+        width: 200px;
+        height: 150px;
+        object-fit: cover;
+    }
+
+    .album-info {
+        padding: 0.5rem;
+    }
+
+    .album-title {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .album-count {
+        font-size: 0.8rem;
+        color: #666;
+    }
+
+    /* Update photo-actions visibility for bulk mode */
+    .photo-item.bulk-mode .photo-actions {
+        display: none;
+    }
+
+    /* Ensure checkbox is visible in bulk mode */
+    .photo-item .select-checkbox {
+        display: none;
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 2;
+    }
+
+    .photo-item.bulk-mode .select-checkbox {
+        display: block;
+    }
+
+    /* Modal adjustments for bulk mode */
+    .modal {
+        padding-top: 0 !important; /* Override any default padding */
+    }
+
+    /* When bulk actions bar is fixed, adjust modal position */
+    .bulk-actions.visible.fixed ~ .modal .modal-dialog {
+        margin-top: 88px; /* Height of bulk actions bar (72px) + extra spacing */
+        max-height: calc(100vh - 88px);
+        overflow-y: auto;
+    }
+
+    /* Ensure modal is scrollable on mobile */
+    .modal-dialog {
+        margin: 1rem auto;
+        max-height: 100vh;
+        overflow-y: auto;
+    }
+
+    /* Frame selection modal specific adjustments */
+    #frameSelectionModal .modal-dialog {
+        transition: margin-top 0.3s ease;
+    }
+
+    /* Ensure modal content doesn't overflow */
+    .modal-content {
+        max-height: calc(100vh - 2rem);
+        overflow-y: auto;
+    }
+
+    /* Adjust modal backdrop to account for fixed bar */
+    .modal-backdrop {
+        z-index: 1029; /* Just below the fixed bulk actions bar */
+    }
+
+    @media (max-width: 768px) {
+        .bulk-actions.visible.fixed ~ .modal .modal-dialog {
+            margin-top: 72px; /* Slightly less spacing on mobile */
+            max-height: calc(100vh - 72px);
+        }
+
+        .modal-dialog {
+            margin: 0.5rem;
+            width: auto;
+        }
+    }
+
+    .ios-header {
+        background-color: #000000;
+        width: 100%;
+        z-index: 1000;
+        border-bottom: 1px solid #1a1a1a;
+    }
+
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        width: 100%;
+        max-width: 100%;
+        height: 60px;
+    }
+
+    .modal-title {
+        color: #ffffff;
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0;
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .ios-btn {
+        color: #ffffff;
+        font-size: 17px;
+        padding: 8px 0;
+        background: none;
+        border: none;
+        min-width: 60px;
+        text-align: center;
+        z-index: 1;
+    }
+
+    .ios-btn-done {
+        color: #0a84ff;
+        font-weight: 600;
+    }
+
+    .modal-content {
+        padding: 0;
+        margin: 0;
+        border: none;
+        border-radius: 0;
+        background-color: #000000;
+    }
+
+    .edit-controls {
+        background-color: #000000;
+        padding: 20px;
+        width: 100%;
+        position: relative;
+        bottom: 0;
+        left: 0;
+        right: 0;
+    }
+
+    .form-label {
+        color: #ffffff;
+        font-size: 15px;
+    }
+
+    .custom-range {
+        height: 4px;
+        border-radius: 2px;
+        background-color: #333333;
+    }
+
+    .custom-range::-webkit-slider-thumb {
+        width: 18px;
+        height: 18px;
+        background: #ffffff;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+
+    .custom-range::-webkit-slider-runnable-track {
+        background: #333333;
+        height: 4px;
+        border-radius: 2px;
+    }
+
+    .rotation-controls button {
+        color: #ffffff;
+        font-size: 20px;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background-color: #333333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+        border: none;
+    }
+
+    .rotation-controls button:hover {
+        background-color: #444444;
+    }
+
+    .edit-slider {
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 768px) {
+        .image-preview-container {
+            min-height: 40vh;
+        }
+        
+        .edit-controls {
+            padding-bottom: env(safe-area-inset-bottom) !important;
+        }
+    }
+
+    .modal-dialog.modal-fullscreen {
+        padding: 0;
+        margin: 0;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+        width: 100vw;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .modal-content {
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        overflow-x: hidden;
+        border-radius: 0;
+    }
+
+    .modal-body {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 60px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+    }
+
+    .image-preview-container {
+        background-color: #000000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        min-height: 40vh;
+        width: 100%;
+        overflow: hidden;
+        padding: 20px;
+    }
+
+    .edit-controls {
+        background-color: #000000;
+        padding: 20px;
+        width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* Prevent any horizontal overflow */
+    body.modal-open {
+        overflow-x: hidden;
+        position: fixed;
+        width: 100%;
+    }
+
+    /* Add CSS for video indicators */
+    .video-indicator {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        z-index: 1;
+    }
+
+    .media-item {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 1;
+    }
+
+    .media-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .photo-item {
+        position: relative;
+    }
+
+    /* Add a play button overlay for videos */
+    .media-item.video::after {
+        content: "▶";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2rem;
+        color: white;
+        text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        pointer-events: none;
+    }
+    
+    /* Date picker styles */
+    .date-time-picker-container {
+        position: relative;
+    }
+    
+    .date-time-picker {
+        background-color: #333;
+        border: 1px solid #444;
+        color: white;
+        padding: 10px;
+        border-radius: 4px;
+        width: 100%;
+    }
+    
+    /* Flatpickr custom styling */
+    .flatpickr-calendar {
+        background: #333 !important;
+        border: 1px solid #444 !important;
+        color: white !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+    }
+    
+    .flatpickr-day {
+        color: white !important;
+    }
+    
+    .flatpickr-day.selected {
+        background: #0a84ff !important;
+        border-color: #0a84ff !important;
+    }
+    
+    .flatpickr-day:hover {
+        background: #444 !important;
+    }
+    
+    .flatpickr-time input {
+        color: white !important;
+    }
+
+    /* Filter and Sort Panel Styles */
+    #filterSortPanel {
+        transition: all 0.3s ease;
+    }
+
+    #filterSortPanel .card {
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    #filterSortPanel h5 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    #filterSortPanel .form-label {
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    #filterSortPanel .form-select {
+        border-radius: 6px;
+        padding: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    #filterSortPanel .btn {
+        border-radius: 6px;
+        padding: 0.5rem 1rem;
+    }
+
+    /* Mobile optimizations for filter panel */
+    @media (max-width: 768px) {
+        #filterSortPanel .card-body {
+            padding: 1rem;
+        }
+        
+        #filterSortPanel .row {
+            margin: 0;
+        }
+        
+        #filterSortPanel .col-md-6 {
+            padding: 0;
+        }
+        
+        #filterSortPanel h5 {
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        #filterSortPanel .form-label {
+            font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        #filterSortPanel .form-select {
+            font-size: 0.85rem;
+            padding: 0.4rem;
+        }
+        
+        #filterSortPanel .btn {
+            font-size: 0.85rem;
+            padding: 0.4rem 0.8rem;
+        }
+    }
+</style>
+<!-- Add Cropper.js CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+<!-- Add Flatpickr CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Debug info - we can remove this later -->
+    <!-- {{ google_photos_connected }} -->
+    
+    <h1>Gallery</h1>
+
+    <!-- Upload form section -->
+    <div class="upload-form">
+        <form id="uploadForm" method="post" enctype="multipart/form-data">
+            <label for="photoInput" class="upload-button">
+                <span class="upload-icon">📷</span>
+                Upload from Device
+            </label>
+            {% if google_photos_connected is sameas true %}
+            <button type="button" class="upload-button" onclick="showGooglePhotosModal()">
+                <span class="upload-icon">🔄</span>
+                Add from Google Photos
+            </button>
+            {% endif %}
+            {% if unsplash_api_key is sameas true %}
+            <button type="button" class="upload-button" onclick="showUnsplashModal()">
+                <span class="upload-icon">🖼️</span>
+                Add from Unsplash
+            </button>
+            {% endif %}
+            {% if pixabay_api_key is sameas true %}
+            <button type="button" class="upload-button" onclick="showPixabayModal()">
+                <span class="upload-icon">🎨</span>
+                Add from Pixabay
+            </button>
+            {% endif %}
+            <button type="button" class="upload-button" id="networkButton" style="display: none;" onclick="showNetworkModal()">
+                <span class="upload-icon">🖧</span>
+                Add from Network
+            </button>
+            <button type="button" class="upload-button" id="immichButton" style="display: none;" onclick="showImmichModal()">
+                <span class="upload-icon">📱</span>
+                Add from Immich
+            </button>
+            <input type="file" id="photoInput" name="photo" accept="image/*, video/*, image/avif" multiple>
+            
+            {% if frames %}
+            <div class="form-group">
+                <label for="frameSelect">Upload to Frame:</label>
+                <select id="frameSelect" name="frame_id" class="frame-select">
+                    {% for frame in frames %}
+                    <option value="{{ frame.id }}" {% if frame.id == last_frame_id %}selected{% endif %}>
+                        {{ frame.name or frame.id }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% else %}
+            <div class="alert alert-warning mt-3">
+                <p>No frames available. Please <a href="{{ url_for('manage_frames') }}">add a frame</a> before uploading photos.</p>
+            </div>
+            {% endif %}
+            
+            <div class="upload-status" id="uploadStatus"></div>
+        </form>
+    </div>
+
+    <!-- Google Photos section -->
+    {% if google_photos_connected %}
+    <div class="google-photos-section mb-4">
+        <h3>Google Photos Albums</h3>
+        <div id="googleAlbums" class="albums-grid">
+            <!-- Albums will be loaded here -->
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Bulk mode section - moved here -->
+    <div class="bulk-mode-section mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h3>Photos</h3>
+            <div class="d-flex gap-2">
+                <button id="filterSortBtn" class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterSortPanel" aria-expanded="false" aria-controls="filterSortPanel">
+                    <i class="fas fa-filter"></i> Filter & Sort
+                </button>
+                <button class="btn btn-outline-primary" onclick="toggleBulkMode()">
+                    <i class="fas fa-check-square"></i> Select
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter and Sort Panel -->
+        <div class="collapse mt-3" id="filterSortPanel">
+            <div class="card card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <h5>Filter</h5>
+                        <div class="mb-3">
+                            <label for="sourceFilter" class="form-label">Source</label>
+                            <select id="sourceFilter" class="form-select">
+                                <option value="all">All Sources</option>
+                                <option value="manual">Manual Upload</option>
+                                <option value="google">Google Photos</option>
+                                <option value="unsplash">Unsplash</option>
+                                <option value="pixabay">Pixabay</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h5>Sort</h5>
+                        <div class="mb-3">
+                            <label for="sortBy" class="form-label">Sort By</label>
+                            <select id="sortBy" class="form-select">
+                                <option value="upload_date">Upload Date</option>
+                                <option value="photo_date">Photo Date/Time</option>
+                                <option value="source">Source</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sortOrder" class="form-label">Order</label>
+                            <select id="sortOrder" class="form-select">
+                                <option value="desc">Newest First</option>
+                                <option value="asc">Oldest First</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button class="btn btn-primary" onclick="applyFiltersAndSort()">Apply</button>
+                    <button class="btn btn-outline-secondary ms-2" onclick="resetFiltersAndSort()">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add spacer div -->
+        <div class="bulk-actions-spacer" id="bulkActionsSpacer"></div>
+        
+        <!-- Bulk actions bar -->
+        <div class="bulk-actions" id="bulkActions">
+            <div class="d-flex align-items-center">
+                <div class="form-check bulk-select-all">
+                    <input type="checkbox" class="form-check-input" id="selectAll">
+                    <label class="form-check-label" for="selectAll">All</label>
+                </div>
+                <span id="selectedCount" class="ms-3">0</span>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="bulkSendToFrame()">Send</button>
+                <button class="btn btn-danger" onclick="bulkDelete()">Delete</button>
+                <button class="btn btn-secondary" onclick="exitBulkMode()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo grid -->
+    <div class="photo-grid">
+        {% for photo in photos %}
+        <div class="photo-item" id="photo-{{ photo.id }}" data-photo-id="{{ photo.id }}" data-heading="{{ photo.heading or '' }}" data-exif-metadata='{{ photo.exif_metadata|tojson|safe if photo.exif_metadata else "{}" }}'>
+            <input type="checkbox" 
+                   class="select-checkbox" 
+                   data-photo-id="{{ photo.id }}"
+                   data-ai-description='{{ photo.ai_description|tojson|safe if photo.ai_description else "" }}'
+                   data-exif-metadata='{{ photo.exif_metadata|tojson|safe if photo.exif_metadata else "{}" }}'
+                   onclick="event.stopPropagation()">
+            <div class="media-item {% if photo.media_type == 'video' %}video{% endif %}">
+                {% if photo.media_type == 'video' %}
+                    <div class="video-indicator">
+                        <i class="fas fa-video"></i>
+                        {% if photo.duration %}
+                            {{ '%0.1f'|format(photo.duration|float) }}s
+                        {% endif %}
+                    </div>
+                {% endif %}
+                <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
+                     alt="{{ photo.filename }}"
+                     class="thumbnail"
+                     onclick="handlePhotoClick(event, {{ photo.id }})">
+            </div>
+            <div class="photo-actions">
+                <button class="send-to-playlist-btn" onclick="showFrameModal({{ photo.id }})" title="Send to Frame"><i class="fas fa-paper-plane"></i></button>
+                <button class="edit-btn" data-photo-id="{{ photo.id }}" data-photo-url="{{ url_for('serve_photo', filename=photo.filename) }}" title="Edit"><i class="fas fa-pencil-alt"></i></button>
+                <button class="delete-btn" data-delete-photo="{{ photo.id }}" title="Delete"><i class="fas fa-trash-alt"></i></button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Modal -->
+    <div id="photoModal" class="photo-modal" onclick="hideModal()">
+        <span class="close-modal" onclick="hideModal()">&times;</span>
+        <div class="modal-content">
+            <img id="modalImage" class="modal-image" src="" alt="">
+        </div>
+    </div>
+
+    <!-- Frame Selection Modal -->
+    <div id="frameModal" class="frame-modal">
+        <div class="frame-modal-content">
+            <h3>Send To Frame</h3>
+            <div class="frame-list">
+                {% if frames %}
+                    {% for frame in frames %}
+                    <div class="frame-item" onclick="addToPlaylist(currentPhotoId, '{{ frame.id }}')">
+                        {{ frame.name or frame.id }}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p>No frames available. Please add frames in the <a href="{{ url_for('manage_frames') }}">Manage Frames</a> section.</p>
+                {% endif %}
+            </div>
+            <button class="btn btn-secondary mt-3" onclick="hideFrameModal()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Success Message -->
+    <div id="successMessage" class="success-message">
+        Photo added to playlist successfully!
+    </div>
+
+    <!-- Add Google Photos Modal -->
+    <div id="googlePhotosModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Photos from Google Photos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-center mb-3">
+                        <input type="text" class="form-control" id="googlePhotosSearch" 
+                               placeholder="Search photos...">
+                    </div>
+                    <div id="googlePhotosGrid">
+                        <!-- Photos will be loaded here -->
+                    </div>
+                    <div id="googlePhotosLoader" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="mt-2">Loading more photos...</div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div class="selected-count">
+                        <span id="selectedPhotoCount">0</span> photos selected
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="importButton" onclick="importSelectedPhotos()" disabled>
+                            Add Selected Photos
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this new modal for the import progress -->
+    <div id="importProgressModal" class="modal fade" data-bs-backdrop="static" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5>Importing Photos...</h5>
+                    <p class="mb-0">Please wait while your selected photos are being imported.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock Photo Modal (for Unsplash and Pixabay) -->
+    <div id="stockPhotoModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="stockModalTitle">Search Photos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-center mb-3">
+                        <input type="text" class="form-control" id="stockSearchInput" 
+                               placeholder="Search photos...">
+                        <button class="btn btn-primary ms-2" id="stockSearchButton">Search</button>
+                    </div>
+                    <div id="stockPhotoResults" class="row g-3">
+                        <!-- Photos will be loaded here -->
+                    </div>
+                    <div id="stockPhotoLoader" class="text-center my-4" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="mt-2">Loading photos...</div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div class="selected-count">
+                        <span id="selectedStockPhotoCount">0</span> photos selected
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="addSelectedStockPhotosBtn" disabled>
+                            Add Selected Photos
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simplified modal structure -->
+    <div class="modal fade" id="photoEditModal" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content bg-dark text-light">
+                <div class="ios-header">
+                    <div class="header-content">
+                        <button type="button" class="ios-btn" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="ios-btn ios-btn-done" onclick="saveEdits()">Done</button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="image-preview-container">
+                                <img id="photoEditor" class="img-fluid" src="">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="edit-controls">
+                                {% if ai_analysis_enabled %}
+                                <div class="mb-3">
+                                    <label for="aiDescription" class="form-label text-white">AI Description</label>
+                                    <textarea id="aiDescription" class="form-control" rows="3" readonly></textarea>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Photo Heading Input -->
+                                <div class="mb-3">
+                                    <label for="photoHeading" class="form-label">Photo Heading</label>
+                                    <textarea id="photoHeading" class="form-control" rows="2" maxlength="140" placeholder="Add a heading to this photo (max 140 characters)"></textarea>
+                                    <div class="d-flex justify-content-end mt-1">
+                                        <small id="headingCharCount" class="text-muted">0/140</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Photo Date/Time Input -->
+                                <div class="mb-3">
+                                    <label for="photoDateTime" class="form-label">Photo Date & Time</label>
+                                    <div class="date-time-picker-container">
+                                        <input type="text" id="photoDateTime" class="form-control date-time-picker" placeholder="Select date and time">
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-labedynamic l">Rotation</label>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-secondary" onclick="rotate(-90)">↶</button>
+                                        <button class="btn btn-outline-secondary" onclick="rotate(90)">↷</button>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Brightness</label>
+                                    <input type="range" class="form-range" id="brightnessSlider" 
+                                           min="0" max="2" step="0.1" value="1">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Contrast</label>
+                                    <input type="range" class="form-range" id="contrastSlider" 
+                                           min="0" max="2" step="0.1" value="1">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Saturation</label>
+                                    <input type="range" class="form-range" id="saturationSlider" 
+                                           min="0" max="2" step="0.1" value="1">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Sharpness</label>
+                                    <input type="range" class="form-range" id="sharpnessSlider" 
+                                           min="0" max="2" step="0.1" value="1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Browse Modal -->
+    <div class="modal fade" id="networkModal" tabindex="-1" aria-labelledby="networkModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="networkModalLabel">Browse Network Locations</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Location selection -->
+                    <div class="mb-3">
+                        <label for="networkLocationSelect" class="form-label">Select Network Location</label>
+                        <select id="networkLocationSelect" class="form-select">
+                            <option value="">-- Select a location --</option>
+                            <!-- Locations will be loaded here -->
+                        </select>
+                    </div>
+                    
+                    <!-- Current path and navigation -->
+                    <div id="networkPathNav" class="mb-3 d-none">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb" id="networkBreadcrumb">
+                                <li class="breadcrumb-item"><a href="#" data-path="">Home</a></li>
+                            </ol>
+                        </nav>
+                    </div>
+                    
+                    <!-- Files and folders list -->
+                    <div id="networkFilesList" class="list-group mb-3">
+                        <div class="text-center py-5">
+                            <p>Select a network location to browse files</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Selected files counter -->
+                    <div id="networkSelectedFiles" class="d-none mb-3">
+                        <span class="badge bg-primary" id="networkSelectedCount">0</span> files selected
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="importNetworkFilesBtn" disabled>Import Selected</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Import Progress Modal -->
+    <div class="modal fade" id="networkImportProgressModal" tabindex="-1" aria-labelledby="networkImportProgressModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="networkImportProgressModalLabel">Importing Files</h5>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p id="networkImportMessage">Importing files from network location...</p>
+                    <div class="progress mt-3">
+                        <div id="networkImportProgressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Immich Modal -->
+    <div class="modal fade" id="immichModal" tabindex="-1" aria-labelledby="immichModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="immichModalLabel">Latest Photos from Immich</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Grid of photos -->
+                    <div id="immichPhotoGrid" class="row g-3">
+                        <!-- Photos will be loaded here -->
+                    </div>
+                    
+                    <!-- Loading indicator -->
+                    <div id="immichLoader" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading photos...</p>
+                    </div>
+                    
+                    <!-- Error message -->
+                    <div id="immichError" class="alert alert-danger d-none">
+                        Failed to load photos. Please check your Immich connection settings.
+                    </div>
+                    
+                    <!-- No photos message -->
+                    <div id="noImmichPhotos" class="alert alert-info d-none">
+                        No photos found.
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div class="selected-count">
+                        <span id="selectedImmichCount">0</span> photos selected
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="importImmichBtn" disabled>Import Selected</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Immich Import Progress Modal -->
+    <div class="modal fade" id="immichImportProgressModal" tabindex="-1" aria-labelledby="immichImportProgressModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="immichImportProgressModalLabel">Importing Files</h5>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p id="immichImportMessage">Importing files from Immich...</p>
+                    <div class="progress mt-3">
+                        <div id="immichImportProgressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Add Cropper.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<!-- Add Flatpickr -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if Immich integration is available
+        fetch('/api/immich/settings')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.settings && data.settings.url) {
+                    document.getElementById('immichButton').style.display = 'inline-block';
+                }
+            })
+            .catch(error => console.error('Error checking Immich status:', error));
+    });
+
+    document.getElementById('photoInput').addEventListener('change', function(e) {
+        const files = e.target.files;
+        const frameSelect = document.getElementById('frameSelect');
+        const statusDiv = document.getElementById('uploadStatus');
+        
+        if (!frameSelect) {
+            statusDiv.textContent = 'Please add a frame before uploading photos.';
+            statusDiv.style.display = 'block';
+            statusDiv.style.backgroundColor = '#ffc107';
+            return;
+        }
+        
+        const frameId = frameSelect.value;
+        
+        if (files.length > 0) {
+            statusDiv.textContent = `Uploading ${files.length} files...`;
+            statusDiv.style.display = 'block';
+            statusDiv.style.backgroundColor = '#e9ecef';
+            
+            let uploadedCount = 0;
+            let failedCount = 0;
+            
+            // Function to upload a single file
+            const uploadFile = async (file) => {
+                const formData = new FormData();
+                formData.append('photo', file);
+                formData.append('frame_id', frameId);
+                
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        throw new Error(data.error || 'Upload failed');
+                    }
+                    uploadedCount++;
+                } catch (error) {
+                    console.error('Error:', error);
+                    failedCount++;
+                }
+                
+                // Update status
+                statusDiv.textContent = `Uploaded ${uploadedCount} of ${files.length} files${failedCount > 0 ? ` (${failedCount} failed)` : ''}...`;
+                
+                // If all files have been processed, show final status and reload
+                if (uploadedCount + failedCount === files.length) {
+                    if (failedCount === 0) {
+                        statusDiv.textContent = 'All uploads completed successfully!';
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        statusDiv.textContent = `Upload completed with ${failedCount} errors. Successfully uploaded ${uploadedCount} files.`;
+                        setTimeout(() => {
+                            location.reload();
+                        }, 2000);
+                    }
+                }
+            };
+            
+            // Upload all files sequentially
+            Array.from(files).forEach(file => uploadFile(file));
+        }
+    });
+
+    function deletePhoto(photoId, event) {
+        // Prevent any default behavior
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        if (!confirm('Are you sure you want to delete this photo?')) {
+            return;
+        }
+
+        fetch(`/photos/${photoId}/delete`, {
+            method: 'DELETE',
+        })
+        .then(async response => {
+            const data = await response.json();
+            
+            // If response is 409, it means we need confirmation
+            if (response.status === 409 && data.requires_confirmation) {
+                // Photo is in playlists, ask for confirmation
+                const frames = data.frames.join(', ');
+                const confirmMessage = `This photo is currently used in the following frame playlists:\n\n${frames}\n\nDeleting it will remove it from these playlists. Continue?`;
+                
+                if (confirm(confirmMessage)) {
+                    // User confirmed, delete with force flag
+                    return fetch(`/photos/${photoId}/delete?force=true`, {
+                        method: 'DELETE',
+                    })
+                    .then(response => response.json());
+                }
+                return Promise.reject('Delete cancelled by user');
+            }
+            return data;
+            })
+            .then(data => {
+            if (data.success) {
+                // Remove the photo element from the page
+                const photoElement = document.querySelector(`[data-photo-id="${photoId}"]`);
+                if (photoElement) {
+                    photoElement.closest('.photo-item').remove(); // Remove the entire photo container
+                }
+            } else {
+                throw new Error(data.error || 'Failed to delete photo');
+            }
+            })
+            .catch(error => {
+            if (error !== 'Delete cancelled by user') {
+                console.error('Error:', error);
+                alert('Error deleting photo: ' + error);
+            }
+        });
+
+        // Prevent form submission
+        return false;
+    }
+
+    function showModal(imageSrc, imageAlt) {
+        const modal = document.getElementById('photoModal');
+        const modalImg = document.getElementById('modalImage');
+        modalImg.src = imageSrc;
+        modalImg.alt = imageAlt;
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function hideModal() {
+        const modal = document.getElementById('photoModal');
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideModal();
+        }
+    });
+
+    let currentPhotoId = null;
+    let currentRotation = 0;
+    let editSettings = {
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        sharpness: 1,
+        rotation: 0
+    };
+
+    // Add this function to set up event listeners once the DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up slider listeners
+        ['brightness', 'contrast', 'saturation', 'sharpness'].forEach(setting => {
+            const slider = document.getElementById(setting + 'Slider');
+            if (slider) {
+                slider.addEventListener('input', function(e) {
+                    console.log(`${setting} changed to ${e.target.value}`);
+                    editSettings[setting] = parseFloat(e.target.value);
+                    updateImagePreview();
+                });
+            }
+        });
+        
+        // Set up heading character counter
+        const headingTextarea = document.getElementById('photoHeading');
+        const charCount = document.getElementById('headingCharCount');
+        if (headingTextarea && charCount) {
+            headingTextarea.addEventListener('input', function() {
+                const currentLength = this.value.length;
+                charCount.textContent = `${currentLength}/140`;
+                
+                // Optional: Change color when approaching limit
+                if (currentLength > 120) {
+                    charCount.classList.add('text-warning');
+            } else {
+                    charCount.classList.remove('text-warning');
+            }
+        });
+    }
+    });
+
+    function showPhotoEditor(photoUrl, photoId) {
+        // Reset all settings first
+        currentPhotoId = photoId;
+        currentRotation = 0;
+        
+        // Reset the image preview immediately
+        const img = document.getElementById('photoEditor');
+        const previewContainer = document.querySelector('.image-preview-container');
+        
+        // Check if it's a video by looking at the URL or data attribute
+        const isVideo = photoUrl.toLowerCase().endsWith('.mp4') || 
+                       photoUrl.toLowerCase().endsWith('.mov') ||
+                       document.querySelector(`#photo-${photoId} .media-item`).classList.contains('video');
+        
+        // Clear the preview container
+        previewContainer.innerHTML = '';
+        
+        if (isVideo) {
+            // Create video element for videos
+            const video = document.createElement('video');
+            video.id = 'photoEditor';
+            video.src = photoUrl;
+            video.autoplay = true;
+            video.loop = true;
+            video.muted = true;
+            video.controls = true;
+            video.className = 'img-fluid';
+            video.style.maxHeight = '100%';
+            video.style.maxWidth = '100%';
+            previewContainer.appendChild(video);
+        } else {
+            // Create image element for photos
+            const img = document.createElement('img');
+            img.id = 'photoEditor';
+            img.src = photoUrl;
+            img.className = 'img-fluid';
+            img.style.transform = 'none';
+            img.style.filter = 'none';
+            previewContainer.appendChild(img);
+        }
+        
+        // Load the photo heading if available
+        const headingTextarea = document.getElementById('photoHeading');
+        const charCount = document.getElementById('headingCharCount');
+        if (headingTextarea) {
+            // Try to get the heading from the data attribute
+            const photoElement = document.querySelector(`[data-photo-id="${photoId}"]`);
+            
+            if (photoElement && photoElement.dataset.heading) {
+                headingTextarea.value = photoElement.dataset.heading;
+                if (charCount) {
+                    charCount.textContent = `${photoElement.dataset.heading.length}/140`;
+                }
+        } else {
+                headingTextarea.value = '';
+                if (charCount) {
+                    charCount.textContent = '0/140';
+                }
+            }
+        }
+        
+        // Only try to load AI description if the feature is enabled
+        const aiDescriptionTextarea = document.getElementById('aiDescription');
+        if (aiDescriptionTextarea) {  // Element will only exist if AI analysis is enabled
+            const photoElement = document.querySelector(`[data-photo-id="${photoId}"]`);
+            if (photoElement) {
+                try {
+                    const checkbox = photoElement.querySelector('.select-checkbox');
+                    const aiDescriptionData = checkbox ? checkbox.dataset.aiDescription : null;
+                    const aiDescription = JSON.parse(aiDescriptionData || '{}');
+                    aiDescriptionTextarea.value = aiDescription.description || 'No AI description available';
+                } catch(e) {
+                    console.error('Error parsing AI description:', e);
+                    aiDescriptionTextarea.value = 'Error loading description';
+                }
+            }
+        }
+        
+        // Reset all sliders to default position
+        ['brightness', 'contrast', 'saturation', 'sharpness'].forEach(setting => {
+            const slider = document.getElementById(setting + 'Slider');
+            if (slider) {
+                slider.value = 1;
+            }
+        });
+        
+        // Reset edit settings to defaults
+        editSettings = {
+            brightness: 1,
+            contrast: 1,
+            saturation: 1,
+            sharpness: 1,
+            rotation: 0
+        };
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('photoEditModal'));
+        modal.show();
+        
+        // Add slider event listeners
+        ['brightness', 'contrast', 'saturation', 'sharpness'].forEach(setting => {
+            const slider = document.getElementById(setting + 'Slider');
+            if (slider) {
+                slider.addEventListener('input', function(e) {
+                    editSettings[setting] = parseFloat(e.target.value);
+                    updateImagePreview();
+                });
+            }
+        });
+    }
+
+    function updateImagePreview() {
+        console.log('Updating preview with settings:', editSettings);
+        const element = document.getElementById('photoEditor');
+        
+        // Skip applying filters to video elements
+        if (element.tagName === 'VIDEO') {
+            // Only apply rotation to videos
+            element.style.transform = `rotate(${editSettings.rotation}deg)`;
+            return;
+        }
+        
+        // Create CSS filter string based on current settings
+        const filters = [
+            `brightness(${editSettings.brightness})`,
+            `contrast(${editSettings.contrast * 100}%)`,
+            `saturate(${editSettings.saturation * 100}%)`,
+        ];
+        
+        const filterString = filters.join(' ');
+        console.log('Applying filters:', filterString);
+        
+        element.style.filter = filterString;
+        element.style.transform = `rotate(${editSettings.rotation}deg)`;
+    }
+
+    function rotate(degrees) {
+        console.log('Rotating by degrees:', degrees);
+        currentRotation = (currentRotation + degrees) % 360;
+        editSettings.rotation = currentRotation;
+        updateImagePreview();
+    }
+
+    function showFrameModal(photoIds) {
+        // Convert single ID to array if needed
+        currentPhotoId = Array.isArray(photoIds) ? photoIds : [photoIds];
+        document.getElementById('frameModal').style.display = 'block';
+    }
+
+    function hideFrameModal() {
+        document.getElementById('frameModal').style.display = 'none';
+        currentPhotoId = null;
+    }
+
+    function addToPlaylist(photoIds, frameId) {
+        const promises = photoIds.map(photoId => 
+            fetch('/api/playlist/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    photo_id: photoId,
+                    frame_id: frameId
+                })
+            }).then(response => response.json())
+        );
+
+        Promise.all(promises)
+            .then(results => {
+                hideFrameModal();
+                const successCount = results.filter(r => r.success).length;
+                if (successCount === photoIds.length) {
+                    showSuccessMessage(`${successCount} photos added to playlist successfully!`);
+                } else {
+                    showSuccessMessage(`Added ${successCount} of ${photoIds.length} photos to playlist`, 'warning');
+                }
+            })
+            .catch(error => {
+                hideFrameModal();
+                showSuccessMessage('Error adding photos to playlist', 'error');
+            });
+    }
+
+    function showSuccessMessage(message, type = 'success') {
+        const messageDiv = document.getElementById('successMessage');
+        messageDiv.textContent = message;
+        messageDiv.style.display = 'block';
+        
+        // Change color based on message type
+        if (type === 'error') {
+            messageDiv.style.background = '#dc3545'; // Bootstrap danger color
+        } else {
+            messageDiv.style.background = '#28a745'; // Bootstrap success color
+        }
+        
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 3000);
+    }
+
+    // Close frame modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideFrameModal();
+        }
+    });
+
+    // Close frame modal when clicking outside
+    document.getElementById('frameModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideFrameModal();
+        }
+    });
+
+    // Add event listener when the document is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Update all delete buttons to use the new event handling
+        document.querySelectorAll('[data-delete-photo]').forEach(button => {
+            button.addEventListener('click', function(event) {
+                const photoId = this.getAttribute('data-delete-photo');
+                deletePhoto(photoId, event);
+            });
+        });
+        
+        // Add event listeners for edit buttons
+        document.querySelectorAll('.edit-btn').forEach(button => {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                const photoId = this.getAttribute('data-photo-id');
+                const photoUrl = this.getAttribute('data-photo-url');
+                showPhotoEditor(photoUrl, photoId);
+            });
+        });
+    });
+
+    let googlePhotosModal;
+    let selectedGooglePhotos = new Set();
+    let nextPageToken = null;
+    let isLoading = false;
+    let searchTimeout = null;
+    let importProgressModal;
+    let currentAlbumId = null;  // Add this at the top with other state variables
+
+    // Initialize the modals
+    document.addEventListener('DOMContentLoaded', function() {
+        googlePhotosModal = new bootstrap.Modal(document.getElementById('googlePhotosModal'));
+        importProgressModal = new bootstrap.Modal(document.getElementById('importProgressModal'));
+        initializeGooglePhotosModal();
+    });
+
+    function updateSelectedCount() {
+        // Update count for Google Photos modal
+        const count = selectedGooglePhotos.size;
+        const countElement = document.getElementById('selectedPhotoCount');
+        const importButton = document.getElementById('importButton');
+        
+        if (countElement) {
+            countElement.textContent = count;
+        }
+        
+        if (importButton) {
+            importButton.disabled = count === 0;
+        }
+
+        // Also update bulk selection count if in bulk mode
+        const bulkCountElement = document.getElementById('selectedCount');
+        if (bulkMode && bulkCountElement) {
+            bulkCountElement.textContent = `${selectedPhotos.size} selected`;
+        }
+    }
+
+    function togglePhotoSelection(div, photoId) {
+        if (selectedGooglePhotos.has(photoId)) {
+            selectedGooglePhotos.delete(photoId);
+            div.classList.remove('selected');
+        } else {
+            selectedGooglePhotos.add(photoId);
+            div.classList.add('selected');
+        }
+        updateSelectedCount();
+    }
+
+    function importSelectedPhotos() {
+        if (selectedGooglePhotos.size === 0) {
+            alert('Please select at least one photo');
+            return;
+        }
+        
+        // Hide Google Photos modal and show progress modal
+        googlePhotosModal.hide();
+        importProgressModal.show();
+        
+        fetch('/api/google-photos/import', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                photoIds: Array.from(selectedGooglePhotos)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            
+            // Hide progress modal
+            importProgressModal.hide();
+            
+            // Clear selections
+            selectedGooglePhotos.clear();
+            updateSelectedCount();
+            
+            // Refresh the page to show new photos
+            location.reload();
+        })
+        .catch(error => {
+            importProgressModal.hide();
+            alert('Error importing photos: ' + error);
+            googlePhotosModal.show();
+        });
+    }
+
+    function showGooglePhotosModal(albumId = null) {
+        selectedGooglePhotos.clear();
+        updateGooglePhotosCount();
+        
+        const grid = document.getElementById('googlePhotosGrid');
+        grid.innerHTML = '';
+        nextPageToken = null;
+        isLoading = false;
+        currentAlbumId = albumId;  // Store the albumId
+        
+        // Reset search
+        document.getElementById('googlePhotosSearch').value = '';
+        
+        // Show modal and load photos
+        googlePhotosModal.show();
+        loadGooglePhotos();
+    }
+
+    function initializeGooglePhotosModal() {
+        // Add search handler
+        const searchInput = document.getElementById('googlePhotosSearch');
+        let searchTimeout;
+        
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const grid = document.getElementById('googlePhotosGrid');
+                grid.innerHTML = '';  // Clear existing photos
+                nextPageToken = null;  // Reset pagination
+                isLoading = false;    // Reset loading state
+                currentAlbumId = null;  // Reset albumId when searching
+                loadGooglePhotos();   // Load new results
+            }, 500);
+        });
+        
+        // Add infinite scroll
+        const modalBody = document.querySelector('#googlePhotosModal .modal-body');
+        modalBody.addEventListener('scroll', function() {
+            if (modalBody.scrollHeight - modalBody.scrollTop <= modalBody.clientHeight + 200) {
+                loadGooglePhotos();
+            }
+        });
+    }
+
+    function loadGooglePhotos() {
+        if (isLoading || (!nextPageToken && nextPageToken !== null)) return;
+        
+        isLoading = true;
+        const loader = document.getElementById('googlePhotosLoader');
+        const grid = document.getElementById('googlePhotosGrid');
+        loader.style.display = 'block';
+        
+        const query = document.getElementById('googlePhotosSearch').value;
+        const url = `/api/google-photos/search?${query ? 'query=' + encodeURIComponent(query) : ''}${nextPageToken ? '&pageToken=' + encodeURIComponent(nextPageToken) : ''}${currentAlbumId ? '&albumId=' + currentAlbumId : ''}`;
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                
+                if (data.photos && data.photos.length > 0) {
+                    data.photos.forEach(photo => {
+                        const div = document.createElement('div');
+                        div.className = 'google-photo-item';
+                        if (selectedGooglePhotos.has(photo.id)) {
+                            div.classList.add('selected');
+                        }
+                        div.innerHTML = `
+                            <img src="${photo.baseUrl}=w400-h400-c" 
+                                 data-photo-id="${photo.id}"
+                                 alt="${photo.filename}">
+                        `;
+                        div.addEventListener('click', () => {
+                            if (selectedGooglePhotos.has(photo.id)) {
+                                selectedGooglePhotos.delete(photo.id);
+                                div.classList.remove('selected');
+                            } else {
+                                selectedGooglePhotos.add(photo.id);
+                                div.classList.add('selected');
+                            }
+                            updateGooglePhotosCount();
+                        });
+                        grid.appendChild(div);
+                    });
+                    
+                    // Update nextPageToken only if we get a new one
+                    nextPageToken = data.nextPageToken || null;
+                    
+                    // Hide loader if there's no next page
+                    if (!nextPageToken) {
+                        loader.style.display = 'none';
+                    }
+                } else {
+                    // No photos found
+                    if (!nextPageToken) {  // If this is the first load
+                        grid.innerHTML = '<div class="text-center w-100 p-3">No photos found</div>';
+                    }
+                    nextPageToken = null;  // Ensure we stop trying to load more
+                    loader.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                grid.innerHTML = `<div class="text-center w-100 p-3 text-danger">Error loading photos: ${error.message}</div>`;
+                nextPageToken = null;  // Reset on error
+                loader.style.display = 'none';
+            })
+            .finally(() => {
+                isLoading = false;
+                // Only show loader if we have more pages to load
+                loader.style.display = nextPageToken ? 'block' : 'none';
+            });
+    }
+
+    // New separate function for updating Google Photos count
+    function updateGooglePhotosCount() {
+        const count = selectedGooglePhotos.size;
+        console.log('Updating count to:', count); // Debug log
+        
+        const countElement = document.getElementById('selectedPhotoCount');
+        const importButton = document.getElementById('importButton');
+        
+        if (countElement) {
+            countElement.textContent = count.toString();
+        }
+        
+        if (importButton) {
+            importButton.disabled = count === 0;
+        }
+    }
+
+    // Add new bulk management functions
+    let bulkMode = false;
+    const selectedPhotos = new Set();
+
+    function toggleBulkMode() {
+        const bulkActions = document.getElementById('bulkActions');
+        const spacer = document.getElementById('bulkActionsSpacer');
+        const photoItems = document.querySelectorAll('.photo-item');
+        
+        bulkMode = !bulkMode;
+        
+        if (bulkMode) {
+            bulkActions.classList.add('visible');
+            photoItems.forEach(item => {
+                item.classList.add('bulk-mode');
+                // Show checkbox, hide actions
+                const checkbox = item.querySelector('.select-checkbox');
+                if (checkbox) checkbox.checked = false;
+            });
+            
+            // Check if we need to fix the position immediately
+            if (window.pageYOffset > document.querySelector('.bulk-mode-section').offsetTop) {
+                bulkActions.classList.add('fixed');
+                spacer.classList.add('visible');
+            }
+        } else {
+            bulkActions.classList.remove('visible', 'fixed');
+            spacer.classList.remove('visible');
+            photoItems.forEach(item => {
+                item.classList.remove('bulk-mode');
+                // Hide checkbox, show actions
+                const checkbox = item.querySelector('.select-checkbox');
+                if (checkbox) checkbox.checked = false;
+            });
+            document.getElementById('selectAll').checked = false;
+            selectedPhotos.clear();
+            updateSelectedCount();
+        }
+    }
+
+    function handlePhotoClick(event, photoId) {
+        if (bulkMode) {
+            // In bulk mode, toggle selection
+            const photoItem = event.target.closest('.photo-item');
+            const checkbox = photoItem.querySelector('.select-checkbox');
+            
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                if (checkbox.checked) {
+                    selectedPhotos.add(photoId);
+                    photoItem.classList.add('selected');
+                } else {
+                    selectedPhotos.delete(photoId);
+                    photoItem.classList.remove('selected');
+                }
+                updateSelectedCount();
+            }
+        } else {
+            // Not in bulk mode, open photo editor
+            const editBtn = document.querySelector(`.edit-btn[data-photo-id="${photoId}"]`);
+            if (editBtn) {
+                const photoUrl = editBtn.getAttribute('data-photo-url');
+                showPhotoEditor(photoUrl, photoId);
+            }
+        }
+    }
+    
+    // Keep the original function for backward compatibility
+    function handlePhotoItemClick(event, photoUrl, photoId) {
+        handlePhotoClick(event, photoId);
+    }
+
+    function updateSelectedCount() {
+        document.getElementById('selectedCount').textContent = `${selectedPhotos.size} selected`;
+    }
+
+    function clearSelection() {
+        selectedPhotos.clear();
+        document.querySelectorAll('.select-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        document.querySelectorAll('.photo-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        updateSelectedCount();
+    }
+
+    function bulkSendToFrame() {
+        if (selectedPhotos.size === 0) {
+            alert('Please select at least one photo');
+            return;
+        }
+        showFrameModal(Array.from(selectedPhotos));
+    }
+
+    function bulkDelete() {
+        if (selectedPhotos.size === 0) {
+            alert('Please select at least one photo');
+            return;
+        }
+        
+        if (confirm(`Are you sure you want to delete ${selectedPhotos.size} photos?`)) {
+            const deletePhoto = async (photoId) => {
+                try {
+                    const response = await fetch(`/photos/${photoId}/delete`, {
+                        method: 'DELETE',
+                    });
+                    const data = await response.json();
+                    
+                    // If photo is in playlists, delete with force flag
+                    if (response.status === 409 && data.requires_confirmation) {
+                        const forceResponse = await fetch(`/photos/${photoId}/delete?force=true`, {
+                            method: 'DELETE',
+                        });
+                        return await forceResponse.json();
+                    }
+                    return data;
+                } catch (error) {
+                    console.error(`Error deleting photo ${photoId}:`, error);
+                    return { success: false, error: error.message };
+                }
+            };
+
+            // Process deletions sequentially to handle confirmations properly
+            const processDeletes = async () => {
+                const results = [];
+                for (const photoId of selectedPhotos) {
+                    const result = await deletePhoto(photoId);
+                    results.push(result);
+                }
+                return results;
+            };
+
+            processDeletes()
+                .then(results => {
+                    const successCount = results.filter(r => r.success).length;
+                    alert(`Successfully deleted ${successCount} photos`);
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error in bulk delete:', error);
+                    alert('Error deleting some photos');
+                });
+        }
+    }
+
+    function exitBulkMode() {
+        const bulkActions = document.getElementById('bulkActions');
+        const spacer = document.getElementById('bulkActionsSpacer');
+        const photoItems = document.querySelectorAll('.photo-item');
+        
+        bulkMode = false;
+        bulkActions.classList.remove('visible', 'fixed');
+        spacer.classList.remove('visible');
+        
+        photoItems.forEach(item => {
+            item.classList.remove('bulk-mode');
+            // Hide checkbox, show actions
+            const checkbox = item.querySelector('.select-checkbox');
+            if (checkbox) checkbox.checked = false;
+        });
+        
+        document.getElementById('selectAll').checked = false;
+        selectedPhotos.clear();
+        updateSelectedCount();
+    }
+
+    // Add event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add bulk mode toggle to existing event listeners
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'b' && e.ctrlKey) {
+                toggleBulkMode();
+            }
+            if (e.key === 'Escape' && bulkMode) {
+                exitBulkMode();
+            }
+        });
+
+        // Select all checkbox handler
+        document.getElementById('selectAll').addEventListener('change', function(e) {
+            const checkboxes = document.querySelectorAll('.select-checkbox');
+            checkboxes.forEach(checkbox => {
+                const photoId = parseInt(checkbox.dataset.photoId);
+                checkbox.checked = e.target.checked;
+                if (e.target.checked) {
+                    selectedPhotos.add(photoId);
+                    checkbox.closest('.photo-item').classList.add('selected');
+                } else {
+                    selectedPhotos.delete(photoId);
+                    checkbox.closest('.photo-item').classList.remove('selected');
+                }
+            });
+            updateSelectedCount();
+        });
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        let currentPhotoId;
+        let currentRotation = 0;
+        let editSettings = {
+            brightness: 1,
+            contrast: 1,
+            saturation: 1,
+            sharpness: 1,
+            rotation: 0
+        };
+
+        window.showPhotoEditor = function(photoUrl, photoId) {
+            currentPhotoId = photoId;
+            currentRotation = 0;
+            
+            // Reset sliders
+            document.getElementById('brightnessSlider').value = 1;
+            document.getElementById('contrastSlider').value = 1;
+            document.getElementById('saturationSlider').value = 1;
+            document.getElementById('sharpnessSlider').value = 1;
+            
+            // Reset edit settings
+            editSettings = {
+                brightness: 1,
+                contrast: 1,
+                saturation: 1,
+                sharpness: 1,
+                rotation: 0
+            };
+            
+            // Check if it's a video
+            const isVideo = photoUrl.toLowerCase().endsWith('.mp4') || 
+                           photoUrl.toLowerCase().endsWith('.mov') ||
+                           document.querySelector(`#photo-${photoId} .media-item`).classList.contains('video');
+            
+            const previewContainer = document.querySelector('.image-preview-container');
+            previewContainer.innerHTML = '';
+            
+            if (isVideo) {
+                // Create video element
+                const video = document.createElement('video');
+                video.id = 'photoEditor';
+                video.src = photoUrl;
+                video.autoplay = true;
+                video.loop = true;
+                video.muted = true;
+                video.controls = true;
+                video.className = 'img-fluid';
+                video.style.maxHeight = '100%';
+                video.style.maxWidth = '100%';
+                previewContainer.appendChild(video);
+            } else {
+                // Create image element
+                const img = document.createElement('img');
+                img.id = 'photoEditor';
+                img.src = photoUrl;
+                img.className = 'img-fluid';
+                previewContainer.appendChild(img);
+            }
+            
+            // Load the photo heading if available
+            const headingTextarea = document.getElementById('photoHeading');
+            const charCount = document.getElementById('headingCharCount');
+            if (headingTextarea) {
+                // Try to get the heading from the data attribute
+                const photoElement = document.querySelector(`[data-photo-id="${photoId}"]`);
+                
+                if (photoElement && photoElement.dataset.heading) {
+                    headingTextarea.value = photoElement.dataset.heading;
+                    if (charCount) {
+                        charCount.textContent = `${photoElement.dataset.heading.length}/140`;
+                    }
+                } else {
+                    headingTextarea.value = '';
+                    if (charCount) {
+                        charCount.textContent = '0/140';
+                    }
+                }
+            }
+            
+            // Load and initialize the date/time picker
+            const dateTimeInput = document.getElementById('photoDateTime');
+            if (dateTimeInput) {
+                const photoElement = document.querySelector(`[data-photo-id="${photoId}"]`);
+                let dateTimeValue = null; // Changed from empty string to null
+                
+                if (photoElement && photoElement.dataset.exifMetadata) {
+                    try {
+                        const exifData = JSON.parse(photoElement.dataset.exifMetadata);
+                        // Use DateTime if available, otherwise try DateTimeOriginal
+                        if (exifData && exifData.DateTime) {
+                            // Convert from YYYY:MM:DD HH:MM:SS to YYYY-MM-DD HH:MM:SS for the picker
+                            dateTimeValue = exifData.DateTime.replace(/(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+                        } else if (exifData && exifData.DateTimeOriginal) {
+                            dateTimeValue = exifData.DateTimeOriginal.replace(/(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+                        }
+                    } catch(e) {
+                        console.error('Error parsing EXIF metadata:', e);
+                        dateTimeValue = null;
+                    }
+                }
+                
+                // Initialize flatpickr
+                if (window.datePicker) {
+                    window.datePicker.destroy();
+                }
+                
+                window.datePicker = flatpickr(dateTimeInput, {
+                    enableTime: true,
+                    dateFormat: "Y-m-d H:i:S",
+                    defaultDate: dateTimeValue, // Will be null if no date is available
+                    allowInput: true,
+                    time_24hr: true,
+                    theme: "dark"
+                });
+                
+                // Clear the input if no date is available
+                if (!dateTimeValue) {
+                    dateTimeInput.value = '';
+                    if (window.datePicker) {
+                        window.datePicker.clear();
+                    }
+                }
+            }
+            
+            // Only try to load AI description if the feature is enabled
+            const aiDescriptionTextarea = document.getElementById('aiDescription');
+            if (aiDescriptionTextarea) {  // Element will only exist if AI analysis is enabled
+                const photoElement = document.querySelector(`[data-photo-id="${photoId}"]`);
+                if (photoElement) {
+                    try {
+                        const checkbox = photoElement.querySelector('.select-checkbox');
+                        const aiDescriptionData = checkbox ? checkbox.dataset.aiDescription : null;
+                        const aiDescription = JSON.parse(aiDescriptionData || '{}');
+                        aiDescriptionTextarea.value = aiDescription.description || 'No AI description available';
+                    } catch(e) {
+                        console.error('Error parsing AI description:', e);
+                        aiDescriptionTextarea.value = 'Error loading description';
+                    }
+                }
+            }
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('photoEditModal'));
+            modal.show();
+            
+            // Add slider event listeners
+            ['brightness', 'contrast', 'saturation', 'sharpness'].forEach(setting => {
+                const slider = document.getElementById(setting + 'Slider');
+                if (slider) {
+                    slider.addEventListener('input', function(e) {
+                        editSettings[setting] = parseFloat(e.target.value);
+                        updateImagePreview();
+                    });
+                }
+            });
+        };
+
+        window.rotate = function(degrees) {
+            const img = document.getElementById('photoEditor');
+            currentRotation = (currentRotation + degrees) % 360;
+            editSettings.rotation = currentRotation;
+            img.style.transform = `rotate(${currentRotation}deg)`;
+        };
+
+        window.saveEdits = function() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('photoEditModal'));
+            const headingTextarea = document.getElementById('photoHeading');
+            const heading = headingTextarea ? headingTextarea.value : '';
+            
+            // Get the date/time value
+            let dateTime = null;
+            let clearDateTime = false; // Flag to indicate if date/time should be cleared
+            const dateTimeInput = document.getElementById('photoDateTime');
+            
+            if (window.datePicker) {
+                const selectedDates = window.datePicker.selectedDates;
+                if (selectedDates && selectedDates.length > 0) {
+                    // Format date as YYYY:MM:DD HH:MM:SS for EXIF
+                    const date = selectedDates[0];
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                    
+                    dateTime = `${year}:${month}:${day} ${hours}:${minutes}:${seconds}`;
+                } else if (dateTimeInput && dateTimeInput.value.trim() === '') {
+                    // User has explicitly cleared the field
+                    clearDateTime = true;
+                }
+            }
+            
+            const data = {
+                brightness: editSettings.brightness,
+                contrast: editSettings.contrast,
+                saturation: editSettings.saturation,
+                sharpness: editSettings.sharpness,
+                rotation: editSettings.rotation,
+                heading: heading
+            };
+            
+            // Only include dateTime if it's set or explicitly cleared
+            if (dateTime) {
+                data.dateTime = dateTime;
+            } else if (clearDateTime) {
+                data.dateTime = null; // Explicitly set to null to indicate removal
+            }
+            
+            fetch(`/photos/${currentPhotoId}/edit`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update only the specific photo's heading
+                    const photoElement = document.querySelector(`[data-photo-id="${currentPhotoId}"]`);
+                    if (photoElement) {
+                        photoElement.dataset.heading = heading;
+                        
+                        // Update visible text immediately
+                        const headingElement = photoElement.querySelector('.heading-display');
+                        if (headingElement) {
+                            headingElement.textContent = heading;
+                        }
+                        
+                        // Update exif_metadata data attribute if date/time was changed
+                        if (dateTime || data.dateTime === null) {
+                            try {
+                                let exifData = {};
+                                if (photoElement.dataset.exifMetadata) {
+                                    exifData = JSON.parse(photoElement.dataset.exifMetadata);
+                                }
+                                
+                                if (dateTime) {
+                                    // Update the date/time fields
+                                    exifData.DateTime = dateTime;
+                                    exifData.DateTimeOriginal = dateTime;
+                                    exifData.DateTimeDigitized = dateTime;
+                                    
+                                    // Update the formatted date and time
+                                    const dateParts = dateTime.split(' ')[0].split(':');
+                                    const year = parseInt(dateParts[0]);
+                                    const month = parseInt(dateParts[1]);
+                                    const day = parseInt(dateParts[2]);
+                                    
+                                    const date = new Date(year, month - 1, day);
+                                    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                                    exifData.formatted_date = `${monthNames[date.getMonth()]} ${day}, ${year}`;
+                                    
+                                    const timeParts = dateTime.split(' ')[1].split(':');
+                                    const hour = parseInt(timeParts[0]);
+                                    const minute = parseInt(timeParts[1]);
+                                    
+                                    const amPm = hour < 12 ? 'AM' : 'PM';
+                                    const hour12 = hour % 12 || 12;
+                                    exifData.formatted_time = `${hour12}:${minute.toString().padStart(2, '0')} ${amPm}`;
+                                } else if (data.dateTime === null) {
+                                    // Remove date/time fields if they were cleared
+                                    delete exifData.DateTime;
+                                    delete exifData.DateTimeOriginal;
+                                    delete exifData.DateTimeDigitized;
+                                    delete exifData.formatted_date;
+                                    delete exifData.formatted_time;
+                                }
+                                
+                                // Update the data attribute
+                                photoElement.dataset.exifMetadata = JSON.stringify(exifData);
+                                
+                                // Also update the checkbox data attribute
+                                const checkbox = photoElement.querySelector('.select-checkbox');
+                                if (checkbox) {
+                                    checkbox.dataset.exifMetadata = JSON.stringify(exifData);
+                                }
+                            } catch (e) {
+                                console.error('Error updating exif_metadata:', e);
+                            }
+                        }
+                    }
+                    
+                    modal.hide();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error saving edits: ' + error);
+            });
+        };
+    });
+
+    // Load Google Photos albums when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.getElementById('googleAlbums')) {
+            loadGoogleAlbums();
+        }
+    });
+
+    function loadGoogleAlbums() {
+        const container = document.getElementById('googleAlbums');
+        const loader = document.getElementById('albumsLoader');
+        
+        // Show loader
+        container.innerHTML = `
+            <div id="albumsLoader" class="albums-loader">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading albums...</span>
+                </div>
+                <div class="loader-text">Loading albums...</div>
+            </div>
+        `;
+
+        fetch('/api/google-photos/albums')
+            .then(response => response.json())
+            .then(data => {
+                if (data.albums) {
+                    // Clear loader
+                    container.innerHTML = '';
+                    
+                    // Add albums
+                    data.albums.forEach(album => {
+                        const albumDiv = createAlbumElement(album);
+                        container.appendChild(albumDiv);
+                    });
+                } else {
+                    container.innerHTML = '<div class="text-center w-100 p-3">No albums found</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading albums:', error);
+                container.innerHTML = `
+                    <div class="text-center p-3 text-danger">
+                        Error loading albums: ${error.message}
+                    </div>
+                `;
+            });
+    }
+
+    function createAlbumElement(album) {
+        const div = document.createElement('div');
+        div.className = 'album-item';
+        div.innerHTML = `
+            <img src="${album.coverPhotoBaseUrl}=w400-h300-c" 
+                 alt="${album.title}" 
+                 class="album-cover">
+            <div class="album-info">
+                <h4 class="album-title">${album.title}</h4>
+                <div class="album-count">${album.mediaItemsCount} items</div>
+            </div>
+        `;
+        
+        div.addEventListener('click', () => {
+            showGooglePhotosModal(album.id);
+        });
+        
+        return div;
+    }
+
+    // Add scroll handler for fixed positioning
+    window.addEventListener('scroll', function() {
+        const bulkActions = document.getElementById('bulkActions');
+        const spacer = document.getElementById('bulkActionsSpacer');
+        const bulkActionsTop = document.querySelector('.bulk-mode-section').offsetTop;
+        
+        if (bulkActions.classList.contains('visible')) {
+            if (window.pageYOffset > bulkActionsTop) {
+                bulkActions.classList.add('fixed');
+                spacer.classList.add('visible');
+            } else {
+                bulkActions.classList.remove('fixed');
+                spacer.classList.remove('visible');
+            }
+        }
+    });
+
+    // Ensure modal is fully reset when it's hidden
+    document.getElementById('photoEditModal').addEventListener('hidden.bs.modal', function () {
+        const previewContainer = document.querySelector('.image-preview-container');
+        previewContainer.innerHTML = '';
+        
+        // Reset all settings
+        editSettings = {
+            brightness: 1,
+            contrast: 1,
+            saturation: 1,
+            rotation: 0
+        };
+    });
+
+    // Stock photo integration (Unsplash and Pixabay)
+    let currentStockService = null;
+    let selectedStockPhotos = new Set();
+    let stockPhotoModal = null;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the stock photo modal
+        stockPhotoModal = new bootstrap.Modal(document.getElementById('stockPhotoModal'));
+        
+        // Add event listener for the search button
+        document.getElementById('stockSearchButton').addEventListener('click', searchStockPhotos);
+        
+        // Add event listener for Enter key in search input
+        document.getElementById('stockSearchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchStockPhotos();
+            }
+        });
+        
+        // Add event listener for the add selected button
+        document.getElementById('addSelectedStockPhotosBtn').addEventListener('click', addSelectedStockPhotos);
+    });
+    
+    function showUnsplashModal() {
+        currentStockService = 'unsplash';
+        document.getElementById('stockModalTitle').textContent = 'Search Unsplash Photos';
+        document.getElementById('stockSearchInput').value = '';
+        document.getElementById('stockPhotoResults').innerHTML = '';
+        document.getElementById('selectedStockPhotoCount').textContent = '0';
+        document.getElementById('addSelectedStockPhotosBtn').disabled = true;
+        selectedStockPhotos.clear();
+        stockPhotoModal.show();
+    }
+    
+    function showPixabayModal() {
+        currentStockService = 'pixabay';
+        document.getElementById('stockModalTitle').textContent = 'Search Pixabay Photos';
+        document.getElementById('stockSearchInput').value = '';
+        document.getElementById('stockPhotoResults').innerHTML = '';
+        document.getElementById('selectedStockPhotoCount').textContent = '0';
+        document.getElementById('addSelectedStockPhotosBtn').disabled = true;
+        selectedStockPhotos.clear();
+        stockPhotoModal.show();
+    }
+    
+    async function searchStockPhotos() {
+        const query = document.getElementById('stockSearchInput').value.trim();
+        if (!query) {
+            alert('Please enter a search term');
+            return;
+        }
+        
+        const resultsContainer = document.getElementById('stockPhotoResults');
+        const loader = document.getElementById('stockPhotoLoader');
+        
+        resultsContainer.innerHTML = '';
+        loader.style.display = 'block';
+        selectedStockPhotos.clear();
+        document.getElementById('selectedStockPhotoCount').textContent = '0';
+        document.getElementById('addSelectedStockPhotosBtn').disabled = true;
+        
+        try {
+            let endpoint = '';
+            let requestData = { query: query, count: 10 };
+            
+            if (currentStockService === 'unsplash') {
+                endpoint = '/api/unsplash/preview';
+            } else if (currentStockService === 'pixabay') {
+                endpoint = '/api/pixabay/preview';
+            }
+            
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch photos');
+            }
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            if (!data.results || data.results.length === 0) {
+                resultsContainer.innerHTML = '<div class="col-12 text-center">No photos found. Try a different search term.</div>';
+                return;
+            }
+            
+            // Display the photos
+            data.results.forEach(photo => {
+                const photoCol = document.createElement('div');
+                photoCol.className = 'col-md-4 col-sm-6';
+                
+                const photoCard = document.createElement('div');
+                photoCard.className = 'card h-100 stock-photo-item';
+                photoCard.style.cursor = 'pointer';
+                photoCard.dataset.photoId = photo.id;
+                photoCard.dataset.photoData = JSON.stringify(photo);
+                
+                const img = document.createElement('img');
+                img.src = photo.preview_url;
+                img.alt = photo.description || photo.alt_description || 'Stock photo';
+                img.className = 'card-img-top';
+                img.style.height = '200px';
+                img.style.objectFit = 'cover';
+                
+                const cardBody = document.createElement('div');
+                cardBody.className = 'card-body';
+                
+                const attribution = document.createElement('p');
+                attribution.className = 'card-text small text-muted';
+                if (currentStockService === 'unsplash') {
+                    attribution.textContent = `Photo by ${photo.user.name}`;
+                } else {
+                    attribution.textContent = `Photo by ${photo.user}`;
+                }
+                
+                cardBody.appendChild(attribution);
+                photoCard.appendChild(img);
+                photoCard.appendChild(cardBody);
+                
+                photoCard.addEventListener('click', function() {
+                    if (this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        selectedStockPhotos.delete(photo.id);
+                    } else {
+                        this.classList.add('selected');
+                        selectedStockPhotos.add(photo.id);
+                    }
+                    
+                    document.getElementById('selectedStockPhotoCount').textContent = selectedStockPhotos.size;
+                    document.getElementById('addSelectedStockPhotosBtn').disabled = selectedStockPhotos.size === 0;
+                });
+                
+                photoCol.appendChild(photoCard);
+                resultsContainer.appendChild(photoCol);
+            });
+            
+        } catch (error) {
+            console.error('Error searching photos:', error);
+            resultsContainer.innerHTML = `<div class="col-12 text-center text-danger">Error: ${error.message}</div>`;
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+    
+    async function addSelectedStockPhotos() {
+        if (selectedStockPhotos.size === 0) {
+            alert('Please select at least one photo');
+            return;
+        }
+        
+        const resultsContainer = document.getElementById('stockPhotoResults');
+        const selectedPhotosData = [];
+        
+        // Collect all selected photos data
+        selectedStockPhotos.forEach(photoId => {
+            const photoCard = resultsContainer.querySelector(`[data-photo-id="${photoId}"]`);
+            if (photoCard) {
+                try {
+                    const photoData = JSON.parse(photoCard.dataset.photoData);
+                    selectedPhotosData.push(photoData);
+                } catch (e) {
+                    console.error('Error parsing photo data:', e);
+                }
+            }
+        });
+        
+        if (selectedPhotosData.length === 0) {
+            alert('Error collecting selected photos data');
+            return;
+        }
+        
+        // Hide stock photo modal and show progress modal
+        stockPhotoModal.hide();
+        const importProgressModal = new bootstrap.Modal(document.getElementById('importProgressModal'));
+        importProgressModal.show();
+        
+        try {
+            let endpoint = '';
+            let requestData = {};
+            
+            if (currentStockService === 'unsplash') {
+                endpoint = '/api/unsplash/add-to-frame';
+                requestData = {
+                    photos_data: selectedPhotosData,
+                    frame_id: document.getElementById('frameSelect').value
+                };
+            } else if (currentStockService === 'pixabay') {
+                endpoint = '/api/pixabay/add-to-frame';
+                requestData = {
+                    photos: selectedPhotosData,
+                    frame_id: document.getElementById('frameSelect').value
+                };
+            }
+            
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to add photos');
+            }
+            
+            const result = await response.json();
+            
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            // Success - reload the page to show new photos
+            location.reload();
+            
+        } catch (error) {
+            console.error('Error adding photos:', error);
+            importProgressModal.hide();
+            alert(`Error adding photos: ${error.message}`);
+        }
+    }
+
+    // Filter and Sort functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize filter and sort from localStorage if available
+        initializeFilterAndSort();
+        
+        // Add event listeners for filter and sort changes
+        document.getElementById('sortBy').addEventListener('change', function() {
+            localStorage.setItem('photoSortBy', this.value);
+        });
+        
+        document.getElementById('sortOrder').addEventListener('change', function() {
+            localStorage.setItem('photoSortOrder', this.value);
+        });
+        
+        document.getElementById('sourceFilter').addEventListener('change', function() {
+            localStorage.setItem('photoSourceFilter', this.value);
+        });
+    });
+    
+    function initializeFilterAndSort() {
+        // Load saved preferences from localStorage
+        const sortBy = localStorage.getItem('photoSortBy') || 'upload_date';
+        const sortOrder = localStorage.getItem('photoSortOrder') || 'desc';
+        const sourceFilter = localStorage.getItem('photoSourceFilter') || 'all';
+        
+        // Set form values
+        document.getElementById('sortBy').value = sortBy;
+        document.getElementById('sortOrder').value = sortOrder;
+        document.getElementById('sourceFilter').value = sourceFilter;
+        
+        // Highlight the filter button if custom settings are applied
+        const filterSortBtn = document.getElementById('filterSortBtn');
+        if (sourceFilter !== 'all' || sortBy !== 'upload_date' || sortOrder !== 'desc') {
+            filterSortBtn.classList.remove('btn-outline-secondary');
+            filterSortBtn.classList.add('btn-secondary');
+        }
+        
+        // Apply filters and sort immediately if values were saved
+        if (sortBy !== 'upload_date' || sortOrder !== 'desc' || sourceFilter !== 'all') {
+            applyFiltersAndSort();
+        }
+    }
+    
+    function applyFiltersAndSort() {
+        const sortBy = document.getElementById('sortBy').value;
+        const sortOrder = document.getElementById('sortOrder').value;
+        const sourceFilter = document.getElementById('sourceFilter').value;
+        
+        // Save preferences to localStorage
+        localStorage.setItem('photoSortBy', sortBy);
+        localStorage.setItem('photoSortOrder', sortOrder);
+        localStorage.setItem('photoSourceFilter', sourceFilter);
+        
+        // Highlight the filter button if custom settings are applied
+        const filterSortBtn = document.getElementById('filterSortBtn');
+        if (sourceFilter !== 'all' || sortBy !== 'upload_date' || sortOrder !== 'desc') {
+            filterSortBtn.classList.remove('btn-outline-secondary');
+            filterSortBtn.classList.add('btn-secondary');
+        } else {
+            filterSortBtn.classList.remove('btn-secondary');
+            filterSortBtn.classList.add('btn-outline-secondary');
+        }
+        
+        // Get all photo items
+        const photoGrid = document.querySelector('.photo-grid');
+        const photoItems = Array.from(photoGrid.querySelectorAll('.photo-item'));
+        
+        // First apply source filter
+        photoItems.forEach(item => {
+            if (sourceFilter === 'all') {
+                item.style.display = '';
+            } else {
+                const source = getPhotoSource(item);
+                item.style.display = (source === sourceFilter) ? '' : 'none';
+            }
+        });
+        
+        // Then sort the visible items
+        const visibleItems = photoItems.filter(item => item.style.display !== 'none');
+        
+        visibleItems.sort((a, b) => {
+            const valueA = getPhotoSortValue(a, sortBy);
+            const valueB = getPhotoSortValue(b, sortBy);
+            
+            // Handle string vs date comparison
+            if (sortBy === 'upload_date' || sortBy === 'photo_date') {
+                // For dates, null/undefined values should be sorted last
+                if (!valueA && !valueB) return 0;
+                if (!valueA) return sortOrder === 'asc' ? 1 : -1;
+                if (!valueB) return sortOrder === 'asc' ? -1 : 1;
+                
+                // Compare dates
+                const dateA = new Date(valueA);
+                const dateB = new Date(valueB);
+                return sortOrder === 'asc' 
+                    ? dateA.getTime() - dateB.getTime() 
+                    : dateB.getTime() - dateA.getTime();
+            } else {
+                // For strings
+                if (!valueA && !valueB) return 0;
+                if (!valueA) return sortOrder === 'asc' ? -1 : 1;
+                if (!valueB) return sortOrder === 'asc' ? 1 : -1;
+                
+                return sortOrder === 'asc' 
+                    ? valueA.localeCompare(valueB) 
+                    : valueB.localeCompare(valueA);
+            }
+        });
+        
+        // Reorder the DOM elements
+        visibleItems.forEach(item => {
+            photoGrid.appendChild(item);
+        });
+    }
+    
+    function resetFiltersAndSort() {
+        // Reset form values
+        document.getElementById('sortBy').value = 'upload_date';
+        document.getElementById('sortOrder').value = 'desc';
+        document.getElementById('sourceFilter').value = 'all';
+        
+        // Reset button style
+        const filterSortBtn = document.getElementById('filterSortBtn');
+        filterSortBtn.classList.remove('btn-secondary');
+        filterSortBtn.classList.add('btn-outline-secondary');
+        
+        // Clear localStorage
+        localStorage.removeItem('photoSortBy');
+        localStorage.removeItem('photoSortOrder');
+        localStorage.removeItem('photoSourceFilter');
+        
+        // Show all photos
+        const photoItems = document.querySelectorAll('.photo-item');
+        photoItems.forEach(item => {
+            item.style.display = '';
+        });
+        
+        // Reload the page to restore original order
+        location.reload();
+    }
+    
+    function getPhotoSource(photoItem) {
+        // Try to determine the source from data attributes or class names
+        const exifData = photoItem.dataset.exifMetadata ? JSON.parse(photoItem.dataset.exifMetadata) : {};
+        
+        // Check for source in exif data
+        if (exifData.source) {
+            return exifData.source.toLowerCase();
+        }
+        
+        // Check filename for clues
+        const img = photoItem.querySelector('img');
+        const filename = img ? img.alt : '';
+        
+        if (filename.includes('google_') || filename.includes('gphotos')) {
+            return 'google';
+        } else if (filename.includes('unsplash_')) {
+            return 'unsplash';
+        } else if (filename.includes('pixabay_')) {
+            return 'pixabay';
+        }
+        
+        // Default to manual upload
+        return 'manual';
+    }
+    
+    function getPhotoSortValue(photoItem, sortBy) {
+        const exifData = photoItem.dataset.exifMetadata ? JSON.parse(photoItem.dataset.exifMetadata) : {};
+        
+        switch (sortBy) {
+            case 'upload_date':
+                // Try to get upload date from exif data
+                if (exifData.updated_at) {
+                    return exifData.updated_at;
+                }
+                if (exifData.upload_date) {
+                    return exifData.upload_date;
+                }
+                if (exifData.created_at) {
+                    return exifData.created_at;
+                }
+                // Fallback to photo ID (assuming higher ID = newer upload)
+                // Convert ID to a number for proper sorting
+                return parseInt(photoItem.dataset.photoId, 10);
+                
+            case 'photo_date':
+                // First check for DateTime in exif_metadata
+                if (exifData.DateTime) {
+                    // Convert YYYY:MM:DD HH:MM:SS to YYYY-MM-DD HH:MM:SS for proper date parsing
+                    return exifData.DateTime.replace(/(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+                }
+                if (exifData.DateTimeOriginal) {
+                    return exifData.DateTimeOriginal.replace(/(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+                }
+                if (exifData.DateTimeDigitized) {
+                    return exifData.DateTimeDigitized.replace(/(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+                }
+                // Fallback to upload date
+                if (exifData.updated_at) {
+                    return exifData.updated_at;
+                }
+                if (exifData.upload_date) {
+                    return exifData.upload_date;
+                }
+                if (exifData.created_at) {
+                    return exifData.created_at;
+                }
+                return null;
+                
+            case 'source':
+                return getPhotoSource(photoItem);
+                
+            default:
+                return null;
+        }
+    }
+
+    // Network integration JavaScript
+    let networkLocations = [];
+    let currentNetworkLocation = null;
+    let currentNetworkPath = '';
+    let selectedNetworkFiles = [];
+
+    // Check if network locations exist when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        checkNetworkLocations();
+        
+        // Also check when the page becomes visible again (user might have added locations in the integrations page)
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                checkNetworkLocations();
+            }
+        });
+    });
+
+    // Check for network locations and show/hide the button accordingly
+    async function checkNetworkLocations() {
+        try {
+            const response = await fetch('/api/network/locations');
+            const data = await response.json();
+            
+            if (data.success && data.locations && data.locations.length > 0) {
+                // Show the network button if locations exist
+                document.getElementById('networkButton').style.display = 'inline-block';
+                networkLocations = data.locations;
+            } else {
+                // Hide the button if no locations exist
+                document.getElementById('networkButton').style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error checking network locations:', error);
+            // Hide the button on error
+            document.getElementById('networkButton').style.display = 'none';
+        }
+    }
+
+    // Load network locations when modal is opened
+    document.getElementById('networkModal').addEventListener('show.bs.modal', function () {
+        loadNetworkLocations();
+    });
+
+    // Handle location selection
+    document.getElementById('networkLocationSelect').addEventListener('change', function() {
+        const locationId = this.value;
+        if (locationId) {
+            currentNetworkLocation = networkLocations.find(loc => loc.id === locationId);
+            currentNetworkPath = '';
+            selectedNetworkFiles = [];
+            updateSelectedFilesCounter();
+            browseNetworkLocation(locationId, '');
+        } else {
+            // Reset the view if no location is selected
+            document.getElementById('networkPathNav').classList.add('d-none');
+            document.getElementById('networkFilesList').innerHTML = `
+                <div class="text-center py-5">
+                    <p>Select a network location to browse files</p>
+                </div>
+            `;
+            document.getElementById('networkSelectedFiles').classList.add('d-none');
+            document.getElementById('importNetworkFilesBtn').disabled = true;
+        }
+    });
+
+    // Load network locations from the server
+    async function loadNetworkLocations() {
+        try {
+            const response = await fetch('/api/network/locations');
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load network locations');
+            }
+            
+            networkLocations = data.locations;
+            
+            // Populate the select dropdown
+            const select = document.getElementById('networkLocationSelect');
+            select.innerHTML = '<option value="">-- Select a location --</option>';
+            
+            if (networkLocations.length > 0) {
+                networkLocations.forEach(location => {
+                    const option = document.createElement('option');
+                    option.value = location.id;
+                    option.textContent = location.name;
+                    select.appendChild(option);
+                });
+            } else {
+                // Show a message if no locations are configured
+                document.getElementById('networkFilesList').innerHTML = `
+                    <div class="text-center py-5">
+                        <p>No network locations configured. Please add network locations in the Integrations page.</p>
+                        <a href="/integrations" class="btn btn-primary mt-2">Go to Integrations</a>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading network locations:', error);
+            document.getElementById('networkFilesList').innerHTML = `
+                <div class="alert alert-danger">
+                    Error loading network locations: ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    // Browse network location
+    async function browseNetworkLocation(locationId, path) {
+        try {
+            document.getElementById('networkFilesList').innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading files...</p>
+                </div>
+            `;
+            
+            const response = await fetch('/api/network/browse', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    location_id: locationId,
+                    path: path
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to browse network location');
+            }
+            
+            // Update current path
+            currentNetworkPath = data.current_path;
+            
+            // Update breadcrumb navigation
+            updateNetworkBreadcrumb(data.current_path);
+            
+            // Show the path navigation
+            document.getElementById('networkPathNav').classList.remove('d-none');
+            
+            // Render files and folders
+            renderNetworkFiles(data.items);
+            
+            // Show selected files counter
+            document.getElementById('networkSelectedFiles').classList.remove('d-none');
+        } catch (error) {
+            console.error('Error browsing network location:', error);
+            document.getElementById('networkFilesList').innerHTML = `
+                <div class="alert alert-danger">
+                    Error browsing network location: ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    // Update breadcrumb navigation
+    function updateNetworkBreadcrumb(path) {
+        const breadcrumb = document.getElementById('networkBreadcrumb');
+        breadcrumb.innerHTML = '<li class="breadcrumb-item"><a href="#" data-path="">Home</a></li>';
+        
+        if (path) {
+            const parts = path.split('/');
+            let currentPath = '';
+            
+            parts.forEach((part, index) => {
+                currentPath += (index > 0 ? '/' : '') + part;
+                const isLast = index === parts.length - 1;
+                
+                const li = document.createElement('li');
+                li.className = isLast ? 'breadcrumb-item active' : 'breadcrumb-item';
+                
+                if (isLast) {
+                    li.textContent = part;
+                    li.setAttribute('aria-current', 'page');
+                } else {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = part;
+                    a.setAttribute('data-path', currentPath);
+                    li.appendChild(a);
+                }
+                
+                breadcrumb.appendChild(li);
+            });
+        }
+        
+        // Add click event listeners to breadcrumb links
+        breadcrumb.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const path = this.getAttribute('data-path');
+                browseNetworkLocation(currentNetworkLocation.id, path);
+            });
+        });
+    }
+    // Render files and folders
+    function renderNetworkFiles(items) {
+        const filesList = document.getElementById('networkFilesList');
+        filesList.innerHTML = '';
+        
+        if (items.length === 0) {
+            filesList.innerHTML = `
+                <div class="text-center py-5">
+                    <p>No files or folders found in this location</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Sort items by date - directories first, then files by modified date (most recent first)
+        items.sort((a, b) => {
+            // Keep directories at the top
+            if (a.is_dir && !b.is_dir) return -1;
+            if (!a.is_dir && b.is_dir) return 1;
+            
+            // For files, sort by modified date in descending order (newest first)
+            if (!a.is_dir && !b.is_dir) {
+                const dateA = new Date(a.modified);
+                const dateB = new Date(b.modified);
+                return dateB - dateA;
+            }
+            
+            // For directories, sort alphabetically
+            return a.name.localeCompare(b.name);
+        });
+        
+        // Create a grid layout for files
+        const fileGrid = document.createElement('div');
+        fileGrid.className = 'row g-3 mt-2';
+        
+        // First render folders in a list
+        const folders = items.filter(item => item.is_dir);
+        if (folders.length > 0) {
+            folders.forEach(folder => {
+                const listItem = document.createElement('div');
+                listItem.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                
+                listItem.innerHTML = `
+                    <div>
+                        <i class="bi bi-folder me-2"></i>
+                        <span>${folder.name}</span>
+                    </div>
+                    <span class="badge bg-secondary rounded-pill">Folder</span>
+                `;
+                
+                listItem.addEventListener('click', function() {
+                    browseNetworkLocation(currentNetworkLocation.id, folder.path);
+                });
+                
+                filesList.appendChild(listItem);
+            });
+        }
+        
+        // Then render files in a grid with image previews
+        const files = items.filter(item => !item.is_dir);
+        if (files.length > 0) {
+            filesList.appendChild(fileGrid);
+            
+            files.forEach(file => {
+                const isSelected = selectedNetworkFiles.some(f => f === file.path);
+                const isImage = /\.(jpg|jpeg|png|gif|bmp)$/i.test(file.name);
+                
+                // Create a card for each file
+                const colDiv = document.createElement('div');
+                colDiv.className = 'col-md-3 col-sm-4 col-6';
+                
+                const card = document.createElement('div');
+                card.className = 'card h-100';
+                if (isSelected) {
+                    card.classList.add('border-primary');
+                }
+                
+                // Image preview or icon
+                let previewHtml = '';
+                if (isImage) {
+                    // Create a data URL for the network image
+                    const networkImagePath = encodeURIComponent(file.path);
+                    const locationId = currentNetworkLocation.id;
+                    // Use a preview URL that would serve a thumbnail
+                    const previewUrl = `/api/network/browse?location_id=${locationId}&path=${networkImagePath}&preview=true`;
+                    
+                    previewHtml = `
+                        <div class="card-img-top" style="height: 150px; background-image: url('${previewUrl}'); background-size: cover; background-position: center;"></div>
+                    `;
+                } else {
+                    previewHtml = `
+                        <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 150px; background-color: #f8f9fa;">
+                            <i class="bi bi-file-earmark fs-1"></i>
+                        </div>
+                    `;
+                }
+                
+                // Create the card body with file info
+                const cardBody = document.createElement('div');
+                cardBody.className = 'card-body p-2';
+                cardBody.innerHTML = `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${file.path}" 
+                               id="file_${file.path.replace(/[^a-zA-Z0-9]/g, '_')}" ${isSelected ? 'checked' : ''}>
+                        <label class="form-check-label small text-truncate d-block" title="${file.name}" for="file_${file.path.replace(/[^a-zA-Z0-9]/g, '_')}">
+                            ${file.name}
+                        </label>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <small class="text-muted">${formatFileSize(file.size)}</small>
+                        <small class="text-muted">${formatDate(file.modified)}</small>
+                    </div>
+                `;
+                
+                card.innerHTML = previewHtml;
+                card.appendChild(cardBody);
+                
+                // Add click event for the card (excluding the checkbox)
+                card.addEventListener('click', function(e) {
+                    // Don't toggle if clicking the checkbox directly
+                    if (e.target.type !== 'checkbox') {
+                        const checkbox = this.querySelector('.form-check-input');
+                        checkbox.checked = !checkbox.checked;
+                        
+                        // Trigger the change event
+                        const changeEvent = new Event('change');
+                        checkbox.dispatchEvent(changeEvent);
+                    }
+                });
+                
+                // Add change event for the checkbox
+                card.querySelector('.form-check-input').addEventListener('change', function(e) {
+                    e.stopPropagation();
+                    
+                    if (this.checked) {
+                        selectedNetworkFiles.push(file.path);
+                        card.classList.add('border-primary');
+                    } else {
+                        selectedNetworkFiles = selectedNetworkFiles.filter(f => f !== file.path);
+                        card.classList.remove('border-primary');
+                    }
+                    
+                    updateSelectedFilesCounter();
+                });
+                
+                colDiv.appendChild(card);
+                fileGrid.appendChild(colDiv);
+            });
+        }
+    }
+    
+    // Format date helper function
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString();
+    }
+
+    // Update selected files counter
+    function updateSelectedFilesCounter() {
+        const counter = document.getElementById('networkSelectedCount');
+        counter.textContent = selectedNetworkFiles.length;
+        
+        // Enable/disable import button
+        document.getElementById('importNetworkFilesBtn').disabled = selectedNetworkFiles.length === 0;
+    }
+
+    // Format file size
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Handle import button click
+    document.getElementById('importNetworkFilesBtn').addEventListener('click', function() {
+        if (selectedNetworkFiles.length > 0) {
+            importNetworkFiles();
+        }
+    });
+
+    // Import selected files
+    async function importNetworkFiles() {
+        try {
+            // Show progress modal
+            const progressModal = new bootstrap.Modal(document.getElementById('networkImportProgressModal'));
+            progressModal.show();
+            
+            // Close the browse modal
+            const networkModal = bootstrap.Modal.getInstance(document.getElementById('networkModal'));
+            networkModal.hide();
+            
+            // Get the selected frame
+            const frameId = document.getElementById('frameSelect').value;
+            
+            // Prepare the request
+            const response = await fetch('/api/network/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    location_id: currentNetworkLocation.id,
+                    files: selectedNetworkFiles,
+                    frame_id: frameId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to import files');
+            }
+            
+            // Update progress
+            document.getElementById('networkImportMessage').textContent = `Successfully imported ${data.imported_files.length} files`;
+            document.getElementById('networkImportProgressBar').style.width = '100%';
+            document.getElementById('networkImportProgressBar').textContent = '100%';
+            
+            // Close the progress modal after a delay and refresh the photos
+            setTimeout(() => {
+                progressModal.hide();
+                
+                // Reset selected files
+                selectedNetworkFiles = [];
+                updateSelectedFilesCounter();
+                
+                // Refresh the photo grid
+                if (typeof loadPhotos === 'function') {
+                    loadPhotos();
+                } else {
+                    // If loadPhotos function is not available, reload the page
+                    window.location.reload();
+                }
+                
+                // Check if we still have network locations (in case the last one was deleted)
+                checkNetworkLocations();
+            }, 1500);
+        } catch (error) {
+            console.error('Error importing files:', error);
+            document.getElementById('networkImportMessage').textContent = `Error importing files: ${error.message}`;
+            document.getElementById('networkImportProgressBar').classList.add('bg-danger');
+        }
+    }
+
+    // Show network modal
+    function showNetworkModal() {
+        const modal = new bootstrap.Modal(document.getElementById('networkModal'));
+        modal.show();
+    }
+
+    // Check if network integration is available
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if network integration is available
+        fetch('/api/network/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.enabled) {
+                    document.getElementById('networkButton').style.display = 'inline-block';
+                }
+            })
+            .catch(error => console.error('Error checking network status:', error));
+            
+        // Check if Immich integration is available
+        fetch('/api/immich/settings')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.settings && data.settings.url) {
+                    document.getElementById('immichButton').style.display = 'inline-block';
+                }
+            })
+            .catch(error => console.error('Error checking Immich status:', error));
+    });
+    
+    // Immich integration functions
+    let immichModal;
+    let immichImportProgressModal;
+    let selectedImmichPhotos = new Set();
+    let immichPage = 1;
+    let immichHasMore = true;
+    let immichIsLoading = false;
+
+    // Show Immich modal
+    function showImmichModal() {
+        // Initialize modals if not already done
+        if (!immichModal) {
+            immichModal = new bootstrap.Modal(document.getElementById('immichModal'));
+        }
+        
+        if (!immichImportProgressModal) {
+            immichImportProgressModal = new bootstrap.Modal(document.getElementById('immichImportProgressModal'));
+        }
+        
+        // Reset state
+        selectedImmichPhotos.clear();
+        immichPage = 1;
+        immichHasMore = true;
+        immichIsLoading = false;
+        
+        // Update UI
+        updateImmichSelectedCount();
+        
+        // Show the modal
+        immichModal.show();
+        
+        // Load initial photos
+        loadImmichPhotos();
+        
+        // Add scroll listener for infinite scroll
+        const modalBody = document.querySelector('#immichModal .modal-body');
+        modalBody.addEventListener('scroll', handleImmichScroll);
+    }
+
+    // Load photos from Immich
+    async function loadImmichPhotos() {
+        if (immichIsLoading || !immichHasMore) return;
+        
+        immichIsLoading = true;
+        const loader = document.getElementById('immichLoader');
+        const error = document.getElementById('immichError');
+        const noPhotos = document.getElementById('noImmichPhotos');
+        const photoGrid = document.getElementById('immichPhotoGrid');
+        
+        loader.classList.remove('d-none');
+        error.classList.add('d-none');
+        noPhotos.classList.add('d-none');
+        
+        try {
+            const response = await fetch(`/api/immich/search?page=${immichPage}&size=50`);
+            if (!response.ok) throw new Error('Failed to fetch photos');
+            
+            const data = await response.json();
+            
+            if (!data.success) throw new Error(data.error || 'Failed to fetch photos');
+            
+            // Update state
+            immichHasMore = data.hasMore;
+            immichPage++;
+            
+            // Add photos to grid
+            if (data.assets && data.assets.length > 0) {
+                data.assets.forEach(asset => {
+                    const colDiv = document.createElement('div');
+                    colDiv.className = 'col-md-3 col-sm-4 col-6';
+                    
+                    const card = document.createElement('div');
+                    card.className = 'card h-100 immich-photo-item';
+                    card.dataset.assetId = asset.id;
+                    
+                    // Create thumbnail
+                    const thumbnailUrl = `/api/immich/asset-thumbnail/${asset.id}`;
+                    const thumbnailDiv = document.createElement('div');
+                    thumbnailDiv.className = 'card-img-top';
+                    thumbnailDiv.style.height = '150px';
+                    thumbnailDiv.style.backgroundImage = `url('${thumbnailUrl}')`;
+                    thumbnailDiv.style.backgroundSize = 'cover';
+                    thumbnailDiv.style.backgroundPosition = 'center';
+                    
+                    // Add video indicator if it's a video
+                    if (asset.type === 'VIDEO') {
+                        const videoIndicator = document.createElement('div');
+                        videoIndicator.className = 'video-indicator';
+                        videoIndicator.innerHTML = '<i class="fas fa-video"></i>';
+                        thumbnailDiv.appendChild(videoIndicator);
+                    }
+                    
+                    // Add selection overlay
+                    const overlay = document.createElement('div');
+                    overlay.className = 'selection-overlay';
+                    overlay.innerHTML = '<i class="fas fa-check"></i>';
+                    thumbnailDiv.appendChild(overlay);
+                    
+                    card.appendChild(thumbnailDiv);
+                    
+                    // Add click handler
+                    card.addEventListener('click', () => toggleImmichPhotoSelection(asset.id, card));
+                    
+                    colDiv.appendChild(card);
+                    photoGrid.appendChild(colDiv);
+                });
+            } else if (immichPage === 1) {
+                noPhotos.classList.remove('d-none');
+            }
+        } catch (error) {
+            console.error('Error loading Immich photos:', error);
+            error.classList.remove('d-none');
+        } finally {
+            immichIsLoading = false;
+            loader.classList.add('d-none');
+        }
+    }
+
+    // Handle infinite scroll
+    function handleImmichScroll(e) {
+        const { scrollHeight, scrollTop, clientHeight } = e.target;
+        if (scrollHeight - scrollTop <= clientHeight + 100) {
+            loadImmichPhotos();
+        }
+    }
+
+    // Toggle photo selection
+    function toggleImmichPhotoSelection(assetId, card) {
+        if (selectedImmichPhotos.has(assetId)) {
+            selectedImmichPhotos.delete(assetId);
+            card.classList.remove('selected');
+        } else {
+            selectedImmichPhotos.add(assetId);
+            card.classList.add('selected');
+        }
+        updateImmichSelectedCount();
+    }
+
+    // Update selected count
+    function updateImmichSelectedCount() {
+        const count = selectedImmichPhotos.size;
+        document.getElementById('selectedImmichCount').textContent = count;
+        document.getElementById('importImmichBtn').disabled = count === 0;
+    }
+
+    // Import selected photos
+    async function importFromImmich() {
+        if (selectedImmichPhotos.size === 0) {
+            alert('Please select at least one photo');
+            return;
+        }
+        
+        try {
+            // Hide selection modal and show progress modal
+            immichModal.hide();
+            immichImportProgressModal.show();
+            
+            // Reset progress bar
+            const progressBar = document.getElementById('immichImportProgressBar');
+            progressBar.style.width = '0%';
+            progressBar.setAttribute('aria-valuenow', '0');
+            progressBar.textContent = '0%';
+            
+            // Update message
+            document.getElementById('immichImportMessage').textContent = 'Importing selected photos...';
+            
+            // Make API request to import
+            const response = await fetch('/api/immich/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    asset_ids: Array.from(selectedImmichPhotos),
+                    frame_id: document.getElementById('frameSelect').value
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to import photos');
+            }
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to import photos');
+            }
+            
+            // Update progress to 100%
+            progressBar.style.width = '100%';
+            progressBar.setAttribute('aria-valuenow', '100');
+            progressBar.textContent = '100%';
+            
+            // Update message
+            document.getElementById('immichImportMessage').textContent = 
+                `Successfully imported ${result.imported_assets.length} photos!`;
+            
+            // Reload the page after a short delay
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+            
+        } catch (error) {
+            console.error('Error importing from Immich:', error);
+            
+            // Hide progress modal
+            immichImportProgressModal.hide();
+            
+            // Show error
+            alert(`Error importing photos: ${error.message}`);
+        }
+    }
+
+    // Add styles for Immich photo grid
+    const style = document.createElement('style');
+    style.textContent = `
+        .immich-photo-item {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .immich-photo-item:hover {
+            transform: scale(0.98);
+        }
+        
+        .immich-photo-item.selected {
+            border: 2px solid #007bff;
+        }
+        
+        .selection-overlay {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(0, 123, 255, 0.8);
+            color: white;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .immich-photo-item.selected .selection-overlay {
+            display: flex;
+        }
+        
+        .video-indicator {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+{% endblock %}
+

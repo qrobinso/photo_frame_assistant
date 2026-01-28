@@ -1,0 +1,1394 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Photo Generation</h2>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="generateForm">
+                <div class="mb-3">
+                    <label for="service" class="form-label">Service</label>
+                    <select class="form-select" id="service" name="service" required>
+                        <option value="dalle">DALL-E</option>
+                        <option value="stability">Stability AI</option>
+                    </select>
+                </div>
+
+                <!-- API Key fields -->
+                <div id="dalleApiKey" class="mb-3">
+                    <label for="dalle_api_key" class="form-label">DALL-E API Key</label>
+                    <input type="text" class="form-control" id="dalle_api_key" name="dalle_api_key">
+                </div>
+
+                <div id="stabilityApiKey" class="mb-3" style="display: none;">
+                    <label for="stability_api_key" class="form-label">Stability AI API Key</label>
+                    <input type="text" class="form-control" id="stability_api_key" name="stability_api_key">
+                </div>
+                
+                <!-- Add base URL inputs after API key inputs -->
+                <div id="dalleBaseUrl" class="mb-3">
+                    <label for="dalle_base_url" class="form-label">DALL-E Base URL</label>
+                    <input type="text" class="form-control" id="dalle_base_url" name="dalle_base_url" 
+                           placeholder="https://api.openai.com/v1">
+                </div>
+
+                <div id="stabilityBaseUrl" class="mb-3" style="display: none;">
+                    <label for="stability_base_url" class="form-label">Stability AI Base URL</label>
+                    <input type="text" class="form-control" id="stability_base_url" name="stability_base_url" 
+                           placeholder="https://api.stability.ai/v1">
+                </div>
+                
+                <!-- DALL-E model input -->
+                <div id="dalleModel" class="mb-3">
+                    <label for="dalle_model" class="form-label">DALL-E Model</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="dalle_model" name="dalle_model" 
+                               placeholder="e.g., dall-e-3" required>
+                        <button class="btn btn-outline-secondary" type="button" 
+                                data-bs-toggle="popover" data-bs-trigger="focus" 
+                                title="DALL-E Models" 
+                                data-bs-content="Available models: dall-e-2, dall-e-3">
+                            <i class="bi bi-question-circle"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stability AI model input -->
+                <div id="stabilityModel" class="mb-3" style="display: none;">
+                    <label for="stability_model" class="form-label">Stability AI Model</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="stability_model" name="stability_model" 
+                               placeholder="e.g., stable-diffusion-xl-1024-v1-0" required>
+                        <button class="btn btn-outline-secondary" type="button" 
+                                data-bs-toggle="popover" data-bs-trigger="focus" 
+                                title="Stability AI Models" 
+                                data-bs-content="Available models: stable-diffusion-xl-1024-v1-0, stable-diffusion-v1-6">
+                            <i class="bi bi-question-circle"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="prompt" class="form-label">Prompt</label>
+                    <textarea class="form-control" id="prompt" name="prompt" rows="3" required></textarea>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="style" class="form-label">Style</label>
+                    <select class="form-select" id="style" name="style">
+                        <option value="">None</option>
+                        <option value="3d-model">3D Model</option>
+                        <option value="analog-film">Analog Film</option>
+                        <option value="anime">Anime</option>
+                        <option value="cinematic">Cinematic</option>
+                        <option value="comic-book">Comic Book</option>
+                        <option value="digital-art">Digital Art</option>
+                        <option value="enhance">Enhance</option>
+                        <option value="fantasy-art">Fantasy Art</option>
+                        <option value="isometric">Isometric</option>
+                        <option value="line-art">Line Art</option>
+                        <option value="low-poly">Low Poly</option>
+                        <option value="modeling-compound">Modeling Compound</option>
+                        <option value="neon-punk">Neon Punk</option>
+                        <option value="origami">Origami</option>
+                        <option value="photographic">Photographic</option>
+                        <option value="pixel-art">Pixel Art</option>
+                        <option value="tile-texture">Tile Texture</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="orientation" class="form-label">Orientation</label>
+                    <select class="form-select" id="orientation" name="orientation">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape">Landscape</option>
+                        <option value="square">Square</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="scheduleFrame" class="form-label">Target Frame</label>
+                    <select class="form-select" id="scheduleFrame" required>
+                        {% if frames %}
+                            {% for frame in frames %}
+                            <option value="{{ frame.id }}">{{ frame.name or frame.id }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="" disabled>No frames available</option>
+                        {% endif %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" id="generateBtn">
+                            Generate Now
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+                            Schedule
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <h3>Generated Images</h3>
+            <div id="generatedImagesSection" class="mt-3">
+                <!-- Images will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">Scheduled Generations</h3>
+                </div>
+                <div class="card-body">
+                    <div id="scheduledGenerationsList">
+                        <!-- Scheduled generations will be listed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2>Generation History</h2>
+                        <button id="clearHistoryBtn" class="btn btn-danger">Clear History</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="generationHistory">
+                        <!-- Generation history will be listed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>Generating Image...</h5>
+                <p class="text-muted">This may take a minute</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Schedule Generation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="scheduleForm">
+                    <div class="mb-3">
+                        <label for="scheduleName" class="form-label">Schedule Name</label>
+                        <input type="text" class="form-control" id="scheduleName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduleFrame" class="form-label">Target Frame</label>
+                        <select class="form-select" id="scheduleFrame" required>
+                            {% if frames %}
+                                {% for frame in frames %}
+                                <option value="{{ frame.id }}">{{ frame.name or frame.id }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="" disabled>No frames available</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Schedule</label>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="scheduleHour" class="form-label">Hour</label>
+                                <select class="form-select" id="scheduleHour">
+                                    <!-- Hours will be populated by JavaScript -->
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="scheduleMinute" class="form-label">Minute</label>
+                                <select class="form-select" id="scheduleMinute">
+                                    <!-- Minutes will be populated by JavaScript -->
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="scheduleDays" class="form-label">Days</label>
+                                <select class="form-select" id="scheduleDays" multiple>
+                                    <option value="*">Every day</option>
+                                    <option value="1">Monday</option>
+                                    <option value="2">Tuesday</option>
+                                    <option value="3">Wednesday</option>
+                                    <option value="4">Thursday</option>
+                                    <option value="5">Friday</option>
+                                    <option value="6">Saturday</option>
+                                    <option value="0">Sunday</option>
+                                </select>
+                            </div>
+                        </div>
+                        <small class="text-muted">Times shown in your local timezone.</small>
+                    </div>
+                    
+                    <!-- Use current generation settings -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="useCurrentSettings" checked>
+                            <label class="form-check-label" for="useCurrentSettings">
+                                Use current generation settings
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveSchedule">Save Schedule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Schedule Modal -->
+<div class="modal fade" id="editScheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Schedule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editScheduleForm">
+                    <input type="hidden" id="editScheduleId">
+                    <div class="mb-3">
+                        <label for="editScheduleName" class="form-label">Schedule Name</label>
+                        <input type="text" class="form-control" id="editScheduleName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editScheduleFrame" class="form-label">Target Frame</label>
+                        <select class="form-select" id="editScheduleFrame" required>
+                            {% if frames %}
+                                {% for frame in frames %}
+                                <option value="{{ frame.id }}">{{ frame.name or frame.id }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="" disabled>No frames available</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editPrompt" class="form-label">Prompt</label>
+                        <textarea class="form-control" id="editPrompt" rows="3" required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editService" class="form-label">Service</label>
+                        <select class="form-select" id="editService" required>
+                            <option value="dalle">DALL-E</option>
+                            <option value="stability">Stability AI</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editModel" class="form-label">Model</label>
+                        <input type="text" class="form-control" id="editModel" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editOrientation" class="form-label">Orientation</label>
+                        <select class="form-select" id="editOrientation">
+                            <option value="portrait">Portrait</option>
+                            <option value="landscape">Landscape</option>
+                            <option value="square">Square</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Schedule</label>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="editScheduleHour" class="form-label">Hour</label>
+                                <select class="form-select" id="editScheduleHour">
+                                    <!-- Hours will be populated by JavaScript -->
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="editScheduleMinute" class="form-label">Minute</label>
+                                <select class="form-select" id="editScheduleMinute">
+                                    <!-- Minutes will be populated by JavaScript -->
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="editScheduleDays" class="form-label">Days</label>
+                                <select class="form-select" id="editScheduleDays" multiple>
+                                    <option value="*">Every day</option>
+                                    <option value="1">Monday</option>
+                                    <option value="2">Tuesday</option>
+                                    <option value="3">Wednesday</option>
+                                    <option value="4">Thursday</option>
+                                    <option value="5">Friday</option>
+                                    <option value="6">Saturday</option>
+                                    <option value="0">Sunday</option>
+                                </select>
+                            </div>
+                        </div>
+                        <small class="text-muted">Times shown in your local timezone.</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveEditSchedule">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const modelsByService = {
+    'dalle': ['dall-e-2', 'dall-e-3'],
+    'stability': ['stable-diffusion-xl-1024-v1-0', 'stable-diffusion-v1-6']
+};
+
+// Show/hide API key fields based on selected service
+document.getElementById('service').addEventListener('change', function() {
+    const service = this.value;
+    document.getElementById('dalleApiKey').style.display = service === 'dalle' ? 'block' : 'none';
+    document.getElementById('stabilityApiKey').style.display = service === 'stability' ? 'block' : 'none';
+    
+    // Update model options
+    const models = modelsByService[service] || [];
+    const modelSelect = document.getElementById('dalle_model');
+    modelSelect.innerHTML = models.map(model => 
+        `<option value="${model}">${model}</option>`
+    ).join('');
+});
+
+// Toggle password visibility
+document.querySelectorAll('.toggle-password').forEach(button => {
+    button.addEventListener('click', function() {
+        const targetId = this.getAttribute('data-target');
+        const input = document.getElementById(targetId);
+        const icon = this.querySelector('i');
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    });
+});
+
+// Load photo generation settings when page loads
+window.addEventListener('DOMContentLoaded', loadPhotoGenSettings);
+
+async function loadPhotoGenSettings() {
+    try {
+        const response = await fetch('/api/photogen_settings');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const settings = await response.json();
+        console.log('Loaded photo generation settings:', settings);
+        
+        // Set default service
+        if (settings.default_service) {
+            const service = settings.default_service;
+            document.getElementById('service').value = service;
+            
+            // Show/hide appropriate model and API inputs
+            document.getElementById('dalleModel').style.display = service === 'dalle' ? 'block' : 'none';
+            document.getElementById('stabilityModel').style.display = service === 'stability' ? 'block' : 'none';
+            document.getElementById('dalleApiKey').style.display = service === 'dalle' ? 'block' : 'none';
+            document.getElementById('stabilityApiKey').style.display = service === 'stability' ? 'block' : 'none';
+            document.getElementById('dalleBaseUrl').style.display = service === 'dalle' ? 'block' : 'none';
+            document.getElementById('stabilityBaseUrl').style.display = service === 'stability' ? 'block' : 'none';
+        }
+        
+        // Set model values
+        if (settings.default_models) {
+            if (settings.default_models.dalle) {
+                document.getElementById('dalle_model').value = settings.default_models.dalle;
+            }
+            if (settings.default_models.stability) {
+                document.getElementById('stability_model').value = settings.default_models.stability;
+            }
+        }
+        
+        // Set API keys
+        if (settings.dalle_api_key) {
+            document.getElementById('dalle_api_key').value = settings.dalle_api_key;
+        }
+        if (settings.stability_api_key) {
+            document.getElementById('stability_api_key').value = settings.stability_api_key;
+        }
+
+        // Set base URLs
+        if (settings.dalle_base_url) {
+            document.getElementById('dalle_base_url').value = settings.dalle_base_url;
+        }
+        if (settings.stability_base_url) {
+            document.getElementById('stability_base_url').value = settings.stability_base_url;
+        }
+    } catch (error) {
+        console.error('Error loading photo generation settings:', error);
+    }
+}
+
+// Handle service selection
+document.getElementById('service').addEventListener('change', function(e) {
+    const service = e.target.value;
+    
+    // Show/hide model inputs based on service
+    document.getElementById('dalleModel').style.display = service === 'dalle' ? 'block' : 'none';
+    document.getElementById('stabilityModel').style.display = service === 'stability' ? 'block' : 'none';
+    
+    // Show/hide API key fields
+    document.getElementById('dalleApiKey').style.display = service === 'dalle' ? 'block' : 'none';
+    document.getElementById('stabilityApiKey').style.display = service === 'stability' ? 'block' : 'none';
+    
+    // Show/hide base URL fields
+    document.getElementById('dalleBaseUrl').style.display = service === 'dalle' ? 'block' : 'none';
+    document.getElementById('stabilityBaseUrl').style.display = service === 'stability' ? 'block' : 'none';
+    
+    // Save default service
+    saveSettings({
+        default_service: service
+    });
+});
+
+// Save model when changed
+document.getElementById('dalle_model').addEventListener('change', function(e) {
+    saveSettings({
+        default_models: {
+            dalle: e.target.value
+        }
+    });
+});
+
+document.getElementById('stability_model').addEventListener('change', function(e) {
+    saveSettings({
+        default_models: {
+            stability: e.target.value
+        }
+    });
+});
+
+// Update saveSettings to handle all settings
+async function saveSettings(newSettings) {
+    try {
+        // Get current settings first
+        const response = await fetch('/api/photogen_settings');
+        const currentSettings = await response.json();
+        
+        // Merge with new settings
+        const settings = {
+            ...currentSettings,
+            ...newSettings,
+            default_models: {
+                ...currentSettings.default_models,
+                ...(newSettings.default_models || {})
+            }
+        };
+        
+        const saveResponse = await fetch('/api/photogen_settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (!saveResponse.ok) {
+            throw new Error(`HTTP error! status: ${saveResponse.status}`);
+        }
+        
+        console.log('Settings saved successfully:', settings);
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        throw error;
+    }
+}
+
+// Update the saveApiKeys function
+async function saveApiKeys() {
+    const dalleKey = document.getElementById('dalle_api_key').value;
+    const stabilityKey = document.getElementById('stability_api_key').value;
+    
+    try {
+        // Get current settings first
+        const response = await fetch('/api/photogen_settings');
+        const currentSettings = await response.json();
+        
+        // Update API keys while preserving other settings
+        const settings = {
+            ...currentSettings,
+            dalle_api_key: dalleKey,
+            stability_api_key: stabilityKey
+        };
+        
+        const saveResponse = await fetch('/api/photogen_settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (!saveResponse.ok) {
+            throw new Error(`HTTP error! status: ${saveResponse.status}`);
+        }
+        
+        console.log('API keys saved successfully');
+    } catch (error) {
+        console.error('Error saving API keys:', error);
+    }
+}
+
+// Make sure the event listeners are properly attached
+document.getElementById('dalle_api_key').addEventListener('change', saveApiKeys);
+document.getElementById('stability_api_key').addEventListener('change', saveApiKeys);
+
+// Add base URL change handlers
+document.getElementById('dalle_base_url').addEventListener('change', saveBaseUrls);
+document.getElementById('stability_base_url').addEventListener('change', saveBaseUrls);
+
+// Update saveBaseUrls function
+async function saveBaseUrls() {
+    const dalleBaseUrl = document.getElementById('dalle_base_url').value;
+    const stabilityBaseUrl = document.getElementById('stability_base_url').value;
+    
+    try {
+        // Get current settings first
+        const response = await fetch('/api/photogen_settings');
+        const currentSettings = await response.json();
+        
+        // Update base URLs while preserving other settings
+        const settings = {
+            ...currentSettings,
+            dalle_base_url: dalleBaseUrl || currentSettings.dalle_base_url,
+            stability_base_url: stabilityBaseUrl || currentSettings.stability_base_url
+        };
+        
+        const saveResponse = await fetch('/api/photogen_settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (!saveResponse.ok) {
+            throw new Error(`HTTP error! status: ${saveResponse.status}`);
+        }
+        
+        console.log('Base URLs saved successfully');
+    } catch (error) {
+        console.error('Error saving base URLs:', error);
+    }
+}
+
+// Initialize modals after DOM is loaded
+let loadingModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize loading modal
+    loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'), {
+        backdrop: 'static',
+        keyboard: false
+    });
+    
+    // Single event listener for generate button
+    const generateBtn = document.getElementById('generateBtn');
+    if (generateBtn) {
+        console.log('Generate button found');
+        // Remove any existing listeners first
+        generateBtn.replaceWith(generateBtn.cloneNode(true));
+        // Get the new button reference
+        const newGenerateBtn = document.getElementById('generateBtn');
+        // Add single listener
+        newGenerateBtn.addEventListener('click', generateImage);
+    } else {
+        console.error('Generate button not found!');
+    }
+});
+
+function displayImages(images) {
+    console.log('displayImages called');
+    const container = document.getElementById('generatedImagesSection');
+    container.innerHTML = ''; // Clear previous images
+    
+    images.forEach((base64Image, index) => {
+        console.log(`Processing image ${index + 1}`);
+        
+        // Create card container
+        const card = document.createElement('div');
+        card.className = 'card mb-4';
+        
+        // Create card body
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body text-center';
+        
+        // Create image element
+        const img = document.createElement('img');
+        img.src = typeof base64Image === 'string' && !base64Image.includes(',')
+            ? 'data:image/png;base64,' + base64Image
+            : base64Image;
+            
+        img.className = 'img-fluid mb-3';
+        img.style.maxHeight = '600px';
+        img.style.width = 'auto';
+        
+        // Debug image loading
+        img.onload = () => {
+            console.log(`Image ${index + 1} loaded successfully`);
+        };
+        
+        img.onerror = (e) => {
+            console.error(`Error loading image ${index + 1}:`, e);
+            cardBody.innerHTML = `
+                <div class="alert alert-danger">
+                    Failed to load image ${index + 1}. Error: ${e.message}
+                </div>
+            `;
+        };
+        
+        // Create button group
+        const buttonGroup = document.createElement('div');
+        buttonGroup.className = 'btn-group mt-3';
+        buttonGroup.setAttribute('role', 'group');
+        
+        // Download button
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'btn btn-primary';
+        downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download';
+        downloadBtn.onclick = () => downloadImage(base64Image, index);
+        
+        // Add to Gallery button
+        const galleryBtn = document.createElement('button');
+        galleryBtn.className = 'btn btn-success';
+        galleryBtn.innerHTML = '<i class="fas fa-plus"></i> Add To Gallery';
+        galleryBtn.onclick = () => addToGallery(base64Image, index);
+        
+        // Add buttons to group
+        buttonGroup.appendChild(downloadBtn);
+        buttonGroup.appendChild(galleryBtn);
+        
+        // Assemble card
+        cardBody.appendChild(img);
+        cardBody.appendChild(buttonGroup);
+        card.appendChild(cardBody);
+        container.appendChild(card);
+    });
+}
+
+function downloadImage(base64Image, index) {
+    const link = document.createElement('a');
+    link.download = `generated-image-${index + 1}.png`;
+    link.href = typeof base64Image === 'string' && !base64Image.includes(',')
+        ? 'data:image/png;base64,' + base64Image
+        : base64Image;
+    link.click();
+}
+
+async function addToGallery(base64Image, index) {
+    try {
+        const response = await fetch('/api/gallery/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                image: base64Image
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Show success message
+            alert('Image successfully added to gallery!');
+        } else {
+            throw new Error(result.error || 'Failed to add image to gallery');
+        }
+    } catch (error) {
+        console.error('Error adding to gallery:', error);
+        alert('Error adding image to gallery: ' + error.message);
+    }
+}
+
+// Add Font Awesome to the head section if not already present
+if (!document.querySelector('link[href*="font-awesome"]')) {
+    const fontAwesome = document.createElement('link');
+    fontAwesome.rel = 'stylesheet';
+    fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css';
+    document.head.appendChild(fontAwesome);
+}
+
+// Add some custom styles
+const style = document.createElement('style');
+style.textContent = `
+    .btn-group {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .btn-group .btn {
+        padding: 8px 20px;
+    }
+    
+    .btn i {
+        margin-right: 5px;
+    }
+    
+    .card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .card-body {
+        padding: 20px;
+    }
+`;
+document.head.appendChild(style);
+
+async function generateImage() {
+    console.log('Generate function called');
+    
+    const service = document.getElementById('service').value;
+    let model;
+    
+    if (service === 'dalle') {
+        model = document.getElementById('dalle_model').value;
+    } else if (service === 'stability') {
+        model = document.getElementById('stability_model').value;
+    }
+    
+    const prompt = document.getElementById('prompt').value;
+    const orientation = document.getElementById('orientation').value;
+    const style = document.getElementById('style').value;
+    
+    try {
+        if (loadingModal) {
+            loadingModal.show();
+        }
+        
+        const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                service: service,
+                model: model,
+                prompt: prompt,
+                orientation: orientation,
+                style_preset: style
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Hide loading modal
+        if (loadingModal) {
+            loadingModal.hide();
+        }
+        
+        if (!data.images || data.images.length === 0) {
+            throw new Error('No images received from the API');
+        }
+        
+        // Display the images in the dedicated section
+        displayImages(data.images);
+        
+        // Scroll to the images section
+        document.getElementById('generatedImagesSection').scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+        });
+        
+    } catch (error) {
+        if (loadingModal) {
+            loadingModal.hide();
+        }
+        console.error('Error details:', error);
+        alert('Error generating image: ' + error.message);
+    }
+}
+
+// Initialize time selectors
+function initializeTimeSelectors() {
+    const hourSelect = document.getElementById('scheduleHour');
+    const minuteSelect = document.getElementById('scheduleMinute');
+    
+    // Get timezone name
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+    
+    // Add timezone info to the label
+    document.querySelector('label[for="scheduleHour"]') && 
+        (document.querySelector('label[for="scheduleHour"]').textContent = 'Hour (' + timeZone + ')');
+    
+    // Populate hours
+    for (let i = 0; i < 24; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = i.toString().padStart(2, '0');
+        hourSelect.appendChild(option);
+    }
+    
+    // Populate minutes
+    for (let i = 0; i < 60; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = i.toString().padStart(2, '0');
+        minuteSelect.appendChild(option);
+    }
+}
+
+// Update cronToHumanReadable function to be timezone-aware
+function cronToHumanReadable(cronExpression) {
+    const parts = cronExpression.split(' ');
+    const minute = parts[0];
+    const hour = parts[1];
+    const dayOfWeek = parts[4];
+    
+    // Format time - convert from UTC to local timezone for display
+    let displayHour = parseInt(hour);
+    const localTimeOffset = new Date().getTimezoneOffset() / 60;
+    displayHour = (displayHour - localTimeOffset) % 24;
+    if (displayHour < 0) displayHour += 24;
+    
+    const timeStr = `${displayHour.toString().padStart(2, '0')}:${minute.padStart(2, '0')}`;
+    
+    // Handle days
+    let daysStr;
+    if (dayOfWeek === '*') {
+        daysStr = 'every day';
+    } else {
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const days = dayOfWeek.split(',').map(d => {
+            return dayNames[parseInt(d)];
+        });
+        daysStr = days.join(', ');
+    }
+    
+    return `${timeStr} on ${daysStr}`;
+}
+
+// Update buildCronExpression to convert local time to UTC
+function buildCronExpression() {
+    let minute = document.getElementById('scheduleMinute').value;
+    let hour = parseInt(document.getElementById('scheduleHour').value);
+    const days = Array.from(document.getElementById('scheduleDays').selectedOptions)
+                     .map(option => option.value);
+    
+    // Convert local hour to UTC for storage
+    const localTimeOffset = new Date().getTimezoneOffset() / 60;
+    hour = (hour + localTimeOffset) % 24;
+    if (hour < 0) hour += 24;
+    
+    return `${minute} ${hour} * * ${days.join(',')}`;
+}
+
+// Update buildEditCronExpression similarly
+function buildEditCronExpression() {
+    let minute = document.getElementById('editScheduleMinute').value;
+    let hour = parseInt(document.getElementById('editScheduleHour').value);
+    const days = Array.from(document.getElementById('editScheduleDays').selectedOptions)
+                     .map(option => option.value);
+    
+    // Convert local hour to UTC for storage
+    const localTimeOffset = new Date().getTimezoneOffset() / 60;
+    hour = (hour + localTimeOffset) % 24;
+    if (hour < 0) hour += 24;
+    
+    return `${minute} ${hour} * * ${days.join(',')}`;
+}
+
+// Update editSchedule to convert from UTC to local time when populating the form
+async function editSchedule(scheduleId) {
+    try {
+        const response = await fetch(`/api/scheduled-generations/${scheduleId}`);
+        const schedule = await response.json();
+        
+        if (schedule.error) {
+            throw new Error(schedule.error);
+        }
+        
+        // Verify this is a photo generation schedule
+        if (schedule.service !== 'dalle' && schedule.service !== 'stability') {
+            throw new Error('Not a photo generation schedule');
+        }
+        
+        // Populate the edit form
+        document.getElementById('editScheduleId').value = schedule.id;
+        document.getElementById('editScheduleName').value = schedule.name;
+        document.getElementById('editScheduleFrame').value = schedule.frame_id;
+        document.getElementById('editPrompt').value = schedule.prompt;
+        document.getElementById('editService').value = schedule.service;
+        document.getElementById('editModel').value = schedule.model;
+        document.getElementById('editOrientation').value = schedule.orientation;
+        
+        // Parse cron expression
+        const cronParts = schedule.cron_expression.split(' ');
+        document.getElementById('editScheduleMinute').value = cronParts[0];
+        
+        // Convert UTC hour to local hour for display
+        let hour = parseInt(cronParts[1]);
+        const localTimeOffset = new Date().getTimezoneOffset() / 60;
+        hour = (hour - localTimeOffset) % 24;
+        if (hour < 0) hour += 24;
+        
+        document.getElementById('editScheduleHour').value = hour.toString();
+        
+        // Handle days selection
+        const daysSelect = document.getElementById('editScheduleDays');
+        const days = cronParts[4] === '*' ? ['*'] : cronParts[4].split(',');
+        Array.from(daysSelect.options).forEach(option => {
+            option.selected = days.includes(option.value);
+        });
+        
+        // Show the modal
+        editScheduleModal.show();
+        
+    } catch (error) {
+        console.error('Error loading schedule:', error);
+        alert('Error loading schedule details: ' + error.message);
+    }
+}
+
+// When populating hour select fields, add local timezone info
+function initializeTimeSelectors() {
+    const hourSelect = document.getElementById('scheduleHour');
+    const minuteSelect = document.getElementById('scheduleMinute');
+    
+    // Get timezone name
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+    
+    // Add timezone info to the label
+    document.querySelector('label[for="scheduleHour"]') && 
+        (document.querySelector('label[for="scheduleHour"]').textContent = 'Hour (' + timeZone + ')');
+    
+    // Populate hours
+    for (let i = 0; i < 24; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = i.toString().padStart(2, '0');
+        hourSelect.appendChild(option);
+    }
+    
+    // Populate minutes
+    for (let i = 0; i < 60; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = i.toString().padStart(2, '0');
+        minuteSelect.appendChild(option);
+    }
+}
+
+function initializeEditTimeSelectors() {
+    const hourSelect = document.getElementById('editScheduleHour');
+    const minuteSelect = document.getElementById('editScheduleMinute');
+    
+    // Get timezone name
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+    
+    // Add timezone info to the label
+    document.querySelector('label[for="editScheduleHour"]') && 
+        (document.querySelector('label[for="editScheduleHour"]').textContent = 'Hour (' + timeZone + ')');
+    
+    // Populate hours
+    for (let i = 0; i < 24; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = i.toString().padStart(2, '0');
+        hourSelect.appendChild(option);
+    }
+    
+    // Populate minutes
+    for (let i = 0; i < 60; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = i.toString().padStart(2, '0');
+        minuteSelect.appendChild(option);
+    }
+}
+
+// Update the loadScheduledGenerations function's template literal
+async function loadScheduledGenerations() {
+    try {
+        const response = await fetch('/api/scheduled-generations');
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        const schedules = data.schedules;
+        const container = document.getElementById('scheduledGenerationsList');
+        
+        if (!schedules || schedules.length === 0) {
+            container.innerHTML = '<p class="text-muted">No scheduled generations</p>';
+            return;
+        }
+        
+        // Filter out custom playlist schedules and only show photo generation schedules
+        const photoGenerationSchedules = schedules.filter(schedule => 
+            schedule.service === 'dalle' || schedule.service === 'stability');
+        
+        if (photoGenerationSchedules.length === 0) {
+            container.innerHTML = '<p class="text-muted">No scheduled generations</p>';
+            return;
+        }
+        
+        container.innerHTML = photoGenerationSchedules.map(schedule => `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title">${schedule.name}</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary edit-schedule" 
+                                    data-schedule-id="${schedule.id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success test-schedule" 
+                                    data-schedule-id="${schedule.id}">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-schedule" 
+                                    data-schedule-id="${schedule.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="card-text">
+                        <small class="text-muted">
+                            Frame: ${schedule.frame_name}<br>
+                            Schedule: ${cronToHumanReadable(schedule.cron_expression)}<br>
+                            Prompt: ${schedule.prompt}
+                        </small>
+                    </p>
+                </div>
+            </div>
+        `).join('');
+        
+        // Add event listeners
+        attachScheduleEventListeners();
+    } catch (error) {
+        console.error('Error loading scheduled generations:', error);
+        const container = document.getElementById('scheduledGenerationsList');
+        container.innerHTML = '<div class="alert alert-danger">Error loading scheduled generations</div>';
+    }
+}
+
+// Load and display generation history
+async function loadGenerationHistory() {
+    try {
+        const response = await fetch('/api/generation-history');
+        const history = await response.json();
+        
+        const container = document.getElementById('generationHistory');
+        
+        // Filter out entries that aren't for photo generation
+        const photoGenerationHistory = history.filter(entry => 
+            entry.schedule && (entry.schedule.service === 'dalle' || entry.schedule.service === 'stability'));
+        
+        if (photoGenerationHistory.length === 0) {
+            container.innerHTML = '<p class="text-muted">No generation history</p>';
+            return;
+        }
+        
+        container.innerHTML = photoGenerationHistory.map(entry => `
+            <div class="card mb-3 ${entry.success ? 'border-success' : 'border-danger'}">
+                <div class="card-body">
+                    <h6 class="card-title">${entry.schedule_name}</h6>
+                    <p class="card-text">
+                        <small class="text-muted">
+                            Generated: ${new Date(entry.generated_at).toLocaleString()}<br>
+                            Status: ${entry.success ? 'Success' : 'Failed'}<br>
+                            ${entry.error_message ? `Error: ${entry.error_message}` : ''}
+                        </small>
+                    </p>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading generation history:', error);
+        const container = document.getElementById('generationHistory');
+        container.innerHTML = '<div class="alert alert-danger">Error loading generation history</div>';
+    }
+}
+
+// Create new schedule
+async function createSchedule(scheduleData) {
+    try {
+        const response = await fetch('/api/scheduled-generations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(scheduleData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create schedule');
+        }
+        
+        // Refresh schedules list
+        await loadScheduledGenerations();
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('scheduleModal'));
+        modal.hide();
+        
+    } catch (error) {
+        alert('Error creating schedule: ' + error.message);
+    }
+}
+
+// Delete schedule
+async function deleteSchedule(scheduleId) {
+    if (!confirm('Are you sure you want to delete this schedule?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/scheduled-generations/${scheduleId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to delete schedule');
+        }
+        
+        await loadScheduledGenerations();
+    } catch (error) {
+        alert('Error deleting schedule: ' + error.message);
+    }
+}
+
+// Attach event listeners to schedule buttons
+function attachScheduleEventListeners() {
+    document.querySelectorAll('.edit-schedule').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const scheduleId = e.target.closest('button').dataset.scheduleId;
+            editSchedule(scheduleId);
+        });
+    });
+    
+    document.querySelectorAll('.delete-schedule').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const scheduleId = e.target.closest('button').dataset.scheduleId;
+            deleteSchedule(scheduleId);
+        });
+    });
+    
+    document.querySelectorAll('.test-schedule').forEach(button => {
+        button.addEventListener('click', async (e) => {
+            const scheduleId = e.target.closest('button').dataset.scheduleId;
+            try {
+                // First, get the schedule details
+                const scheduleResponse = await fetch(`/api/scheduled-generations/${scheduleId}`);
+                const schedule = await scheduleResponse.json();
+                
+                if (schedule.error) {
+                    throw new Error(schedule.error);
+                }
+                
+                // Fill in the generation form with the schedule's values
+                document.getElementById('prompt').value = schedule.prompt;
+                document.getElementById('service').value = schedule.service;
+                document.getElementById('orientation').value = schedule.orientation;
+                
+                if (schedule.service === 'dalle') {
+                    document.getElementById('dalle_model').value = schedule.model;
+                } else {
+                    document.getElementById('stability_model').value = schedule.model;
+                }
+                
+                // Trigger the existing generate button click
+                document.getElementById('generateBtn').click();
+                
+            } catch (error) {
+                console.error('Test schedule error:', error);
+                alert('Error testing schedule: ' + error.message);
+            }
+        });
+    });
+}
+
+// Initialize when document is ready
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTimeSelectors();
+    loadScheduledGenerations();
+    loadGenerationHistory();
+    
+    // Save schedule button handler
+    document.getElementById('saveSchedule').addEventListener('click', () => {
+        const formData = {
+            name: document.getElementById('scheduleName').value,
+            frame_id: document.getElementById('scheduleFrame').value,
+            cron_expression: buildCronExpression(),
+            service: document.getElementById('service').value,
+            model: getCurrentModel(),
+            prompt: document.getElementById('prompt').value,
+            orientation: document.getElementById('orientation').value
+        };
+        
+        createSchedule(formData);
+    });
+});
+
+// Helper function to get current model based on service
+function getCurrentModel() {
+    const service = document.getElementById('service').value;
+    return service === 'dalle' 
+        ? document.getElementById('dalle_model').value 
+        : document.getElementById('stability_model').value;
+}
+
+// Refresh data periodically
+setInterval(() => {
+    loadScheduledGenerations();
+    loadGenerationHistory();
+}, 60000); // Refresh every minute
+
+let editScheduleModal;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize the edit modal
+    editScheduleModal = new bootstrap.Modal(document.getElementById('editScheduleModal'));
+    
+    // Initialize time selectors for edit modal
+    initializeEditTimeSelectors();
+    
+    // Add save handler for edit modal
+    document.getElementById('saveEditSchedule').addEventListener('click', saveEditSchedule);
+});
+
+async function saveEditSchedule() {
+    const scheduleId = document.getElementById('editScheduleId').value;
+    
+    const scheduleData = {
+        name: document.getElementById('editScheduleName').value,
+        frame_id: document.getElementById('editScheduleFrame').value,
+        prompt: document.getElementById('editPrompt').value,
+        service: document.getElementById('editService').value,
+        model: document.getElementById('editModel').value,
+        orientation: document.getElementById('editOrientation').value,
+        cron_expression: buildEditCronExpression()
+    };
+    
+    try {
+        const response = await fetch(`/api/scheduled-generations/${scheduleId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(scheduleData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update schedule');
+        }
+        
+        // Refresh schedules list
+        await loadScheduledGenerations();
+        
+        // Close modal
+        editScheduleModal.hide();
+        
+    } catch (error) {
+        alert('Error updating schedule: ' + error.message);
+    }
+}
+
+document.getElementById('clearHistoryBtn').addEventListener('click', async () => {
+    if (confirm('Are you sure you want to clear all generation history?')) {
+        try {
+            const response = await fetch('/api/generation-history/clear', {
+                method: 'POST'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to clear history');
+            }
+            
+            // Refresh the generation history display
+            loadGenerationHistory();
+            
+        } catch (error) {
+            console.error('Error clearing history:', error);
+            alert('Failed to clear history: ' + error.message);
+        }
+    }
+});
+</script>
+
+<style>
+/* Add some styling for the modals */
+.modal-body img {
+    max-width: 100%;
+    height: auto;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+.card {
+    margin-bottom: 1rem;
+}
+
+#scheduleDays {
+    height: auto;
+}
+
+.btn-group {
+    gap: 0.25rem;
+}
+</style>
+{% endblock %} 
