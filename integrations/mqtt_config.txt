@@ -1,7 +1,0 @@
-{
-    "enabled": true,
-    "broker": "192.168.4.35",
-    "port": 1883,
-    "username": "",
-    "password": ""
-}

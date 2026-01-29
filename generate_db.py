@@ -7,7 +7,7 @@ This script creates the database tables based on the models defined in server.py
 import os
 import sys
 import logging
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -38,7 +38,7 @@ try:
         
         # Verify tables were created
         engine = create_engine(f'sqlite:///{db_path}')
-        tables = engine.table_names()
+        tables = inspect(engine).get_table_names()
         logger.info(f"Created tables: {', '.join(tables)}")
         
         logger.info("Database generation complete!")
