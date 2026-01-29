@@ -2805,9 +2805,8 @@ def info():
     # Load server settings
     server_settings = load_server_settings()
     
-    # Load AI settings
-    with open(PHOTOGEN_SETTINGS_FILE, 'r') as f:
-        ai_settings = json.load(f)
+    # Load AI settings (handles missing file via defaults)
+    ai_settings = load_photogen_settings()
     
     return render_template('info.html',
                          frames=frames,
@@ -4903,68 +4902,6 @@ def get_available_fonts():
             'success': False,
             'error': str(e)
         })
-
-# Add these new routes
-
-@app.route('/api/frames/<frame_id>/dynamic-playlist/toggle', methods=['POST'])
-def toggle_dynamic_playlist(frame_id):
-    """Toggle dynamic playlist status for a frame."""
-    try:
-        data = request.get_json()
-        frame = db.session.get(PhotoFrame, frame_id)
-        if not frame:
-            return jsonify({'success': False, 'error': 'Frame not found'}), 404
-            
-        frame.dynamic_playlist_active = data['enabled']
-        db.session.commit()
-        
-        return jsonify({'success': True})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/frames/<frame_id>/dynamic-playlist', methods=['POST'])
-def update_dynamic_playlist(frame_id):
-    """Update dynamic playlist prompt and matching photos."""
-    try:
-        data = request.get_json()
-        frame = db.session.get(PhotoFrame, frame_id)
-        if not frame:
-            return jsonify({'success': False, 'error': 'Frame not found'}), 404
-            
-        # Update prompt
-        frame.dynamic_playlist_prompt = data['prompt']
-        frame.dynamic_playlist_updated_at = datetime.utcnow()
-        
-        # Find matching photos
-        photo_analyzer = PhotoAnalyzer(app, db)
-        matching_photos = photo_analyzer.match_photos_to_prompt(data['prompt'])
-        
-        # Update playlist
-        if matching_photos:
-            # Remove existing playlist entries
-            PlaylistEntry.query.filter_by(frame_id=frame_id).delete()
-            
-            # Add new matching photos
-            for i, photo in enumerate(matching_photos):
-                entry = PlaylistEntry(
-                    frame_id=frame_id,
-                    photo_id=photo.id,
-                    order=i
-                )
-                db.session.add(entry)
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'matches_found': len(matching_photos)
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Error updating dynamic playlist: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/server/ai-settings', methods=['POST'])
 def update_ai_settings():

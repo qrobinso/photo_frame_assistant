@@ -6,6 +6,7 @@ This document provides instructions for running the Photo Server application usi
 
 - Docker installed on your system
 - Docker Compose installed on your system
+- **Enough free disk space** for the image build (about **10 GB** recommended; the image includes PyTorch and ML dependencies)
 
 ## System Dependencies
 
@@ -127,6 +128,34 @@ docker-compose exec photo-server python db_manager.py --backup
 Database backups are stored in the `db_backups` directory.
 
 ## Troubleshooting
+
+### No space left on device (build failure)
+
+Building the image installs large Python dependencies (PyTorch, sentence-transformers, CUDA-related packages), which can use **several GB of free disk space** during the build. If you see:
+
+```text
+ERROR: Could not install packages due to an OSError: [Errno 28] No space left on device
+```
+
+**Options:**
+
+1. **Free disk space on the build host**
+   - Remove unused Docker data:  
+     `docker system prune -a`  
+     (removes unused images, containers, and build cache)
+   - Remove other large files or move the project to a disk with more space.
+   - Ensure at least **~10 GB free** before building.
+
+2. **Build on a machine with more space, then use the image on the device**
+   - On a machine with enough disk (e.g. a PC or CI), run:  
+     `docker build -t ghcr.io/qrobinso/photo_frame_assistant_server:latest -f docker/Dockerfile .`  
+     then push to your registry.
+   - On the photo frame device, pull and run:  
+     `docker pull ghcr.io/qrobinso/photo_frame_assistant_server:latest`  
+     and start with your usual `docker-compose` or `docker run`.
+
+3. **Check free space**
+   - Before building: `df -h` and `docker system df` to see disk and Docker disk usage.
 
 ### Port conflicts
 

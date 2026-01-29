@@ -42,8 +42,10 @@ RUN mkdir -p /app/uploads/thumbnails \
 # Copy requirements first for better caching
 COPY --chown=photoframe:photoframe requirements.txt .
 
-# Install Python dependencies in virtual environment
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies (needs ~10 GB free disk on build host for PyTorch/ML deps).
+# Install wheel first so more packages use binary wheels, reducing build-time disk use.
+RUN pip install --no-cache-dir --upgrade pip wheel \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application
 COPY --chown=photoframe:photoframe . .
