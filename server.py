@@ -881,15 +881,15 @@ def process_uploaded_file(file, form_data):
 
         elif original_lower.endswith('.avif'):
             try:
-                img = Image.open(temp_filepath)
-                # Try to extract EXIF from AVIF (Pillow might put it in info dict)
-                exif_bytes_to_preserve = img.info.get('exif')
-                if exif_bytes_to_preserve: logger.info("Found EXIF data in AVIF to preserve.")
-                final_filename = f"{os.path.splitext(original_filename)[0]}.jpg"
-                final_filepath = os.path.join(app.config['UPLOAD_FOLDER'], final_filename)
-                # Ensure image is RGB before saving as JPEG
-                if img.mode != 'RGB': img = img.convert('RGB')
-                img.save(final_filepath, "JPEG", quality=95, exif=exif_bytes_to_preserve or b'')
+                with Image.open(temp_filepath) as img:
+                    # Try to extract EXIF from AVIF (Pillow might put it in info dict)
+                    exif_bytes_to_preserve = img.info.get('exif')
+                    if exif_bytes_to_preserve: logger.info("Found EXIF data in AVIF to preserve.")
+                    final_filename = f"{os.path.splitext(original_filename)[0]}.jpg"
+                    final_filepath = os.path.join(app.config['UPLOAD_FOLDER'], final_filename)
+                    # Ensure image is RGB before saving as JPEG
+                    img_to_save = img.convert('RGB') if img.mode != 'RGB' else img
+                    img_to_save.save(final_filepath, "JPEG", quality=95, exif=exif_bytes_to_preserve or b'')
                 converted = True
                 logger.info(f"Converted AVIF {original_filename} to {final_filename}")
             except Exception as e:
@@ -1259,25 +1259,24 @@ def upload_photo():
                             app.logger.info(f"Successfully extracted EXIF metadata from converted {filename}")
                 elif filename.lower().endswith('.avif'):
                     # Convert AVIF to JPG
-                    img = Image.open(filepath)
-                    
-                    # Extract EXIF data if available
-                    metadata = None
-                    try:
-                        metadata = img.info.get('exif')
-                    except Exception as e:
-                        app.logger.error(f"Error extracting metadata from AVIF: {e}")
-                    
-                    # Replace original file with JPG version
-                    new_filename = f"{os.path.splitext(filename)[0]}.jpg"
-                    new_filepath = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
-                    
-                    # Save with EXIF data if available
-                    if metadata:
-                        img.save(new_filepath, "JPEG", quality=95, exif=metadata)
-                        app.logger.info("Preserved EXIF metadata during AVIF conversion")
-                    else:
-                        img.save(new_filepath, "JPEG", quality=95)
+                    with Image.open(filepath) as img:
+                        # Extract EXIF data if available
+                        metadata = None
+                        try:
+                            metadata = img.info.get('exif')
+                        except Exception as e:
+                            app.logger.error(f"Error extracting metadata from AVIF: {e}")
+                        
+                        # Replace original file with JPG version
+                        new_filename = f"{os.path.splitext(filename)[0]}.jpg"
+                        new_filepath = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+                        
+                        # Save with EXIF data if available
+                        if metadata:
+                            img.save(new_filepath, "JPEG", quality=95, exif=metadata)
+                            app.logger.info("Preserved EXIF metadata during AVIF conversion")
+                        else:
+                            img.save(new_filepath, "JPEG", quality=95)
                     
                     # Clean up original AVIF file and update variables
                     os.remove(filepath)
@@ -2290,8 +2289,8 @@ def get_current_photo():
                         
                         # Open the image and apply enhancements
                         from PIL import Image
-                        img = Image.open(photo_path)
-                        processed_image = processor.enhance_image(img, frame)
+                        with Image.open(photo_path) as img:
+                            processed_image = processor.enhance_image(img, frame)
                         app.logger.info("Successfully applied image enhancements")
                     except Exception as e:
                         app.logger.error(f"Error processing image with frame settings: {e}")
@@ -2567,8 +2566,8 @@ def generate_compressed_output(image_path, orientation):
     """Generate compressed output for e-paper displays."""
     app.logger.info(f"Calling imgToArray")
     from imgToArray import img_to_array
-    img = Image.open(image_path)
-    raw_bytes = img_to_array(img, orientation)
+    with Image.open(image_path) as img:
+        raw_bytes = img_to_array(img, orientation)
     cleanup_temp_files(os.path.dirname(image_path))
     return Response(raw_bytes, mimetype='application/octet-stream')
 
@@ -2594,8 +2593,8 @@ def generate_epaper_output(image_path, orientation):
     """Generate 4bpp palette output for Seeed_GFX color e-paper."""
     app.logger.info("Generating Seeed_GFX e-paper output")
     from imgToArray import img_to_epaper_4bit
-    img = Image.open(image_path)
-    raw_bytes = img_to_epaper_4bit(img, orientation)
+    with Image.open(image_path) as img:
+        raw_bytes = img_to_epaper_4bit(img, orientation)
     cleanup_temp_files(os.path.dirname(image_path))
     return Response(raw_bytes, mimetype='application/octet-stream')
 
@@ -2615,8 +2614,8 @@ def generate_rgb565_output(image_path, frame):
         except (ValueError, AttributeError):
             app.logger.warning(f"Could not parse screen_resolution: {frame.screen_resolution}, using defaults")
     
-    img = Image.open(image_path)
-    raw_bytes = img_to_rgb565(img, target_width, target_height)
+    with Image.open(image_path) as img:
+        raw_bytes = img_to_rgb565(img, target_width, target_height)
     cleanup_temp_files(os.path.dirname(image_path))
     return Response(raw_bytes, mimetype='application/octet-stream')
 
@@ -3601,12 +3600,12 @@ def test_overlay(frame_id):
 
     try:
         # Process image enhancements
-        img = Image.open(photo_path)
-        processor = PhotoProcessor()
-        enhanced_img = processor.enhance_image(img, use_frame)
+        with Image.open(photo_path) as img:
+            processor = PhotoProcessor()
+            enhanced_img = processor.enhance_image(img, use_frame)
 
-        # Create temporary file for overlay processing
-        temp_path = create_temp_image(enhanced_img)
+            # Create temporary file for overlay processing
+            temp_path = create_temp_image(enhanced_img)
         
         # Apply overlays using the existing overlay manager
         overlay_prefs = json.loads(use_frame.overlay_preferences) if use_frame.overlay_preferences else {}
@@ -4055,49 +4054,50 @@ def edit_photo(photo_id):
         db.session.commit()
         
         # Load the image and apply EXIF orientation
-        img = Image.open(image_path)
-        img = ImageOps.exif_transpose(img)
-        
-        # Apply edits
-        if 'brightness' in data:
-            enhancer = ImageEnhance.Brightness(img)
-            img = enhancer.enhance(float(data['brightness']))
+        with Image.open(image_path) as img_file:
+            img = ImageOps.exif_transpose(img_file)
+            exif_data = img.info.get('exif')
             
-        if 'contrast' in data:
-            enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(float(data['contrast']))
+            # Apply edits
+            if 'brightness' in data:
+                enhancer = ImageEnhance.Brightness(img)
+                img = enhancer.enhance(float(data['brightness']))
+                
+            if 'contrast' in data:
+                enhancer = ImageEnhance.Contrast(img)
+                img = enhancer.enhance(float(data['contrast']))
+                
+            if 'saturation' in data:
+                enhancer = ImageEnhance.Color(img)
+                img = enhancer.enhance(float(data['saturation']))
+                
+            if 'sharpness' in data:
+                enhancer = ImageEnhance.Sharpness(img)
+                img = enhancer.enhance(float(data['sharpness']))
+                
+            if 'rotation' in data and data['rotation'] != 0:
+                img = img.rotate(float(data['rotation']), expand=True)
             
-        if 'saturation' in data:
-            enhancer = ImageEnhance.Color(img)
-            img = enhancer.enhance(float(data['saturation']))
-            
-        if 'sharpness' in data:
-            enhancer = ImageEnhance.Sharpness(img)
-            img = enhancer.enhance(float(data['sharpness']))
-            
-        if 'rotation' in data and data['rotation'] != 0:
-            img = img.rotate(float(data['rotation']), expand=True)
-        
-        # Save the edited image, preserving EXIF data
-        try:
-            img.save(image_path, quality=95, exif=img.info.get('exif'))
-        except:
-            # If saving with EXIF fails, save without it
-            img.save(image_path, quality=95)
-        
-        # Generate new thumbnail
-        thumbnails_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails')
-        os.makedirs(thumbnails_dir, exist_ok=True)
-        
-        if hasattr(photo, 'thumbnail') and photo.thumbnail:
-            thumb_path = os.path.join(thumbnails_dir, photo.thumbnail)
-            # Create thumbnail
-            thumb_img = img.copy()
-            thumb_img.thumbnail((400, 400))
+            # Save the edited image, preserving EXIF data
             try:
-                thumb_img.save(thumb_path, quality=85, exif=img.info.get('exif'))
+                img.save(image_path, quality=95, exif=exif_data)
             except:
-                thumb_img.save(thumb_path, quality=85)
+                # If saving with EXIF fails, save without it
+                img.save(image_path, quality=95)
+            
+            # Generate new thumbnail
+            thumbnails_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails')
+            os.makedirs(thumbnails_dir, exist_ok=True)
+            
+            if hasattr(photo, 'thumbnail') and photo.thumbnail:
+                thumb_path = os.path.join(thumbnails_dir, photo.thumbnail)
+                # Create thumbnail
+                thumb_img = img.copy()
+                thumb_img.thumbnail((400, 400))
+                try:
+                    thumb_img.save(thumb_path, quality=85, exif=exif_data)
+                except:
+                    thumb_img.save(thumb_path, quality=85)
         
         return jsonify({'success': True})
     except Exception as e:
@@ -4575,25 +4575,26 @@ def generate_metadata_preview():
         }
         
         # Apply metadata overlay using sample data
-        img = Image.open(photo_path)
-        draw = ImageDraw.Draw(img)
-        
-        # Store original get_metadata method
-        original_get_metadata = app.metadata_integration.get_metadata
-        
-        # Temporarily override get_metadata to return sample data
-        app.metadata_integration.get_metadata = lambda x: sample_metadata
-        
-        # Apply overlay
-        img = overlay_manager.overlays['metadata'].apply(img, draw, photo_path)
-        
-        # Restore original get_metadata method
-        app.metadata_integration.get_metadata = original_get_metadata
-        
-        # Convert image to base64 for preview
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
+        with Image.open(photo_path) as img:
+            draw = ImageDraw.Draw(img)
+            
+            # Store original get_metadata method
+            original_get_metadata = app.metadata_integration.get_metadata
+            
+            try:
+                # Temporarily override get_metadata to return sample data
+                app.metadata_integration.get_metadata = lambda x: sample_metadata
+                
+                # Apply overlay
+                result_img = overlay_manager.overlays['metadata'].apply(img, draw, photo_path)
+                
+                # Convert image to base64 for preview
+                buffered = io.BytesIO()
+                result_img.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+            finally:
+                # Restore original get_metadata method
+                app.metadata_integration.get_metadata = original_get_metadata
         
         return jsonify({
             'success': True,

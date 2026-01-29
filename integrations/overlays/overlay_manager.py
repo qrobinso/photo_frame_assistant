@@ -490,27 +490,31 @@ class OverlayManager:
                 
             logger.info(f"Applying overlays with preferences: {preferences}")
             
-            # Open and prepare the image
+            # Open and prepare the image - use context manager to ensure file is closed
+            exif_data = None
             try:
-                img = Image.open(image_path)
-                logger.debug(f"Opened image: {image_path}, size: {img.size}, mode: {img.mode}")
-                
-                # Convert P mode (palette) to RGB immediately after opening
-                if img.mode == 'P':
-                    img = img.convert('RGB')
-                    logger.debug("Converted Palette (P) mode image to RGB")
+                with Image.open(image_path) as img_file:
+                    logger.debug(f"Opened image: {image_path}, size: {img_file.size}, mode: {img_file.mode}")
+                    
+                    # Extract EXIF data before any processing to preserve it
+                    try:
+                        if hasattr(img_file, '_getexif') and img_file._getexif():
+                            exif_data = img_file.info.get('exif')
+                            logger.info("Extracted EXIF data from original image")
+                    except Exception as e:
+                        logger.error(f"Error extracting EXIF data: {e}")
+                    
+                    # Create a copy immediately to work with (releases file handle)
+                    img = img_file.copy()
+                    img.load()  # Ensure the image data is fully loaded
+                    
+                    # Convert P mode (palette) to RGB
+                    if img.mode == 'P':
+                        img = img.convert('RGB')
+                        logger.debug("Converted Palette (P) mode image to RGB")
             except Exception as e:
                 logger.error(f"Failed to open image {image_path}: {e}")
                 return None
-            
-            # Extract EXIF data before any processing to preserve it
-            exif_data = None
-            try:
-                if hasattr(img, '_getexif') and img._getexif():
-                    exif_data = img.info.get('exif')
-                    logger.info("Extracted EXIF data from original image")
-            except Exception as e:
-                logger.error(f"Error extracting EXIF data: {e}")
             
             # Ensure correct orientation before applying overlays
             try:
@@ -519,10 +523,6 @@ class OverlayManager:
                 logger.debug(f"Orientation adjusted to: {desired_orientation}")
             except Exception as e:
                 logger.error(f"Error ensuring orientation: {e}")
-            
-            # Create a fresh copy and convert to RGBA
-            img = img.copy()
-            img.load()  # Ensure the image data is loaded
             if img.mode != 'RGBA':
                 img = img.convert('RGBA')
                 logger.debug("Converted image to RGBA mode")

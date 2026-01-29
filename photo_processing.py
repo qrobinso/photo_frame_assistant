@@ -148,6 +148,8 @@ class PhotoProcessor:
             Path to the processed image
         """
         logger.info(f"Processing image for {orientation}: {image_path}")
+        img = None
+        resized = None
         try:
             # Open the image
             img = Image.open(image_path)
@@ -237,6 +239,18 @@ class PhotoProcessor:
             logger.error(f"Error processing image: {str(e)}")
             logger.exception("Full traceback:")
             return None
+        finally:
+            # Close images to free memory
+            if img is not None:
+                try:
+                    img.close()
+                except Exception:
+                    pass
+            if resized is not None and resized is not img:
+                try:
+                    resized.close()
+                except Exception:
+                    pass
 
     def check_orientation(self, image_path):
         """

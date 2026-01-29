@@ -10,16 +10,26 @@ import requests
 from io import BytesIO
 from google.auth.exceptions import RefreshError
 from googleapiclient.discovery_cache.base import Cache
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
 class MemoryCache(Cache):
-    _CACHE = {}
+    """LRU-bounded memory cache for Google API discovery documents."""
+    _CACHE = OrderedDict()
+    _MAX_SIZE = 10  # Limit cache to 10 entries (discovery docs are few but can be large)
 
     def get(self, url):
-        return MemoryCache._CACHE.get(url)
+        if url in MemoryCache._CACHE:
+            # Move to end (most recently used)
+            MemoryCache._CACHE.move_to_end(url)
+            return MemoryCache._CACHE[url]
+        return None
 
     def set(self, url, content):
+        # Remove oldest entries if at capacity
+        while len(MemoryCache._CACHE) >= MemoryCache._MAX_SIZE:
+            MemoryCache._CACHE.popitem(last=False)
         MemoryCache._CACHE[url] = content
 
 class GooglePhotosIntegration:

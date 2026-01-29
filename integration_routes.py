@@ -711,14 +711,15 @@ def serve_network_file_preview(location_id, path):
             # Generate a thumbnail
             file_obj.seek(0)
             try:
-                img = Image.open(file_obj)
-                img.thumbnail((300, 300))  # Create a small thumbnail
-                thumbnail_io = io.BytesIO()
-                img.save(thumbnail_io, format=img.format or 'JPEG')
-                thumbnail_io.seek(0)
+                with Image.open(file_obj) as img:
+                    img_format = img.format or 'JPEG'
+                    img.thumbnail((300, 300))  # Create a small thumbnail
+                    thumbnail_io = io.BytesIO()
+                    img.save(thumbnail_io, format=img_format)
+                    thumbnail_io.seek(0)
                 
                 conn.close()
-                return send_file(thumbnail_io, mimetype=f'image/{img.format.lower() if img.format else "jpeg"}')
+                return send_file(thumbnail_io, mimetype=f'image/{img_format.lower()}')
             except Exception as e:
                 logging.error(f"Error creating thumbnail: {str(e)}")
                 conn.close()
@@ -731,12 +732,13 @@ def serve_network_file_preview(location_id, path):
                 abort(404)
                 
             try:
-                img = Image.open(full_path)
-                img.thumbnail((300, 300))  # Create a small thumbnail
-                thumbnail_io = io.BytesIO()
-                img.save(thumbnail_io, format=img.format or 'JPEG')
-                thumbnail_io.seek(0)
-                return send_file(thumbnail_io, mimetype=f'image/{img.format.lower() if img.format else "jpeg"}')
+                with Image.open(full_path) as img:
+                    img_format = img.format or 'JPEG'
+                    img.thumbnail((300, 300))  # Create a small thumbnail
+                    thumbnail_io = io.BytesIO()
+                    img.save(thumbnail_io, format=img_format)
+                    thumbnail_io.seek(0)
+                return send_file(thumbnail_io, mimetype=f'image/{img_format.lower()}')
             except Exception as e:
                 logging.error(f"Error creating thumbnail: {str(e)}")
                 abort(500)

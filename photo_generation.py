@@ -140,14 +140,13 @@ class PhotoGenerator:
         try:
             # Decode base64 image
             image_bytes = base64.b64decode(image_data)
-            image = Image.open(BytesIO(image_bytes))
-            
-            # Generate unique filename
-            filename = f"generated_{uuid.uuid4()}.jpg"
-            filepath = os.path.join(self.upload_folder, filename)
-            
-            # Save image 
-            image.save(filepath, "JPEG")
+            with Image.open(BytesIO(image_bytes)) as image:
+                # Generate unique filename
+                filename = f"generated_{uuid.uuid4()}.jpg"
+                filepath = os.path.join(self.upload_folder, filename)
+                
+                # Save image 
+                image.save(filepath, "JPEG")
             
             return filename
             
@@ -157,6 +156,8 @@ class PhotoGenerator:
 
     def save_to_gallery(self, image_data, base64_encoded=True):
         """Save an image to the gallery folder, converting to JPG."""
+        image = None
+        background = None
         try:
             logging.info("Starting save_to_gallery process")
             
@@ -177,7 +178,9 @@ class PhotoGenerator:
             if image.mode in ('RGBA', 'LA'):
                 background = Image.new('RGB', image.size, (255, 255, 255))
                 background.paste(image, mask=image.split()[-1])
+                image.close()
                 image = background
+                background = None  # Now owned by image
             elif image.mode != 'RGB':
                 image = image.convert('RGB')
             
@@ -195,6 +198,17 @@ class PhotoGenerator:
         except Exception as e:
             logging.error(f"Error saving image to gallery: {str(e)}")
             raise
+        finally:
+            if image is not None:
+                try:
+                    image.close()
+                except Exception:
+                    pass
+            if background is not None:
+                try:
+                    background.close()
+                except Exception:
+                    pass
 
     def generate_photo(self, prompt, service, model, orientation):
         """Generate a photo using the specified AI service."""
