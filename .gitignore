@@ -9,6 +9,12 @@ credentials/
 # Config files (contain API keys and sensitive data)
 config/
 
+# Server instance identifier
+.server_id
+
+# Integration configs with local data
+integrations/mqtt_config.txt
+
 # Databases
 *.db
 *.sqlite
@@ -42,6 +48,7 @@ uploads/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~

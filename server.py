@@ -1,6 +1,7 @@
 # ------------------------------------------------------------------------------
 # Imports
 # ------------------------------------------------------------------------------
+import ast
 import os
 import psutil
 import platform
@@ -62,7 +63,7 @@ from integrations.overlays.overlay_manager import OverlayManager, MetadataOverla
 # ------------------------------------------------------------------------------
 # Flask App Configuration
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'your-default-secret-key') # Use environment variable or default
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 basedir = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -1079,7 +1080,95 @@ def add_photo_to_frame_playlist(photo_id, frame_id):
 # Home page (Admin index)
 @app.route('/')
 def index():
-    return redirect(url_for('manage_frames'))
+    """Render the home dashboard with status overview."""
+    now = datetime.now(pytz.UTC)
+    
+    # Get frames with status
+    frames = PhotoFrame.query.order_by(PhotoFrame.order).all()
+    for frame in frames:
+        # Ensure times are timezone-aware
+        if frame.last_wake_time and frame.last_wake_time.tzinfo is None:
+            frame.last_wake_time = pytz.UTC.localize(frame.last_wake_time)
+        if frame.next_wake_time and frame.next_wake_time.tzinfo is None:
+            frame.next_wake_time = pytz.UTC.localize(frame.next_wake_time)
+        
+        # Get status tuple (code, text, color)
+        status = frame.get_status(now)
+        frame.status = status[0]
+        frame.status_text = status[1]
+        frame.status_color = status[2]
+        
+        # Format relative times
+        frame.last_wake_relative = format_relative_time(frame.last_wake_time, now)
+        frame.next_wake_relative = format_relative_time(frame.next_wake_time, now)
+    
+    # Get counts
+    photo_count = Photo.query.count()
+    playlist_count = CustomPlaylist.query.count()
+    schedule_count = ScheduledGeneration.query.filter_by(is_active=True).count()
+    
+    # Build recent activity from various sources
+    recent_activity = []
+    
+    # Helper to normalize time to UTC
+    def normalize_time(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return pytz.UTC.localize(dt)
+        return dt.astimezone(pytz.UTC)
+    
+    # Recent photo uploads
+    recent_photos = Photo.query.order_by(Photo.uploaded_at.desc()).limit(5).all()
+    for photo in recent_photos:
+        if photo.uploaded_at:
+            upload_time = normalize_time(photo.uploaded_at)
+            recent_activity.append({
+                'type': 'upload',
+                'icon': 'cloud-upload',
+                'text': f'Photo "{photo.filename}" uploaded',
+                'time': upload_time,
+                'time_ago': format_relative_time(upload_time, now)
+            })
+    
+    # Recent playlist changes
+    recent_entries = PlaylistEntry.query.order_by(PlaylistEntry.date_added.desc()).limit(5).all()
+    for entry in recent_entries:
+        if entry.date_added and entry.photo:
+            entry_time = normalize_time(entry.date_added)
+            frame_name = entry.frame.name if entry.frame else (entry.custom_playlist.name if entry.custom_playlist else 'Unknown')
+            recent_activity.append({
+                'type': 'playlist',
+                'icon': 'collection-play',
+                'text': f'Photo added to "{frame_name}"',
+                'time': entry_time,
+                'time_ago': format_relative_time(entry_time, now)
+            })
+    
+    # Recent frame photo updates
+    for frame in frames:
+        if frame.last_wake_time and frame.current_photo:
+            wake_time = normalize_time(frame.last_wake_time)
+            frame_name = frame.name or frame.id
+            recent_activity.append({
+                'type': 'frame_update',
+                'icon': 'display',
+                'text': f'"{frame_name}" displayed new photo',
+                'time': wake_time,
+                'time_ago': format_relative_time(wake_time, now)
+            })
+    
+    # Sort by time and limit (use epoch 0 for None times)
+    min_time = pytz.UTC.localize(datetime.min.replace(year=1970))
+    recent_activity.sort(key=lambda x: x['time'] if x['time'] else min_time, reverse=True)
+    recent_activity = recent_activity[:8]
+    
+    return render_template('home.html',
+                          frames=frames,
+                          photo_count=photo_count,
+                          playlist_count=playlist_count,
+                          schedule_count=schedule_count,
+                          recent_activity=recent_activity)
 
 # Photo Upload
 @app.route('/upload', methods=['GET', 'POST'])
@@ -1725,7 +1814,7 @@ def edit_playlist(frame_id):
             db.session.add(playlist_entry)
             
         db.session.commit()
-        if hasattr(app, 'mqtt_integration'):
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
             app.mqtt_integration.update_frame_options(frame)
         return jsonify({'success': True, 'message': 'Playlist updated successfully'})
 
@@ -1818,7 +1907,7 @@ def edit_frame_settings(frame_id):
         db.session.commit()
         flash('Settings updated successfully.')
         
-        if hasattr(app, 'mqtt_integration'):
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
             app.mqtt_integration.publish_state(frame)
             
         return redirect(url_for('manage_frames'))
@@ -2635,8 +2724,8 @@ def get_frame_diagnostics():
         diagnostics = frame.last_diagnostic
         if diagnostics:
             try:
-                diagnostics = eval(diagnostics)  # Convert string to dict if stored as string
-            except:
+                diagnostics = ast.literal_eval(diagnostics)  # Convert string to dict if stored as string
+            except (ValueError, SyntaxError):
                 diagnostics = None
         
         frame_data = {
@@ -3111,7 +3200,7 @@ def add_to_playlist():
             existing_entry.order = 0
             db.session.commit()
             
-            if hasattr(app, 'mqtt_integration'):
+            if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
                 app.mqtt_integration.update_frame_options(frame)
                 
             return jsonify({
@@ -3135,7 +3224,7 @@ def add_to_playlist():
         
         db.session.add(playlist_entry)
         db.session.commit()
-        if hasattr(app, 'mqtt_integration'):
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
             app.mqtt_integration.update_frame_options(frame)
         return jsonify({'success': True})
         
@@ -3150,7 +3239,7 @@ def integrations_page():
         mqtt_settings = load_mqtt_settings()
         mqtt_status = "Disabled"
         if mqtt_settings.get('enabled'):
-            mqtt_status = app.mqtt_integration.status if hasattr(app, 'mqtt_integration') else "Unknown"
+            mqtt_status = app.mqtt_integration.status if (hasattr(app, 'mqtt_integration') and app.mqtt_integration) else "Unknown"
         
         return render_template('integrations.html',
                              mqtt_enabled=mqtt_settings.get('enabled', False),
@@ -3184,7 +3273,7 @@ def mqtt_settings():
         save_mqtt_settings(mqtt_settings)
         
         if mqtt_settings['enabled']:
-            if not hasattr(app, 'mqtt_integration'):
+            if not hasattr(app, 'mqtt_integration') or not app.mqtt_integration:
                 app.mqtt_integration = MQTTIntegration(
                     mqtt_settings,
                     app.config['UPLOAD_FOLDER'],
@@ -3206,13 +3295,13 @@ def mqtt_settings():
                     CustomPlaylist  # Add this line
                 )
         else:
-            if hasattr(app, 'mqtt_integration'):
+            if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
                 app.mqtt_integration.stop()
                 delattr(app, 'mqtt_integration')
         
         return jsonify({
             'success': True,
-            'status': app.mqtt_integration.status if hasattr(app, 'mqtt_integration') else "Disabled"
+            'status': app.mqtt_integration.status if (hasattr(app, 'mqtt_integration') and app.mqtt_integration) else "Disabled"
         })
     except Exception as e:
         logger.error(f"Error updating MQTT settings: {e}")
@@ -3599,7 +3688,7 @@ def delete_frame(frame_id):
             return jsonify({'success': False, 'error': 'Frame not found'}), 404
 
         # Remove MQTT discovery entries if MQTT is enabled
-        if hasattr(app, 'mqtt_integration'):
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
             try:
                 # Publish empty configs to remove entities
                 discovery_prefix = app.mqtt_integration.discovery_prefix
@@ -4067,7 +4156,7 @@ def import_frame_settings(frame_id):
         db.session.commit()
 
         # Update MQTT if enabled
-        if hasattr(app, 'mqtt_integration'):
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
             app.mqtt_integration.update_frame_options(target_frame)
 
         return jsonify({
@@ -4406,7 +4495,7 @@ def force_frame_update(frame_id):
             }), 400
 
         # If MQTT is enabled, publish an update
-        if hasattr(app, 'mqtt_integration'):
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
             app.mqtt_integration.publish_state(frame)
             
         return jsonify({'success': True})
@@ -4697,7 +4786,7 @@ def toggle_frame_shuffle(frame_id):
     frame.shuffle_enabled = not frame.shuffle_enabled
     db.session.commit()
     
-    if hasattr(app, 'mqtt_integration'):
+    if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
         app.mqtt_integration.update_frame_options(frame)
     
     return jsonify({
@@ -4714,7 +4803,7 @@ def clear_frame_playlist(frame_id):
     PlaylistEntry.query.filter_by(frame_id=frame_id).delete()
     db.session.commit()
     
-    if hasattr(app, 'mqtt_integration'):
+    if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
         app.mqtt_integration.update_frame_options(frame)
     
     return jsonify({
@@ -6276,54 +6365,60 @@ def delete_custom_playlist(playlist_id):
 # Main Execution Block
 # ------------------------------------------------------------------------------
 if __name__ == '__main__':
-    # Ensure database exists and tables are created
-    with app.app_context():
-        logger.info("Initializing database...")
-        try:
-            # Use a simple query to check connection and existence
-            db.session.execute(text('SELECT 1'))
-            logger.info("Database connection successful.")
-            # Create tables if they don't exist
-            db.create_all()
-            logger.info("Database tables ensured.")
-        except Exception as db_e:
-            logger.error(f"Database initialization failed: {db_e}", exc_info=True)
-            # Depending on the error, might want to exit
-            exit(1)
+    # When using the reloader, Werkzeug spawns a child process
+    # WERKZEUG_RUN_MAIN is 'true' only in the child process
+    # Skip initialization in the parent to avoid duplicate services (scheduler, MQTT, etc.)
+    use_reloader = True
+    is_reloader_parent = use_reloader and os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
 
-        # Initialize core app services (Scheduler, Integrations, Discovery)
-        logger.info("Initializing application services...")
-        init_app_services() # This calls init_integrations, init_scheduler, starts timing manager and discovery
-
-        # Initialize MQTT integration separately if enabled in config
-        mqtt_settings = load_mqtt_settings()
-        if mqtt_settings.get('enabled', False):
+    if not is_reloader_parent:
+        # Ensure database exists and tables are created
+        with app.app_context():
+            logger.info("Initializing database...")
             try:
-                logger.info("MQTT enabled, initializing integration...")
-                app.mqtt_integration = MQTTIntegration(
-                    mqtt_settings, app.config['UPLOAD_FOLDER'],
-                    PhotoFrame, db, PlaylistEntry, app, CustomPlaylist
-                )
-                logger.info(f"MQTT Integration initialized. Status: {app.mqtt_integration.status}")
-            except Exception as mqtt_init_e:
-                logger.error(f"Failed to initialize MQTT integration: {mqtt_init_e}", exc_info=True)
-        else:
-             logger.info("MQTT integration is disabled in settings.")
+                # Use a simple query to check connection and existence
+                db.session.execute(text('SELECT 1'))
+                logger.info("Database connection successful.")
+                # Create tables if they don't exist
+                db.create_all()
+                logger.info("Database tables ensured.")
+            except Exception as db_e:
+                logger.error(f"Database initialization failed: {db_e}", exc_info=True)
+                # Depending on the error, might want to exit
+                exit(1)
 
-        # Server already started message
-        host = '0.0.0.0'
-        port = server_settings.get('discovery_port', ZEROCONF_PORT) # Use configured port
-        logger.info(f"Starting Flask server on {host}:{port}")
-        print(f" --- Photo Frame Server ---")
-        print(f"      Version: {get_version()}")
-        print(f"      Uploads: {app.config['UPLOAD_FOLDER']}")
-        print(f"      Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
-        print(f"      URL: http://{socket.gethostbyname(socket.gethostname())}:{port}/")
-        print(f"      * Running on http://{host}:{port}/ (Press CTRL+C to quit)")
+            # Initialize core app services (Scheduler, Integrations, Discovery)
+            logger.info("Initializing application services...")
+            init_app_services() # This calls init_integrations, init_scheduler, starts timing manager and discovery
 
+            # Initialize MQTT integration separately if enabled in config
+            mqtt_settings = load_mqtt_settings()
+            if mqtt_settings.get('enabled', False):
+                try:
+                    logger.info("MQTT enabled, initializing integration...")
+                    app.mqtt_integration = MQTTIntegration(
+                        mqtt_settings, app.config['UPLOAD_FOLDER'],
+                        PhotoFrame, db, PlaylistEntry, app, CustomPlaylist
+                    )
+                    logger.info(f"MQTT Integration initialized. Status: {app.mqtt_integration.status}")
+                except Exception as mqtt_init_e:
+                    logger.error(f"Failed to initialize MQTT integration: {mqtt_init_e}", exc_info=True)
+            else:
+                 logger.info("MQTT integration is disabled in settings.")
+
+            # Server already started message
+            host = '0.0.0.0'
+            port = server_settings.get('discovery_port', ZEROCONF_PORT) # Use configured port
+            logger.info(f"Starting Flask server on {host}:{port}")
+            print(f" --- Photo Frame Server ---")
+            print(f"      Version: {get_version()}")
+            print(f"      Uploads: {app.config['UPLOAD_FOLDER']}")
+            print(f"      Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
+            print(f"      URL: http://{socket.gethostbyname(socket.gethostname())}:{port}/")
+            print(f"      * Running on http://{host}:{port}/ (Press CTRL+C to quit)")
 
     # Start the Flask development server
-    # Use debug=False in production or when using external debuggers/profilers
-    # Use use_reloader=False if startup tasks (like scheduler) are duplicated
-    app.run(host='0.0.0.0', port=server_settings.get('discovery_port', ZEROCONF_PORT), debug=True, use_reloader=False)
+    # Set use_reloader=True for auto-reload on code changes (development)
+    # Set use_reloader=False for production or when using external debuggers
+    app.run(host='0.0.0.0', port=server_settings.get('discovery_port', ZEROCONF_PORT), debug=True, use_reloader=use_reloader)
 
