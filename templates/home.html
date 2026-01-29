@@ -1,0 +1,628 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .home-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    
+    /* Compact Stats Bar */
+    .stats-bar {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+        padding: 0.5rem 0;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    
+    .stats-bar::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .stat-pill {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: white;
+        padding: 0.5rem 0.875rem;
+        border-radius: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    
+    .stat-pill i {
+        font-size: 1rem;
+        opacity: 0.7;
+    }
+    
+    .stat-pill .stat-value {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #212529;
+    }
+    
+    .stat-pill .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .stat-pill.frames { border-left: 3px solid #0d6efd; }
+    .stat-pill.photos { border-left: 3px solid #28a745; }
+    .stat-pill.playlists { border-left: 3px solid #ffc107; }
+    .stat-pill.schedules { border-left: 3px solid #6f42c1; }
+    
+    /* Quick Actions - Compact Horizontal */
+    .quick-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    
+    .quick-actions::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .quick-action-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1rem;
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        border: none;
+        border-radius: 0.5rem;
+        text-decoration: none;
+        color: white;
+        font-weight: 500;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: all 0.2s;
+        box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+    }
+    
+    .quick-action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(13, 110, 253, 0.4);
+        color: white;
+    }
+    
+    .quick-action-btn.secondary {
+        background: white;
+        color: #495057;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+    }
+    
+    .quick-action-btn.secondary:hover {
+        background: #f8f9fa;
+        color: #0d6efd;
+        border-color: #0d6efd;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    
+    .quick-action-btn i {
+        font-size: 1rem;
+    }
+    
+    /* Section Headers */
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+    
+    .section-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #212529;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .section-title i {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .section-link {
+        font-size: 0.8rem;
+        color: #0d6efd;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    
+    .section-link:hover {
+        text-decoration: underline;
+    }
+    
+    /* Frames Grid */
+    .frames-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .frames-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 0.75rem;
+    }
+    
+    .frame-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.2s;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+    
+    .frame-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        color: inherit;
+    }
+    
+    .frame-card-inner {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        gap: 0.75rem;
+    }
+    
+    .frame-photo-preview {
+        width: 56px;
+        height: 56px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        flex-shrink: 0;
+    }
+    
+    .frame-photo-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .frame-photo-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #adb5bd;
+        font-size: 1.25rem;
+    }
+    
+    .frame-info {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .frame-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .frame-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #212529;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .frame-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.125rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        flex-shrink: 0;
+    }
+    
+    .frame-status-badge.online {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .frame-status-badge.sleeping {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .frame-status-badge.offline {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .frame-status-badge .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    
+    .frame-meta-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+    
+    .frame-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .frame-meta-item i {
+        font-size: 0.7rem;
+        opacity: 0.7;
+    }
+    
+    /* Activity Feed */
+    .activity-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .activity-list {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+    
+    .activity-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f1f3f5;
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.9rem;
+    }
+    
+    .activity-icon.upload {
+        background: #d4edda;
+        color: #28a745;
+    }
+    
+    .activity-icon.playlist {
+        background: #cce5ff;
+        color: #0d6efd;
+    }
+    
+    .activity-icon.frame_update {
+        background: #e2e3ff;
+        color: #6f42c1;
+    }
+    
+    .activity-content {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .activity-text {
+        font-size: 0.85rem;
+        color: #212529;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .activity-time {
+        font-size: 0.7rem;
+        color: #adb5bd;
+    }
+    
+    /* Empty States */
+    .empty-state {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: #6c757d;
+    }
+    
+    .empty-state-icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 0.75rem;
+        background: #f8f9fa;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: #adb5bd;
+    }
+    
+    .empty-state p {
+        margin-bottom: 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .empty-state .btn {
+        font-size: 0.85rem;
+        padding: 0.5rem 1.25rem;
+    }
+    
+    /* Two Column Layout for Desktop */
+    @media (min-width: 768px) {
+        .home-container {
+            padding: 0 1.5rem;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 1.5rem;
+        }
+        
+        .primary-column {
+            min-width: 0;
+        }
+        
+        .secondary-column {
+            min-width: 0;
+        }
+        
+        .stat-pill {
+            padding: 0.625rem 1rem;
+        }
+        
+        .frames-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .frame-card-inner {
+            padding: 1rem;
+        }
+        
+        .frame-photo-preview {
+            width: 64px;
+            height: 64px;
+        }
+    }
+    
+    @media (min-width: 1024px) {
+        .frames-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    /* Mobile Optimizations */
+    @media (max-width: 767px) {
+        .home-container {
+            padding: 0 0.75rem;
+        }
+        
+        .main-content {
+            display: block;
+        }
+        
+        .stats-bar {
+            margin: 0 -0.75rem 1rem;
+            padding: 0.5rem 0.75rem;
+        }
+        
+        .quick-actions {
+            margin: 0 -0.75rem 1rem;
+            padding: 0 0.75rem 0.25rem;
+        }
+        
+        .frame-card-inner {
+            padding: 0.625rem;
+        }
+        
+        .frame-photo-preview {
+            width: 48px;
+            height: 48px;
+        }
+        
+        .frame-name {
+            font-size: 0.9rem;
+        }
+        
+        .activity-item {
+            padding: 0.625rem 0.875rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="home-container">
+    <!-- Compact Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-pill frames">
+            <i class="bi bi-display"></i>
+            <span class="stat-value">{{ frames|length }}</span>
+            <span class="stat-label">frames</span>
+        </div>
+        <div class="stat-pill photos">
+            <i class="bi bi-images"></i>
+            <span class="stat-value">{{ photo_count }}</span>
+            <span class="stat-label">photos</span>
+        </div>
+        <div class="stat-pill playlists">
+            <i class="bi bi-collection-play"></i>
+            <span class="stat-value">{{ playlist_count }}</span>
+            <span class="stat-label">playlists</span>
+        </div>
+        <div class="stat-pill schedules">
+            <i class="bi bi-calendar-check"></i>
+            <span class="stat-value">{{ schedule_count }}</span>
+            <span class="stat-label">schedules</span>
+        </div>
+    </div>
+    
+    <!-- Quick Actions Row -->
+    <div class="quick-actions">
+        <a href="{{ url_for('upload_photo') }}" class="quick-action-btn">
+            <i class="bi bi-plus-lg"></i>
+            <span>Add Photos</span>
+        </a>
+        <a href="{{ url_for('manage_frames') }}" class="quick-action-btn secondary">
+            <i class="bi bi-display"></i>
+            <span>Add Frame</span>
+        </a>
+        <a href="{{ url_for('manage_playlists') }}" class="quick-action-btn secondary">
+            <i class="bi bi-collection-play"></i>
+            <span>Playlist</span>
+        </a>
+        <a href="{{ url_for('generate') }}" class="quick-action-btn secondary">
+            <i class="bi bi-stars"></i>
+            <span>Generate</span>
+        </a>
+    </div>
+    
+    <div class="main-content">
+        <div class="primary-column">
+            <!-- Frames Section -->
+            <div class="frames-section">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-grid-3x3-gap"></i> Your Frames</h2>
+                    <a href="{{ url_for('manage_frames') }}" class="section-link">Manage all</a>
+                </div>
+                
+                {% if frames %}
+                <div class="frames-grid">
+                    {% for frame in frames[:6] %}
+                    <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="frame-card">
+                        <div class="frame-card-inner">
+                            <div class="frame-photo-preview">
+                                {% if frame.current_photo %}
+                                    <img src="{{ url_for('serve_thumbnail', filename=frame.current_photo.thumbnail) if frame.current_photo.thumbnail else url_for('serve_photo', filename=frame.current_photo.filename) }}" 
+                                         alt="Current photo"
+                                         loading="lazy"
+                                         onerror="this.parentElement.innerHTML='<div class=\'frame-photo-placeholder\'><i class=\'bi bi-image\'></i></div>'">
+                                {% else %}
+                                    <div class="frame-photo-placeholder">
+                                        <i class="bi bi-image"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="frame-info">
+                                <div class="frame-header">
+                                    <span class="frame-name">{{ frame.name or ('Frame ' ~ frame.id[:8]) }}</span>
+                                    {% if frame.status == 2 %}
+                                    <span class="frame-status-badge online"><span class="status-dot"></span> Online</span>
+                                    {% elif frame.status == 1 %}
+                                    <span class="frame-status-badge sleeping"><span class="status-dot"></span> Sleep</span>
+                                    {% else %}
+                                    <span class="frame-status-badge offline"><span class="status-dot"></span> Offline</span>
+                                    {% endif %}
+                                </div>
+                                <div class="frame-meta-row">
+                                    {% if frame.last_wake_relative and frame.last_wake_relative != 'Never' %}
+                                    <span class="frame-meta-item">
+                                        <i class="bi bi-clock-history"></i>
+                                        {{ frame.last_wake_relative }}
+                                    </span>
+                                    {% endif %}
+                                    {% if frame.next_wake_relative and frame.next_wake_relative != 'Never' %}
+                                    <span class="frame-meta-item">
+                                        <i class="bi bi-arrow-right"></i>
+                                        {{ frame.next_wake_relative }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-display"></i>
+                    </div>
+                    <p>No frames connected yet</p>
+                    <a href="{{ url_for('manage_frames') }}" class="btn btn-primary btn-sm">Add Frame</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="secondary-column">
+            <!-- Recent Activity -->
+            <div class="activity-section">
+                <div class="section-header">
+                    <h2 class="section-title"><i class="bi bi-activity"></i> Activity</h2>
+                </div>
+                
+                <div class="activity-list">
+                    {% if recent_activity %}
+                        {% for activity in recent_activity[:6] %}
+                        <div class="activity-item">
+                            <div class="activity-icon {{ activity.type }}">
+                                <i class="bi bi-{{ activity.icon }}"></i>
+                            </div>
+                            <div class="activity-content">
+                                <div class="activity-text">{{ activity.text }}</div>
+                                <div class="activity-time">{{ activity.time_ago }}</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="activity-item">
+                            <div class="activity-content" style="text-align: center; padding: 1rem; color: #adb5bd;">
+                                <i class="bi bi-inbox" style="font-size: 1.25rem; display: block; margin-bottom: 0.25rem;"></i>
+                                <span style="font-size: 0.8rem;">No recent activity</span>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Pull-to-refresh indicator (optional enhancement)
+let startY = 0;
+document.addEventListener('touchstart', e => startY = e.touches[0].pageY);
+document.addEventListener('touchmove', e => {
+    if (window.scrollY === 0 && e.touches[0].pageY > startY + 100) {
+        // Could trigger refresh animation here
+    }
+});
+</script>
+{% endblock %}
