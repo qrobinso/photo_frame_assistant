@@ -28,19 +28,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Create a non-root user to run the application
-RUN useradd -m -r -u 1000 photoframe
-
-# Create necessary directories and set ownership
+# Create necessary directories (including /app/data for volume mount)
 RUN mkdir -p /app/uploads/thumbnails \
     /app/logs \
     /app/credentials \
     /app/integrations/overlays \
     /app/config \
-    && chown -R photoframe:photoframe /app
+    /app/data/uploads/thumbnails \
+    /app/data/logs \
+    /app/data/db_backups
 
 # Copy requirements first for better caching
-COPY --chown=photoframe:photoframe requirements.txt .
+COPY requirements.txt .
 
 # Install Python dependencies (needs ~10 GB free disk on build host for PyTorch/ML deps).
 # Install wheel first so more packages use binary wheels, reducing build-time disk use.
@@ -48,10 +47,10 @@ RUN pip install --no-cache-dir --upgrade pip wheel \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application
-COPY --chown=photoframe:photoframe . .
+COPY . .
 
-# Switch to non-root user
-USER photoframe
+# Note: Running as root because container uses privileged mode for hardware access
+# and needs to create directories in mounted volumes
 
 # Expose the port the app runs on
 EXPOSE 5000

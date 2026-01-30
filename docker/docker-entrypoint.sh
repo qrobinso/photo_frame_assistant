@@ -3,8 +3,22 @@ set -e
 
 echo "Starting Photo Server initialization..."
 
-# Create necessary directories
-mkdir -p uploads logs credentials db_backups config
+# Create necessary directories using environment variables (with defaults)
+UPLOAD_DIR="${UPLOAD_PATH:-/app/uploads}"
+LOG_DIR="${LOG_PATH:-/app/logs}"
+CONFIG_DIR="${CONFIG_PATH:-/app/config}"
+DB_DIR=$(dirname "${DB_PATH:-/app/app.db}")
+
+echo "Creating directories..."
+echo "  Upload path: $UPLOAD_DIR"
+echo "  Log path: $LOG_DIR"
+echo "  Config path: $CONFIG_DIR"
+echo "  Database directory: $DB_DIR"
+
+mkdir -p "$UPLOAD_DIR/thumbnails" "$LOG_DIR" "$CONFIG_DIR/credentials" "$DB_DIR/db_backups"
+
+# Also create legacy paths for backward compatibility with any hardcoded references
+mkdir -p /app/uploads /app/logs /app/credentials /app/db_backups /app/config
 
 # Initialize the database
 echo "Checking database..."
@@ -167,7 +181,8 @@ if [ ! -f config/weather_config.json ]; then
 fi
 
 # Make sure permissions are correct
-chmod -R 777 uploads logs credentials db_backups config
+chmod -R 777 "$UPLOAD_DIR" "$LOG_DIR" "$CONFIG_DIR" "$DB_DIR/db_backups" 2>/dev/null || true
+chmod -R 777 /app/uploads /app/logs /app/credentials /app/db_backups /app/config 2>/dev/null || true
 
 echo "Initialization complete. Starting Photo Server..."
 exec python server.py 
