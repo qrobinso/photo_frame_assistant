@@ -6249,8 +6249,18 @@ def create_custom_playlist():
     data = request.get_json()
     name = data.get('name')
     
+    # Generate a default name if none provided
     if not name:
-        return jsonify({'error': 'Name is required'}), 400
+        # Find a unique default name
+        base_name = "New Playlist"
+        existing_names = {p.name for p in Playlist.query.all()}
+        if base_name not in existing_names:
+            name = base_name
+        else:
+            counter = 2
+            while f"{base_name} {counter}" in existing_names:
+                counter += 1
+            name = f"{base_name} {counter}"
     
     playlist = Playlist(name=name)
     db.session.add(playlist)

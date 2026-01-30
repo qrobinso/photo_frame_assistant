@@ -286,7 +286,7 @@
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
                 <li>
-                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createPlaylistModal">
+                    <a class="dropdown-item" href="#" onclick="createPlaylistAndEdit(); return false;">
                         <i class="bi bi-collection me-2"></i>New Playlist
                     </a>
                 </li>
@@ -379,7 +379,7 @@
             </div>
             <h4>No Playlists Yet</h4>
             <p>Create your first playlist to organize photos for your frames.</p>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPlaylistModal">
+            <button class="btn btn-primary" onclick="createPlaylistAndEdit()">
                 <i class="bi bi-plus-lg"></i> Create Playlist
             </button>
         </div>
@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadScheduledPlaylists();
     
-    // Create playlist form
+    // Create playlist form (kept for modal if needed)
     document.getElementById('createPlaylistForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const name = document.getElementById('playlistName').value;
@@ -701,6 +701,25 @@ function humanizeCron(cronExp) {
     const time = `${parts[1].padStart(2, '0')}:${parts[0].padStart(2, '0')}`;
     const days = parts[4] === '*' ? 'daily' : 'selected days';
     return `${time} ${days}`;
+}
+
+// Create playlist with default name and redirect to edit page
+async function createPlaylistAndEdit() {
+    try {
+        const response = await fetch('/api/custom-playlists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})  // No name - server will generate a default
+        });
+        const data = await response.json();
+        if (response.ok) {
+            window.location.href = `/playlists/${data.id}/edit`;
+        } else {
+            throw new Error(data.error || 'Failed to create playlist');
+        }
+    } catch (error) {
+        alert('Error creating playlist: ' + error.message);
+    }
 }
 </script>
 {% endblock %}
