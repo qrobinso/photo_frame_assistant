@@ -1471,6 +1471,14 @@ def upload_photo():
             'playlist': playlist,
             'recent_photos': recent_photos
         })
+    
+    # Build photo-to-playlists mapping for filtering
+    photo_playlists = {}
+    for entry in PlaylistEntry.query.all():
+        if entry.photo_id not in photo_playlists:
+            photo_playlists[entry.photo_id] = []
+        if entry.playlist_id:
+            photo_playlists[entry.photo_id].append(entry.playlist_id)
     is_connected = google_photos.is_connected()
     
     # Load server settings to check AI analysis status
@@ -1493,6 +1501,7 @@ def upload_photo():
     return render_template('upload.html', 
                          photos=photos, 
                          playlists=playlists_with_previews,
+                         photo_playlists=photo_playlists,
                          google_photos_connected=is_connected,
                          ai_analysis_enabled=ai_enabled,
                          last_playlist_id=last_playlist_id,
@@ -3699,6 +3708,54 @@ def list_frames():
         
         return jsonify({'frames': frame_list})
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/frames/<frame_id>', methods=['PUT'])
+def update_frame(frame_id):
+    """Update a frame's details (name, etc.)."""
+    try:
+        frame = db.session.get(PhotoFrame, frame_id)
+        if not frame:
+            return jsonify({'error': 'Frame not found'}), 404
+        
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type must be application/json'}), 400
+        
+        data = request.get_json()
+        
+        if 'name' in data:
+            new_name = data['name'].strip()
+            if not new_name:
+                return jsonify({'error': 'Name cannot be empty'}), 400
+            
+            old_name = frame.name
+            frame.name = new_name
+            
+            # If frame name changed, check if there's a playlist with the old name and rename it
+            if old_name and old_name != new_name:
+                old_playlist_name = f"{old_name} Playlist"
+                new_playlist_name = f"{new_name} Playlist"
+                
+                matching_playlist = Playlist.query.filter_by(name=old_playlist_name).first()
+                if matching_playlist:
+                    # Make sure the new name doesn't conflict with an existing playlist
+                    existing_playlist = Playlist.query.filter_by(name=new_playlist_name).first()
+                    if not existing_playlist:
+                        matching_playlist.name = new_playlist_name
+                        app.logger.info(f"Renamed playlist '{old_playlist_name}' to '{new_playlist_name}'")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'frame': {
+                'id': frame.id,
+                'name': frame.name
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 

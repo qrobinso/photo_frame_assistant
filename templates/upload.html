@@ -200,7 +200,7 @@
     .filter-bar {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.5rem;
         padding: 0.75rem 1rem;
         background: #f8f9fa;
         border-radius: 10px;
@@ -211,13 +211,20 @@
     .filter-bar .form-select,
     .filter-bar .form-control {
         width: auto;
-        min-width: 150px;
+        min-width: 130px;
+        font-size: 0.85rem;
+    }
+    
+    .filter-bar .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
     }
     
     .photo-count {
         font-size: 0.9rem;
         color: #6c757d;
         margin-left: auto;
+        white-space: nowrap;
     }
     
     /* Bulk Actions */
@@ -579,17 +586,26 @@
             flex-direction: row;
             align-items: center;
             padding: 0.5rem;
-            gap: 0.5rem;
+            gap: 0.375rem;
         }
         
         .filter-bar .form-select {
-            width: auto;
+            min-width: 0;
             flex: 1;
+            font-size: 0.8rem;
+            padding: 0.375rem 1.75rem 0.375rem 0.5rem;
+        }
+        
+        .filter-bar #bulkModeBtn {
+            flex-shrink: 0;
         }
         
         .photo-count {
-            margin-left: auto;
-            white-space: nowrap;
+            width: 100%;
+            text-align: center;
+            margin-left: 0;
+            margin-top: 0.25rem;
+            font-size: 0.8rem;
         }
         
         /* Mobile photo items */
@@ -803,6 +819,18 @@
         <button class="btn btn-sm btn-outline-secondary" id="bulkModeBtn">
             <i class="bi bi-check2-square"></i> Select
         </button>
+        <select class="form-select form-select-sm" id="playlistFilter">
+            <option value="all">All Photos</option>
+            <option value="none">Not in any playlist</option>
+            {% for item in playlists %}
+            <option value="{{ item.playlist.id }}">In: {{ item.playlist.name }}</option>
+            {% endfor %}
+        </select>
+        <select class="form-select form-select-sm" id="mediaTypeFilter">
+            <option value="all">All Media</option>
+            <option value="photo">Photos Only</option>
+            <option value="video">Videos Only</option>
+        </select>
         <select class="form-select form-select-sm" id="sortSelect">
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>
@@ -863,6 +891,8 @@
              data-photo-id="{{ photo.id }}"
              data-filename="{{ photo.filename }}"
              data-uploaded="{{ photo.uploaded_at.isoformat() if photo.uploaded_at else '' }}"
+             data-media-type="{{ photo.media_type or 'photo' }}"
+             data-playlists="{{ photo_playlists.get(photo.id, [])|join(',') }}"
              onclick="handlePhotoClick(event, {{ photo.id }})">
             <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
                  alt="{{ photo.filename }}" loading="lazy">
@@ -1160,7 +1190,8 @@ function updateSelectedCount() {
 }
 
 function selectAllPhotos() {
-    document.querySelectorAll('.photo-item').forEach(p => {
+    // Only select visible photos (respects current filters)
+    document.querySelectorAll('.photo-item:not([style*="display: none"])').forEach(p => {
         const photoId = parseInt(p.dataset.photoId);
         selectedPhotos.add(photoId);
         p.classList.add('selected');
@@ -1415,23 +1446,68 @@ async function deleteSelectedPhotos() {
     showToast(`${deletedCount} photo(s) deleted`);
 }
 
-// Sorting
-document.getElementById('sortSelect').addEventListener('change', function() {
+// Filtering and Sorting
+function applyFilters() {
     const grid = document.getElementById('photoGrid');
-    const items = Array.from(grid.children);
+    if (!grid) return;
     
-    items.sort((a, b) => {
-        const dateA = new Date(a.dataset.uploaded || 0);
-        const dateB = new Date(b.dataset.uploaded || 0);
-        return this.value === 'newest' ? dateB - dateA : dateA - dateB;
+    const playlistFilter = document.getElementById('playlistFilter').value;
+    const mediaTypeFilter = document.getElementById('mediaTypeFilter').value;
+    const sortOrder = document.getElementById('sortSelect').value;
+    
+    const items = Array.from(grid.querySelectorAll('.photo-item'));
+    let visibleCount = 0;
+    
+    items.forEach(item => {
+        let visible = true;
+        
+        // Playlist filter
+        if (playlistFilter !== 'all') {
+            const playlists = item.dataset.playlists || '';
+            const playlistIds = playlists ? playlists.split(',').filter(id => id) : [];
+            
+            if (playlistFilter === 'none') {
+                // Show photos not in any playlist
+                visible = playlistIds.length === 0;
+            } else {
+                // Show photos in specific playlist
+                visible = playlistIds.includes(playlistFilter);
+            }
+        }
+        
+        // Media type filter
+        if (visible && mediaTypeFilter !== 'all') {
+            const mediaType = item.dataset.mediaType || 'photo';
+            visible = mediaType === mediaTypeFilter;
+        }
+        
+        item.style.display = visible ? '' : 'none';
+        if (visible) visibleCount++;
     });
     
-    items.forEach(item => grid.appendChild(item));
-});
+    // Sort visible items
+    const visibleItems = items.filter(item => item.style.display !== 'none');
+    visibleItems.sort((a, b) => {
+        const dateA = new Date(a.dataset.uploaded || 0);
+        const dateB = new Date(b.dataset.uploaded || 0);
+        return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+    
+    // Reappend in sorted order
+    visibleItems.forEach(item => grid.appendChild(item));
+    
+    // Update count
+    document.getElementById('photoCount').textContent = visibleCount;
+}
+
+// Filter event listeners
+document.getElementById('playlistFilter').addEventListener('change', applyFilters);
+document.getElementById('mediaTypeFilter').addEventListener('change', applyFilters);
+document.getElementById('sortSelect').addEventListener('change', applyFilters);
 
 function updatePhotoCount() {
-    const count = document.querySelectorAll('.photo-item').length;
-    document.getElementById('photoCount').textContent = count;
+    const visibleCount = document.querySelectorAll('.photo-item:not([style*="display: none"])').length;
+    document.getElementById('photoCount').textContent = visibleCount;
 }
 
 // Toast notification

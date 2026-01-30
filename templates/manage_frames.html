@@ -108,6 +108,29 @@
         font-weight: 600;
         font-size: 1.1rem;
         color: #212529;
+        cursor: text;
+        padding: 0.125rem 0.375rem;
+        margin-left: -0.375rem;
+        border-radius: 4px;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+        outline: none;
+        min-width: 50px;
+    }
+    
+    .frame-title:hover {
+        background: #f8f9fa;
+        border-color: #e9ecef;
+    }
+    
+    .frame-title:focus {
+        background: white;
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    }
+    
+    .frame-title-saving {
+        opacity: 0.6;
     }
     
     .frame-status-badge {
@@ -477,9 +500,7 @@
                     <span class="drag-handle">
                         <i class="bi bi-grip-vertical"></i>
                     </span>
-                    <span class="frame-title">
-                        {{ frame.name or frame.id }}
-                    </span>
+                    <div class="frame-title" contenteditable="true" spellcheck="false" data-frame-id="{{ frame.id }}" data-original-name="{{ frame.name or frame.id }}">{{ frame.name or frame.id }}</div>
                     {% set status = frame.get_status(now) %}
                     {% if status[0] == 2 %}
                     <span class="frame-status-badge online"><span class="dot"></span> Online</span>
@@ -678,6 +699,68 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Editable frame names
+    const frameTitles = document.querySelectorAll('.frame-title[contenteditable]');
+    const saveTimeouts = new Map();
+    
+    frameTitles.forEach(titleEl => {
+        titleEl.addEventListener('blur', () => saveFrameName(titleEl));
+        titleEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.blur();
+            }
+            if (e.key === 'Escape') {
+                this.textContent = this.dataset.originalName;
+                this.blur();
+            }
+        });
+        titleEl.addEventListener('input', function() {
+            // Debounce save
+            const frameId = this.dataset.frameId;
+            clearTimeout(saveTimeouts.get(frameId));
+            saveTimeouts.set(frameId, setTimeout(() => saveFrameName(this), 1000));
+        });
+    });
+    
+    async function saveFrameName(titleEl) {
+        const frameId = titleEl.dataset.frameId;
+        clearTimeout(saveTimeouts.get(frameId));
+        
+        const newName = titleEl.textContent.trim();
+        const originalName = titleEl.dataset.originalName;
+        
+        if (!newName) {
+            titleEl.textContent = originalName;
+            return;
+        }
+        
+        if (newName === originalName) return;
+        
+        titleEl.classList.add('frame-title-saving');
+        
+        try {
+            const response = await fetch(`/api/frames/${frameId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName })
+            });
+            
+            if (response.ok) {
+                titleEl.dataset.originalName = newName;
+                showToast('Frame renamed');
+            } else {
+                titleEl.textContent = originalName;
+                showToast('Error saving name', 'error');
+            }
+        } catch (error) {
+            titleEl.textContent = originalName;
+            showToast('Error saving name', 'error');
+        }
+        
+        titleEl.classList.remove('frame-title-saving');
+    }
+    
     // Frame upload handling - add photos directly to frame's playlist
     document.querySelectorAll('.frame-upload-input').forEach(input => {
         input.addEventListener('change', async function(e) {
