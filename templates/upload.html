@@ -1087,10 +1087,8 @@ function handlePhotoClick(event, photoId) {
         return;
     }
     
-    // On mobile (or touch devices), open edit modal when tapping a photo
-    if (window.innerWidth <= 768 || 'ontouchstart' in window) {
-        editPhoto(photoId);
-    }
+    // Open edit modal when clicking/tapping a photo
+    editPhoto(photoId);
 }
 
 function updateSelectedCount() {

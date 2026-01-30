@@ -171,6 +171,27 @@
         border-left: 4px solid var(--success-color);
     }
 
+    /* New item highlight animation */
+    @keyframes newItemPulse {
+        0% { 
+            background: rgba(25, 135, 84, 0.3);
+            box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.4);
+        }
+        50% { 
+            background: rgba(25, 135, 84, 0.15);
+            box-shadow: 0 0 0 8px rgba(25, 135, 84, 0);
+        }
+        100% { 
+            background: white;
+            box-shadow: none;
+        }
+    }
+
+    .queue-item.newly-added {
+        animation: newItemPulse 1.5s ease-out 3;
+        border-color: var(--success-color);
+    }
+
     .queue-actions {
         opacity: 0;
         transition: opacity 0.2s;
@@ -430,6 +451,15 @@
             width: 100%;
             max-width: none;
         }
+        /* Hide filter/sort, select all on mobile */
+        #photoSort,
+        #selectAllBtn {
+            display: none;
+        }
+        /* Hide clear and shuffle buttons on mobile */
+        .playlist-sidebar .p-3.border-top {
+            display: none;
+        }
         .library-scroll {
             padding: 1rem;
         }
@@ -493,7 +523,7 @@
     <aside class="playlist-sidebar">
         <div class="sidebar-header">
             <div class="playlist-title-area">
-                <a href="{{ url_for('manage_playlists') }}" class="back-btn" title="Back to Playlists">
+                <a href="javascript:history.back()" class="back-btn" title="Go Back">
                     <i class="bi bi-chevron-left"></i>
                 </a>
                 <div class="playlist-name" contenteditable="true" spellcheck="false" id="playlistName" data-playlist-id="{{ playlist.id }}">
@@ -824,6 +854,7 @@ document.getElementById('photoUploadInput').addEventListener('change', async fun
     const progress = document.getElementById('uploadProgress');
     const bar = document.getElementById('uploadBar');
     const text = document.getElementById('uploadText');
+    const newlyAddedPhotoIds = [];
 
     progress.style.display = 'block';
     
@@ -835,11 +866,15 @@ document.getElementById('photoUploadInput').addEventListener('change', async fun
         formData.append('photo', files[i]);
 
         try {
-            const res = await fetch('/upload', { method: 'POST', body: formData });
+            const res = await fetch('/upload', { 
+                method: 'POST', 
+                body: formData,
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.ok) {
                 const data = await res.json();
                 // Auto-add to playlist at the TOP
-                await fetch(`/api/custom-playlists/${playlistId}/entries`, {
+                const addRes = await fetch(`/api/custom-playlists/${playlistId}/entries`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -847,14 +882,47 @@ document.getElementById('photoUploadInput').addEventListener('change', async fun
                         position: 'start'
                     })
                 });
+                if (addRes.ok) {
+                    newlyAddedPhotoIds.push(data.photo_id);
+                }
             }
         } catch (err) { console.error(err); }
+    }
+
+    // Store newly added photo IDs to highlight after reload
+    if (newlyAddedPhotoIds.length > 0) {
+        sessionStorage.setItem('newlyAddedPhotos', JSON.stringify(newlyAddedPhotoIds));
     }
 
     bar.style.width = '100%';
     text.textContent = 'Finished!';
     setTimeout(() => location.reload(), 1000);
 });
+
+// Highlight newly added photos on page load
+(function highlightNewPhotos() {
+    const newPhotoIds = sessionStorage.getItem('newlyAddedPhotos');
+    if (newPhotoIds) {
+        sessionStorage.removeItem('newlyAddedPhotos');
+        const ids = JSON.parse(newPhotoIds);
+        ids.forEach(photoId => {
+            const item = document.querySelector(`.queue-item[data-photo-id="${photoId}"]`);
+            if (item) {
+                item.classList.add('newly-added');
+                // Scroll to the first new item
+                if (photoId === ids[0]) {
+                    item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        });
+        // Remove the class after animation completes (1.5s × 3 iterations = 4.5s)
+        setTimeout(() => {
+            document.querySelectorAll('.queue-item.newly-added').forEach(item => {
+                item.classList.remove('newly-added');
+            });
+        }, 5000);
+    }
+})();
 
 // Delete Playlist
 document.getElementById('deletePlaylistBtn').addEventListener('click', () => {
