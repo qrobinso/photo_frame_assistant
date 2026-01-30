@@ -45,6 +45,157 @@
         transition: all 0.2s;
     }
     
+    /* Upload Split Button */
+    .upload-split-btn {
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+    
+    .upload-split-btn .upload-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #0d6efd;
+        color: white;
+        border: none;
+        font-weight: 500;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border-radius: 0.5rem 0 0 0.5rem;
+        margin: 0;
+    }
+    
+    .upload-split-btn .upload-main:hover {
+        background: #0b5ed7;
+    }
+    
+    .upload-split-btn .upload-dropdown {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.5rem 0.75rem;
+        background: #0b5ed7;
+        color: white;
+        border: none;
+        border-left: 1px solid rgba(255,255,255,0.2);
+        cursor: pointer;
+        transition: all 0.2s;
+        border-radius: 0 0.5rem 0.5rem 0;
+    }
+    
+    .upload-split-btn .upload-dropdown:hover,
+    .upload-split-btn .upload-dropdown:focus,
+    .upload-split-btn .upload-dropdown.show {
+        background: #0a58ca;
+    }
+    
+    .upload-split-btn .upload-dropdown::after {
+        display: none; /* Hide Bootstrap's default caret since we use our own icon */
+    }
+    
+    .upload-dropdown-menu {
+        min-width: 280px;
+        padding: 0.5rem;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        border: 1px solid #e9ecef;
+    }
+    
+    .upload-dropdown-header {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .upload-playlist-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    
+    .upload-playlist-item:hover {
+        background: #f8f9fa;
+    }
+    
+    .upload-playlist-item.active {
+        background: #e7f1ff;
+    }
+    
+    .upload-playlist-thumb {
+        width: 40px;
+        height: 40px;
+        border-radius: 6px;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 1px;
+        background: #dee2e6;
+        flex-shrink: 0;
+    }
+    
+    .upload-playlist-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .upload-playlist-thumb-empty {
+        width: 40px;
+        height: 40px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+    
+    .upload-playlist-info {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .upload-playlist-name {
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: #212529;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .upload-playlist-meta {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+    
+    .upload-playlist-check {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #0d6efd;
+        color: white;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+    }
+    
+    .upload-playlist-item.active .upload-playlist-check {
+        display: flex;
+    }
+    
     /* Filter Bar */
     .filter-bar {
         display: flex;
@@ -248,8 +399,8 @@
         padding: 1.5rem;
     }
     
-    /* Frame Selection */
-    .frame-option {
+    /* Playlist Selection */
+    .playlist-option {
         display: flex;
         align-items: center;
         gap: 1rem;
@@ -261,45 +412,76 @@
         margin-bottom: 0.5rem;
     }
     
-    .frame-option:hover {
+    .playlist-option:hover {
         border-color: #0d6efd;
         background: #f8f9ff;
     }
     
-    .frame-option.selected {
+    .playlist-option.selected {
         border-color: #0d6efd;
         background: #e7f1ff;
     }
     
-    .frame-thumb {
-        width: 48px;
-        height: 48px;
-        border-radius: 6px;
-        background: #f8f9fa;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .playlist-preview {
+        width: 72px;
+        height: 72px;
+        border-radius: 8px;
         overflow: hidden;
+        flex-shrink: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 2px;
+        background: #e9ecef;
     }
     
-    .frame-thumb img {
+    .playlist-preview img {
         width: 100%;
         height: 100%;
         object-fit: cover;
     }
     
-    .frame-details {
-        flex: 1;
+    .playlist-preview-empty {
+        width: 72px;
+        height: 72px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.5rem;
+        flex-shrink: 0;
     }
     
-    .frame-name {
+    .playlist-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .playlist-name {
         font-weight: 600;
         color: #212529;
     }
     
-    .frame-status {
+    .playlist-meta {
         font-size: 0.8rem;
         color: #6c757d;
+    }
+    
+    .playlist-frames {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+        margin-top: 0.25rem;
+    }
+    
+    .playlist-frame-badge {
+        font-size: 0.7rem;
+        padding: 0.125rem 0.375rem;
+        background: #e9ecef;
+        border-radius: 0.25rem;
+        color: #495057;
     }
     
     /* Photo Edit Modal */
@@ -368,14 +550,24 @@
     
     /* Responsive */
     @media (max-width: 768px) {
+        .gallery-container {
+            padding: 0 0.5rem;
+            padding-bottom: 80px; /* Space for fixed bottom bar */
+        }
+        
         .photo-grid {
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 0.5rem;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.375rem;
         }
         
         .gallery-header {
             flex-direction: column;
             align-items: stretch;
+        }
+        
+        .gallery-title {
+            font-size: 1.25rem;
+            text-align: center;
         }
         
         .upload-sources {
@@ -384,18 +576,147 @@
         }
         
         .filter-bar {
-            flex-direction: column;
-            align-items: stretch;
+            flex-direction: row;
+            align-items: center;
+            padding: 0.5rem;
+            gap: 0.5rem;
         }
         
-        .filter-bar .form-select,
-        .filter-bar .form-control {
-            width: 100%;
+        .filter-bar .form-select {
+            width: auto;
+            flex: 1;
         }
         
         .photo-count {
-            margin-left: 0;
-            text-align: center;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+        
+        /* Mobile photo items */
+        .photo-item {
+            border-radius: 6px;
+        }
+        
+        .photo-checkbox {
+            width: 28px;
+            height: 28px;
+            top: 6px;
+            left: 6px;
+        }
+        
+        /* Always show checkbox in bulk mode on mobile for better UX */
+        .bulk-mode .photo-item .photo-checkbox {
+            display: flex;
+            background: rgba(255,255,255,0.9);
+        }
+        
+        /* Mobile bulk bar - fixed to bottom */
+        .bulk-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1040;
+            margin: 0;
+            padding: 0;
+            border-radius: 20px 20px 0 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            flex-direction: column;
+            gap: 0;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .bulk-bar.active {
+            transform: translateY(0);
+            display: flex;
+        }
+        
+        .bulk-bar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1rem 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .bulk-bar-actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.25rem;
+            padding: 0.75rem;
+            padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0));
+        }
+        
+        .bulk-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.75rem 0.5rem;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 500;
+            transition: all 0.15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .bulk-action-btn:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .bulk-action-btn i {
+            font-size: 1.25rem;
+        }
+        
+        .bulk-action-btn.danger {
+            color: #ff6b6b;
+        }
+        
+        .bulk-action-btn.primary {
+            background: #0d6efd;
+        }
+        
+        .bulk-count {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        
+        .bulk-close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Hide desktop bulk bar buttons on mobile */
+        .bulk-bar > .btn,
+        .bulk-bar > .ms-auto {
+            display: none !important;
+        }
+        
+        /* Mobile select button in filter bar */
+        #bulkModeBtn {
+            padding: 0.5rem 0.75rem;
+            font-weight: 500;
+        }
+    }
+    
+    /* Desktop bulk bar styling (hide mobile elements) */
+    @media (min-width: 769px) {
+        .bulk-bar-header,
+        .bulk-bar-actions {
+            display: none !important;
         }
     }
 </style>
@@ -407,10 +728,58 @@
     <div class="gallery-header">
         <h1 class="gallery-title"><i class="bi bi-images me-2"></i>Photos</h1>
         <div class="upload-sources">
-            <label class="btn btn-primary upload-btn">
-                <i class="bi bi-upload"></i> Upload
-                <input type="file" id="photoInput" accept="image/*,video/*,.heic,.heif" multiple style="display: none;">
-            </label>
+            <!-- Split Upload Button -->
+            <div class="btn-group upload-split-btn">
+                <label class="upload-main">
+                    <i class="bi bi-upload"></i> Upload
+                    <input type="file" id="photoInput" accept="image/*,video/*,.heic,.heif" multiple style="display: none;">
+                </label>
+                <button class="upload-dropdown dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+                <div class="dropdown-menu upload-dropdown-menu">
+                    <div class="upload-dropdown-header">Upload directly to playlist</div>
+                    {% for item in playlists %}
+                    <div class="upload-playlist-item" data-playlist-id="{{ item.playlist.id }}">
+                        {% if item.recent_photos %}
+                        <div class="upload-playlist-thumb">
+                            {% for photo in item.recent_photos[:4] %}
+                            <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" alt="">
+                            {% endfor %}
+                            {% for i in range(4 - item.recent_photos|length) %}
+                            <div style="background: #e9ecef;"></div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="upload-playlist-thumb-empty">
+                            <i class="bi bi-collection-play"></i>
+                        </div>
+                        {% endif %}
+                        <div class="upload-playlist-info">
+                            <div class="upload-playlist-name">{{ item.playlist.name }}</div>
+                            <div class="upload-playlist-meta">{{ item.playlist.entries.count() }} photos</div>
+                        </div>
+                        <div class="upload-playlist-check"><i class="bi bi-check"></i></div>
+                    </div>
+                    {% endfor %}
+                    {% if not playlists %}
+                    <div class="text-center py-3 text-muted small">
+                        <i class="bi bi-collection"></i><br>No playlists yet
+                    </div>
+                    {% endif %}
+                    <hr class="my-2">
+                    <label class="upload-playlist-item" style="color: #0d6efd;">
+                        <div class="upload-playlist-thumb-empty" style="background: #0d6efd;">
+                            <i class="bi bi-upload"></i>
+                        </div>
+                        <div class="upload-playlist-info">
+                            <div class="upload-playlist-name" style="color: #0d6efd;">Upload to selected playlist</div>
+                            <div class="upload-playlist-meta">Select a playlist above first</div>
+                        </div>
+                        <input type="file" id="playlistUploadInput" accept="image/*,video/*,.heic,.heif" multiple style="display: none;" disabled>
+                    </label>
+                </div>
+            </div>
             {% if google_photos_connected %}
             <button class="btn btn-outline-secondary upload-btn" onclick="showGooglePhotosModal()">
                 <i class="bi bi-google"></i> Google Photos
@@ -438,18 +807,18 @@
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>
         </select>
-        <input type="search" class="form-control form-control-sm" id="searchInput" placeholder="Search photos...">
         <span class="photo-count"><span id="photoCount">{{ photos|length }}</span> photos</span>
     </div>
     
     <!-- Bulk Actions Bar -->
     <div class="bulk-bar" id="bulkBar">
+        <!-- Desktop layout -->
         <span class="bulk-count"><span id="selectedCount">0</span> selected</span>
         <button class="btn btn-sm btn-outline-light" onclick="selectAllPhotos()">Select All</button>
         <button class="btn btn-sm btn-outline-light" onclick="deselectAllPhotos()">Deselect</button>
         <div class="ms-auto d-flex gap-2">
-            <button class="btn btn-sm btn-outline-light" onclick="sendSelectedToFrame()">
-                <i class="bi bi-send"></i> Send to Frame
+            <button class="btn btn-sm btn-outline-light" onclick="addSelectedToPlaylist()">
+                <i class="bi bi-collection-play"></i> Add to Playlist
             </button>
             <button class="btn btn-sm btn-outline-light" onclick="deleteSelectedPhotos()">
                 <i class="bi bi-trash"></i> Delete
@@ -458,6 +827,32 @@
         <button class="btn btn-sm btn-light" onclick="exitBulkMode()">
             <i class="bi bi-x"></i>
         </button>
+        
+        <!-- Mobile layout -->
+        <div class="bulk-bar-header">
+            <span class="bulk-count"><span id="selectedCountMobile">0</span> selected</span>
+            <button class="bulk-close-btn" onclick="exitBulkMode()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="bulk-bar-actions">
+            <button class="bulk-action-btn" onclick="selectAllPhotos()">
+                <i class="bi bi-check-all"></i>
+                <span>Select All</span>
+            </button>
+            <button class="bulk-action-btn" onclick="deselectAllPhotos()">
+                <i class="bi bi-x-circle"></i>
+                <span>Deselect</span>
+            </button>
+            <button class="bulk-action-btn primary" onclick="addSelectedToPlaylist()">
+                <i class="bi bi-collection-play"></i>
+                <span>Playlist</span>
+            </button>
+            <button class="bulk-action-btn danger" onclick="deleteSelectedPhotos()">
+                <i class="bi bi-trash"></i>
+                <span>Delete</span>
+            </button>
+        </div>
     </div>
     
     <!-- Photo Grid -->
@@ -481,8 +876,8 @@
                 <i class="bi bi-check"></i>
             </div>
             <div class="photo-actions-overlay">
-                <button class="photo-action-btn" onclick="event.stopPropagation(); sendToFrame({{ photo.id }})" title="Send to Frame">
-                    <i class="bi bi-send"></i>
+                <button class="photo-action-btn" onclick="event.stopPropagation(); addToPlaylist({{ photo.id }})" title="Add to Playlist">
+                    <i class="bi bi-collection-play"></i>
                 </button>
                 <button class="photo-action-btn" onclick="event.stopPropagation(); editPhoto({{ photo.id }})" title="Edit">
                     <i class="bi bi-pencil"></i>
@@ -510,38 +905,64 @@
     {% endif %}
 </div>
 
-<!-- Frame Selection Modal -->
-<div class="modal fade" id="frameModal" tabindex="-1">
+<!-- Playlist Selection Modal -->
+<div class="modal fade" id="playlistModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Send to Frame</h5>
+                <h5 class="modal-title"><i class="bi bi-collection-play me-2"></i>Add to Playlist</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="frameList">
-                    {% for frame in frames %}
-                    <div class="frame-option" data-frame-id="{{ frame.id }}">
-                        <div class="frame-thumb">
-                            {% if frame.current_photo %}
-                            <img src="{{ url_for('serve_thumbnail', filename=frame.current_photo.thumbnail) if frame.current_photo.thumbnail else url_for('serve_photo', filename=frame.current_photo.filename) }}">
-                            {% else %}
-                            <i class="bi bi-display text-muted"></i>
-                            {% endif %}
+                {% if playlists %}
+                <div id="playlistList">
+                    {% for item in playlists %}
+                    <div class="playlist-option" data-playlist-id="{{ item.playlist.id }}">
+                        {% if item.recent_photos %}
+                        <div class="playlist-preview">
+                            {% for photo in item.recent_photos[:4] %}
+                            <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" alt="">
+                            {% endfor %}
+                            {% for i in range(4 - item.recent_photos|length) %}
+                            <div style="background: #dee2e6;"></div>
+                            {% endfor %}
                         </div>
-                        <div class="frame-details">
-                            <div class="frame-name">{{ frame.name or frame.id }}</div>
-                            <div class="frame-status">
-                                {{ frame.sleep_interval }}min interval
+                        {% else %}
+                        <div class="playlist-preview-empty">
+                            <i class="bi bi-collection-play"></i>
+                        </div>
+                        {% endif %}
+                        <div class="playlist-details">
+                            <div class="playlist-name">{{ item.playlist.name }}</div>
+                            <div class="playlist-meta">
+                                {{ item.playlist.entries.count() }} photos
                             </div>
+                            {% if item.playlist.frames %}
+                            <div class="playlist-frames">
+                                {% for frame in item.playlist.frames[:3] %}
+                                <span class="playlist-frame-badge"><i class="bi bi-display me-1"></i>{{ frame.name or frame.id }}</span>
+                                {% endfor %}
+                                {% if item.playlist.frames|length > 3 %}
+                                <span class="playlist-frame-badge">+{{ item.playlist.frames|length - 3 }} more</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
                 </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-collection text-muted" style="font-size: 2.5rem;"></i>
+                    <p class="text-muted mt-2">No playlists yet.<br>Create a frame to get started.</p>
+                </div>
+                {% endif %}
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="confirmSendBtn" disabled>Send</button>
+                <button type="button" class="btn btn-primary" id="confirmAddBtn" disabled>
+                    <i class="bi bi-plus-lg"></i> Add to Playlist
+                </button>
             </div>
         </div>
     </div>
@@ -623,15 +1044,37 @@
 let bulkMode = false;
 let selectedPhotos = new Set();
 let currentEditPhotoId = null;
-let selectedFrameId = null;
-let photoToSend = null;
+let selectedPlaylistId = null;
+let photosToAdd = null;
 
 // Photo upload
 document.getElementById('photoInput').addEventListener('change', function(e) {
     handleFileUpload(e.target.files);
 });
 
-async function handleFileUpload(files) {
+// Playlist selection for upload
+let selectedUploadPlaylistId = null;
+document.querySelectorAll('.upload-playlist-item[data-playlist-id]').forEach(item => {
+    item.addEventListener('click', function() {
+        document.querySelectorAll('.upload-playlist-item').forEach(i => i.classList.remove('active'));
+        this.classList.add('active');
+        selectedUploadPlaylistId = this.dataset.playlistId;
+        
+        // Enable the upload button
+        const uploadInput = document.getElementById('playlistUploadInput');
+        uploadInput.disabled = false;
+        uploadInput.closest('.upload-playlist-item').querySelector('.upload-playlist-meta').textContent = 'Click here to upload';
+    });
+});
+
+// Playlist upload
+document.getElementById('playlistUploadInput').addEventListener('change', function(e) {
+    if (selectedUploadPlaylistId) {
+        handleFileUpload(e.target.files, selectedUploadPlaylistId);
+    }
+});
+
+async function handleFileUpload(files, playlistId = null) {
     if (!files.length) return;
     
     const progress = document.getElementById('uploadProgress');
@@ -641,11 +1084,15 @@ async function handleFileUpload(files) {
     progress.style.display = 'block';
     
     for (let i = 0; i < files.length; i++) {
-        text.textContent = `Uploading ${i + 1} of ${files.length}...`;
+        const destination = playlistId ? 'to playlist' : '';
+        text.textContent = `Uploading ${i + 1} of ${files.length}${destination ? ' ' + destination : ''}...`;
         bar.style.width = `${(i / files.length) * 100}%`;
         
         const formData = new FormData();
         formData.append('photo', files[i]);
+        if (playlistId) {
+            formData.append('playlist_id', playlistId);
+        }
         
         try {
             await fetch('/upload', {
@@ -682,23 +1129,34 @@ function exitBulkMode() {
 }
 
 function handlePhotoClick(event, photoId) {
-    if (!bulkMode) return;
-    
-    const photoItem = event.currentTarget;
-    
-    if (selectedPhotos.has(photoId)) {
-        selectedPhotos.delete(photoId);
-        photoItem.classList.remove('selected');
-    } else {
-        selectedPhotos.add(photoId);
-        photoItem.classList.add('selected');
+    // If in bulk mode, toggle selection
+    if (bulkMode) {
+        const photoItem = event.currentTarget;
+        
+        if (selectedPhotos.has(photoId)) {
+            selectedPhotos.delete(photoId);
+            photoItem.classList.remove('selected');
+        } else {
+            selectedPhotos.add(photoId);
+            photoItem.classList.add('selected');
+        }
+        
+        updateSelectedCount();
+        return;
     }
     
-    updateSelectedCount();
+    // On mobile (or touch devices), open edit modal when tapping a photo
+    if (window.innerWidth <= 768 || 'ontouchstart' in window) {
+        editPhoto(photoId);
+    }
 }
 
 function updateSelectedCount() {
-    document.getElementById('selectedCount').textContent = selectedPhotos.size;
+    const count = selectedPhotos.size;
+    document.getElementById('selectedCount').textContent = count;
+    // Update mobile count too
+    const mobileCount = document.getElementById('selectedCountMobile');
+    if (mobileCount) mobileCount.textContent = count;
 }
 
 function selectAllPhotos() {
@@ -716,53 +1174,68 @@ function deselectAllPhotos() {
     updateSelectedCount();
 }
 
-// Frame selection
-document.querySelectorAll('.frame-option').forEach(option => {
+// Playlist selection
+document.querySelectorAll('.playlist-option').forEach(option => {
     option.addEventListener('click', function() {
-        document.querySelectorAll('.frame-option').forEach(o => o.classList.remove('selected'));
+        document.querySelectorAll('.playlist-option').forEach(o => o.classList.remove('selected'));
         this.classList.add('selected');
-        selectedFrameId = this.dataset.frameId;
-        document.getElementById('confirmSendBtn').disabled = false;
+        selectedPlaylistId = this.dataset.playlistId;
+        document.getElementById('confirmAddBtn').disabled = false;
     });
 });
 
-function sendToFrame(photoId) {
-    photoToSend = [photoId];
-    new bootstrap.Modal(document.getElementById('frameModal')).show();
+function addToPlaylist(photoId) {
+    photosToAdd = [photoId];
+    selectedPlaylistId = null;
+    document.querySelectorAll('.playlist-option').forEach(o => o.classList.remove('selected'));
+    document.getElementById('confirmAddBtn').disabled = true;
+    new bootstrap.Modal(document.getElementById('playlistModal')).show();
 }
 
-function sendSelectedToFrame() {
+function addSelectedToPlaylist() {
     if (selectedPhotos.size === 0) return;
-    photoToSend = Array.from(selectedPhotos);
-    new bootstrap.Modal(document.getElementById('frameModal')).show();
+    photosToAdd = Array.from(selectedPhotos);
+    selectedPlaylistId = null;
+    document.querySelectorAll('.playlist-option').forEach(o => o.classList.remove('selected'));
+    document.getElementById('confirmAddBtn').disabled = true;
+    new bootstrap.Modal(document.getElementById('playlistModal')).show();
 }
 
-document.getElementById('confirmSendBtn').addEventListener('click', async function() {
-    if (!selectedFrameId || !photoToSend.length) return;
+document.getElementById('confirmAddBtn').addEventListener('click', async function() {
+    if (!selectedPlaylistId || !photosToAdd.length) return;
     
     this.disabled = true;
-    this.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Sending...';
+    this.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Adding...';
     
     try {
-        for (const photoId of photoToSend) {
-            await fetch(`/api/frames/${selectedFrameId}/playlist`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ photo_id: photoId })
-            });
-        }
+        const response = await fetch(`/api/custom-playlists/${selectedPlaylistId}/entries`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photo_ids: photosToAdd, position: 'start' })
+        });
         
-        bootstrap.Modal.getInstance(document.getElementById('frameModal')).hide();
-        showToast(`${photoToSend.length} photo(s) added to frame!`);
+        const data = await response.json();
+        bootstrap.Modal.getInstance(document.getElementById('playlistModal')).hide();
+        
+        // Show appropriate message based on how many were actually added
+        const added = data.added_count || photosToAdd.length;
+        const skipped = data.skipped_count || 0;
+        if (skipped > 0 && added === 0) {
+            showToast(`Photo(s) already in playlist`);
+        } else if (skipped > 0) {
+            showToast(`${added} photo(s) added, ${skipped} already in playlist`);
+        } else {
+            showToast(`${added} photo(s) added to playlist!`);
+        }
         
         if (bulkMode) exitBulkMode();
     } catch (error) {
-        showToast('Error sending to frame', 'error');
+        showToast('Error adding to playlist', 'error');
     } finally {
         this.disabled = false;
-        this.innerHTML = 'Send';
-        selectedFrameId = null;
-        document.querySelectorAll('.frame-option').forEach(o => o.classList.remove('selected'));
+        this.innerHTML = '<i class="bi bi-plus-lg"></i> Add to Playlist';
+        selectedPlaylistId = null;
+        document.querySelectorAll('.playlist-option').forEach(o => o.classList.remove('selected'));
     }
 });
 
@@ -903,11 +1376,18 @@ async function deletePhoto(photoId) {
     if (!confirm('Delete this photo?')) return;
     
     try {
-        await fetch(`/api/photos/${photoId}`, { method: 'DELETE' });
-        document.querySelector(`.photo-item[data-photo-id="${photoId}"]`).remove();
-        updatePhotoCount();
-        showToast('Photo deleted');
+        const response = await fetch(`/api/photos/${photoId}`, { method: 'DELETE' });
+        if (response.ok) {
+            const photoEl = document.querySelector(`.photo-item[data-photo-id="${photoId}"]`);
+            if (photoEl) photoEl.remove();
+            updatePhotoCount();
+            showToast('Photo deleted');
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'Error deleting photo', 'error');
+        }
     } catch (error) {
+        console.error('Delete error:', error);
         showToast('Error deleting photo', 'error');
     }
 }
@@ -916,10 +1396,15 @@ async function deleteSelectedPhotos() {
     if (selectedPhotos.size === 0) return;
     if (!confirm(`Delete ${selectedPhotos.size} photo(s)?`)) return;
     
+    let deletedCount = 0;
     for (const photoId of selectedPhotos) {
         try {
-            await fetch(`/api/photos/${photoId}`, { method: 'DELETE' });
-            document.querySelector(`.photo-item[data-photo-id="${photoId}"]`).remove();
+            const response = await fetch(`/api/photos/${photoId}`, { method: 'DELETE' });
+            if (response.ok) {
+                const photoEl = document.querySelector(`.photo-item[data-photo-id="${photoId}"]`);
+                if (photoEl) photoEl.remove();
+                deletedCount++;
+            }
         } catch (error) {
             console.error('Error deleting:', error);
         }
@@ -927,7 +1412,7 @@ async function deleteSelectedPhotos() {
     
     exitBulkMode();
     updatePhotoCount();
-    showToast(`${selectedPhotos.size} photos deleted`);
+    showToast(`${deletedCount} photo(s) deleted`);
 }
 
 // Sorting
@@ -944,18 +1429,9 @@ document.getElementById('sortSelect').addEventListener('change', function() {
     items.forEach(item => grid.appendChild(item));
 });
 
-// Search
-document.getElementById('searchInput').addEventListener('input', function() {
-    const query = this.value.toLowerCase();
-    document.querySelectorAll('.photo-item').forEach(item => {
-        const filename = item.dataset.filename.toLowerCase();
-        item.style.display = filename.includes(query) ? '' : 'none';
-    });
-});
-
 function updatePhotoCount() {
-    const visible = document.querySelectorAll('.photo-item:not([style*="display: none"])').length;
-    document.getElementById('photoCount').textContent = visible;
+    const count = document.querySelectorAll('.photo-item').length;
+    document.getElementById('photoCount').textContent = count;
 }
 
 // Toast notification

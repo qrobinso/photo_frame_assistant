@@ -167,11 +167,26 @@
         align-items: center;
         justify-content: space-between;
         margin-bottom: 0.75rem;
+        gap: 1rem;
+    }
+    
+    .schedule-title {
+        flex: 1;
+        min-width: 0;
     }
     
     .schedule-name {
         font-weight: 600;
         color: #212529;
+        display: block;
+    }
+    
+    .schedule-summary {
+        display: block;
+    }
+    
+    .schedule-summary:not(.schedule-name) {
+        margin-top: 0.125rem;
     }
     
     .schedule-details {
@@ -265,9 +280,23 @@
 <div class="playlists-container">
     <div class="page-header">
         <h1 class="page-title"><i class="bi bi-collection-play me-2"></i>Playlists</h1>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPlaylistModal">
-            <i class="bi bi-plus-lg"></i> New Playlist
-        </button>
+        <div class="dropdown">
+            <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-plus-lg"></i> Add New
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createPlaylistModal">
+                        <i class="bi bi-collection me-2"></i>New Playlist
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+                        <i class="bi bi-calendar-plus me-2"></i>New Schedule
+                    </a>
+                </li>
+            </ul>
+        </div>
     </div>
     
     <!-- Section Tabs -->
@@ -315,8 +344,22 @@
                     <div class="playlist-name">{{ playlist.name }}</div>
                     <div class="playlist-meta">
                         <span><i class="bi bi-images"></i> {{ playlist.entries.count() }} photos</span>
+                        <span><i class="bi bi-display"></i> {{ playlist.frames|length }} frame{{ 's' if playlist.frames|length != 1 else '' }}</span>
                         <span><i class="bi bi-calendar3"></i> {{ playlist.created_at.strftime('%b %d, %Y') }}</span>
                     </div>
+                    {% if playlist.frames %}
+                    <div class="playlist-frames mb-2">
+                        <small class="text-muted">
+                            Used by: 
+                            {% for frame in playlist.frames[:3] %}
+                                <a href="{{ url_for('edit_frame_settings', frame_id=frame.id) }}" class="text-decoration-none">{{ frame.name or frame.id }}</a>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                            {% if playlist.frames|length > 3 %}
+                                <span class="text-muted">+{{ playlist.frames|length - 3 }} more</span>
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
                     <div class="playlist-actions">
                         <a href="{{ url_for('edit_custom_playlist', playlist_id=playlist.id) }}" class="btn btn-primary btn-sm">
                             <i class="bi bi-pencil"></i> Edit
@@ -388,8 +431,8 @@
                     <input type="hidden" id="scheduleId">
                     
                     <div class="mb-3">
-                        <label class="form-label">Schedule Name</label>
-                        <input type="text" class="form-control" id="scheduleName" required>
+                        <label class="form-label">Schedule Name <span class="text-muted fw-normal">(optional)</span></label>
+                        <input type="text" class="form-control" id="scheduleName" placeholder="e.g., Morning Photos">
                     </div>
                     
                     <div class="mb-3">
@@ -556,10 +599,20 @@ async function loadScheduledPlaylists() {
             return;
         }
         
-        container.innerHTML = schedules.map(schedule => `
+        container.innerHTML = schedules.map(schedule => {
+            const playlistName = getPlaylistName(schedule.model);
+            const cronTime = humanizeCron(schedule.cron_expression);
+            const displayName = schedule.name || `${playlistName} → ${schedule.frame_name}`;
+            
+            return `
             <div class="schedule-card">
                 <div class="schedule-header">
-                    <span class="schedule-name">${schedule.name}</span>
+                    <div class="schedule-title">
+                        ${schedule.name ? `<span class="schedule-name">${schedule.name}</span>` : ''}
+                        <span class="schedule-summary ${schedule.name ? 'text-muted small' : 'schedule-name'}">
+                            ${schedule.name ? `${playlistName} → ${schedule.frame_name}` : displayName}
+                        </span>
+                    </div>
                     <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-primary" onclick="editSchedule(${schedule.id})">
                             <i class="bi bi-pencil"></i>
@@ -574,17 +627,11 @@ async function loadScheduledPlaylists() {
                 </div>
                 <div class="schedule-details">
                     <span class="schedule-detail">
-                        <i class="bi bi-collection"></i> ${getPlaylistName(schedule.model)}
-                    </span>
-                    <span class="schedule-detail">
-                        <i class="bi bi-display"></i> ${schedule.frame_name}
-                    </span>
-                    <span class="schedule-detail">
-                        <i class="bi bi-clock"></i> ${humanizeCron(schedule.cron_expression)}
+                        <i class="bi bi-clock"></i> ${cronTime}
                     </span>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     } catch (error) {
         console.error('Error loading schedules:', error);
     }
@@ -592,7 +639,7 @@ async function loadScheduledPlaylists() {
 
 function schedulePlaylist(playlistId, playlistName) {
     document.getElementById('schedulePlaylist').value = playlistId;
-    document.getElementById('scheduleName').value = `${playlistName} Schedule`;
+    document.getElementById('scheduleName').value = '';
     new bootstrap.Modal(document.getElementById('scheduleModal')).show();
 }
 

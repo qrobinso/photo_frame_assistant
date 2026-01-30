@@ -644,6 +644,40 @@
     </div>
     
     <form method="POST" id="settingsForm">
+        <!-- Playlist Settings -->
+        <div class="settings-card" id="playlistCard">
+            <div class="settings-card-header" onclick="toggleCard('playlistCard')">
+                <h2 class="settings-card-title">
+                    <i class="bi bi-collection-play icon-display"></i>
+                    Playlist
+                </h2>
+                <i class="bi bi-chevron-down settings-card-toggle"></i>
+            </div>
+            <div class="settings-card-body">
+                <div class="form-group">
+                    <label for="playlist_id" class="form-label">Current Playlist</label>
+                    <div class="d-flex gap-2">
+                        <select class="form-select" id="playlist_id" name="playlist_id">
+                            {% for playlist in playlists %}
+                            <option value="{{ playlist.id }}" {% if frame.playlist_id == playlist.id %}selected{% endif %}>
+                                {{ playlist.name }} ({{ playlist.entries.count() }} photos)
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if frame.playlist %}
+                        <a href="{{ url_for('edit_custom_playlist', playlist_id=frame.playlist.id) }}" class="btn btn-outline-secondary" title="Edit playlist">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="form-text">
+                        <i class="bi bi-info-circle"></i> 
+                        Select which playlist this frame should display. Multiple frames can share the same playlist.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Display Settings -->
         <div class="settings-card" id="displayCard">
             <div class="settings-card-header" onclick="toggleCard('displayCard')">
@@ -670,6 +704,17 @@
                             <i class="bi bi-phone"></i> Portrait (Vertical)
                         </option>
                     </select>
+                </div>
+                
+                <div class="toggle-group" style="margin: 1rem 0;">
+                    <div class="toggle-info">
+                        <div class="toggle-label"><i class="bi bi-shuffle me-2"></i>Shuffle Photos</div>
+                        <div class="toggle-description">Randomize the order of photos instead of playing in sequence</div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="shuffle_enabled" name="shuffle_enabled"
+                               {% if frame.shuffle_enabled %}checked{% endif %}>
+                    </div>
                 </div>
                 
                 <div class="form-group">

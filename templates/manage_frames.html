@@ -108,11 +108,6 @@
         font-weight: 600;
         font-size: 1.1rem;
         color: #212529;
-        text-decoration: none;
-    }
-    
-    .frame-title:hover {
-        color: #0d6efd;
     }
     
     .frame-status-badge {
@@ -183,20 +178,30 @@
     }
     
     .preview-image {
-        width: 100px;
-        height: 75px;
         object-fit: cover;
         display: block;
     }
     
     .preview-placeholder {
-        width: 100px;
-        height: 75px;
         background: #e9ecef;
         display: flex;
         align-items: center;
         justify-content: center;
         color: #adb5bd;
+    }
+    
+    /* Landscape orientation (default) */
+    .frame-preview.landscape .preview-image,
+    .frame-preview.landscape .preview-placeholder {
+        width: 100px;
+        height: 75px;
+    }
+    
+    /* Portrait orientation */
+    .frame-preview.portrait .preview-image,
+    .frame-preview.portrait .preview-placeholder {
+        width: 60px;
+        height: 90px;
     }
     
     /* Frame Details */
@@ -238,6 +243,15 @@
     .sync-badge:hover {
         background: #5a32a3;
         color: white;
+    }
+    
+    .shuffle-badge {
+        background: #17a2b8;
+        color: white;
+        padding: 0.125rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.7rem;
+        font-weight: 600;
     }
     
     /* Frame Actions */
@@ -355,6 +369,19 @@
         box-shadow: 0 12px 32px rgba(0,0,0,0.15);
     }
     
+    /* Upload button spin animation */
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+    
+    .frame-upload-btn {
+        cursor: pointer;
+    }
+    
     /* Responsive */
     @media (max-width: 768px) {
         .frames-grid {
@@ -373,6 +400,46 @@
         .header-actions .btn {
             flex: 1;
         }
+        
+        .frame-actions {
+            gap: 0.375rem;
+            padding: 0 0.75rem 0.75rem;
+        }
+        
+        .frame-actions .btn {
+            padding: 0.375rem 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .frame-actions .btn .btn-text-full {
+            display: none;
+        }
+        
+        .frame-actions .btn .btn-text-short {
+            display: inline;
+        }
+        
+        .frame-meta {
+            font-size: 0.75rem;
+            gap: 0.375rem 0.75rem;
+        }
+        
+        .frame-details {
+            padding: 0.75rem;
+        }
+        
+        .frame-card-header {
+            padding: 0.75rem;
+        }
+        
+        .frame-title {
+            font-size: 1rem;
+        }
+    }
+    
+    /* Hide short text on desktop, show on mobile */
+    .btn-text-short {
+        display: none;
     }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -410,9 +477,9 @@
                     <span class="drag-handle">
                         <i class="bi bi-grip-vertical"></i>
                     </span>
-                    <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="frame-title">
+                    <span class="frame-title">
                         {{ frame.name or frame.id }}
-                    </a>
+                    </span>
                     {% set status = frame.get_status(now) %}
                     {% if status[0] == 2 %}
                     <span class="frame-status-badge online"><span class="dot"></span> Online</span>
@@ -423,7 +490,7 @@
                     {% endif %}
                 </div>
                 
-                <div class="frame-preview">
+                <div class="frame-preview {{ frame.orientation or 'landscape' }}">
                     <div class="preview-item">
                         <div class="preview-label">Now Playing</div>
                         <div class="preview-frame">
@@ -480,31 +547,57 @@
                 
                 <div class="frame-details">
                     <div class="frame-meta">
+                        {% if frame.playlist %}
+                        <span class="meta-item playlist-info" title="Current playlist">
+                            <i class="bi bi-collection-play"></i> 
+                            <a href="{{ url_for('edit_custom_playlist', playlist_id=frame.playlist.id) }}" class="text-decoration-none">
+                                {{ frame.playlist.name }}
+                            </a>
+                        </span>
+                        {% endif %}
                         {% if frame.sync_group %}
                         <a href="{{ url_for('manage_sync_groups') }}" class="sync-badge">
                             <i class="bi bi-people-fill"></i> {{ frame.sync_group.name }}
                         </a>
                         {% endif %}
+                        {% if frame.shuffle_enabled %}
+                        <span class="shuffle-badge">
+                            <i class="bi bi-shuffle"></i> Shuffle
+                        </span>
+                        {% endif %}
                         <span class="meta-item">
                             <i class="bi bi-clock"></i> {{ frame.sleep_interval }}min
-                        </span>
-                        <span class="meta-item">
-                            <i class="bi bi-phone"></i> {{ 'Virtual' if frame.frame_type == 'virtual' else 'Physical' }}
                         </span>
                         {% if frame.last_wake_time %}
                         <span class="meta-item">
                             <i class="bi bi-eye"></i> {{ frame.last_wake_relative }}
                         </span>
                         {% endif %}
+                        {% if frame.battery_level is not none %}
+                        <span class="meta-item {% if frame.battery_level <= 20 %}text-danger{% elif frame.battery_level <= 50 %}text-warning{% else %}text-success{% endif %}">
+                            {% if frame.battery_level <= 20 %}
+                            <i class="bi bi-battery"></i>
+                            {% elif frame.battery_level <= 50 %}
+                            <i class="bi bi-battery-half"></i>
+                            {% else %}
+                            <i class="bi bi-battery-full"></i>
+                            {% endif %}
+                            {{ frame.battery_level|int }}%
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 
                 <div class="frame-actions">
+                    <label class="btn btn-success btn-sm frame-upload-btn">
+                        <i class="bi bi-plus-lg"></i><span class="btn-text-full"> Add Photo</span><span class="btn-text-short"> Photo</span>
+                        <input type="file" class="frame-upload-input" data-playlist-id="{{ frame.playlist_id }}" accept="image/*,video/*,.heic,.heif" multiple style="display: none;">
+                    </label>
                     <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-collection-play"></i> Playlist
+                        <i class="bi bi-collection-play"></i><span class="btn-text-full"> Playlist</span><span class="btn-text-short"> List</span>
                     </a>
                     <a href="{{ url_for('edit_frame_settings', frame_id=frame.id) }}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-gear"></i> Settings
+                        <i class="bi bi-gear"></i><span class="btn-text-full"> Settings</span>
                     </a>
                     {% if frame.frame_type == 'virtual' %}
                     <a href="{{ url_for('view_frame', frame_id=frame.id) }}" target="_blank" class="btn btn-outline-secondary btn-sm">
@@ -585,6 +678,68 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Frame upload handling - add photos directly to frame's playlist
+    document.querySelectorAll('.frame-upload-input').forEach(input => {
+        input.addEventListener('change', async function(e) {
+            const files = e.target.files;
+            if (!files.length) return;
+            
+            const playlistId = this.dataset.playlistId;
+            if (!playlistId) {
+                showToast('This frame has no playlist', 'error');
+                return;
+            }
+            
+            const btn = this.parentElement;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Uploading...';
+            btn.style.pointerEvents = 'none';
+            
+            const uploadedPhotoIds = [];
+            
+            // Upload all photos
+            for (let i = 0; i < files.length; i++) {
+                const formData = new FormData();
+                formData.append('photo', files[i]);
+                
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.photo_id) {
+                            uploadedPhotoIds.push(data.photo_id);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                }
+            }
+            
+            // Add to playlist at the top
+            if (uploadedPhotoIds.length > 0) {
+                try {
+                    await fetch(`/api/custom-playlists/${playlistId}/entries`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ photo_ids: uploadedPhotoIds, position: 'start' })
+                    });
+                    showToast(`${uploadedPhotoIds.length} photo(s) added!`);
+                } catch (error) {
+                    showToast('Error adding to playlist', 'error');
+                }
+            }
+            
+            btn.innerHTML = originalHtml;
+            btn.style.pointerEvents = '';
+            this.value = ''; // Reset input
+        });
+    });
+    
     // Frame type selector
     const typeOptions = document.querySelectorAll('.frame-type-option');
     const typeInput = document.getElementById('frameTypeInput');
@@ -688,6 +843,15 @@ function addDiscoveredFrame(deviceId) {
 
     fetch('', { method: 'POST', body: formData })
         .then(() => window.location.reload());
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `position-fixed bottom-0 start-50 translate-middle-x mb-3 p-3 rounded-3 text-white ${type === 'error' ? 'bg-danger' : 'bg-success'}`;
+    toast.style.zIndex = '1060';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 </script>
 {% endblock %}

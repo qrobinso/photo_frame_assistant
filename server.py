@@ -46,7 +46,7 @@ from integration_routes import integration_routes  # Blueprint for external inte
 from frame_timing_manager import FrameTimingManager
 from imgToArray import img_to_array, img_to_rgb565, img_to_epaper_4bit # For e-paper and RGB565 compression
 from event_logger import EventLogger
-from model import db, init_db, Photo, PhotoFrame, PlaylistEntry, CustomPlaylist, ScheduledGeneration, GenerationHistory, SyncGroup
+from model import db, init_db, Photo, PhotoFrame, PlaylistEntry, Playlist, CustomPlaylist, ScheduledGeneration, GenerationHistory, SyncGroup
 
 # Integration specific imports
 from integrations.mqtt_integration import MQTTIntegration
@@ -1046,15 +1046,28 @@ def add_photo_to_frame_playlist(photo_id, frame_id):
         if not frame or not photo:
             logger.error(f"Cannot add photo to playlist: Frame {frame_id} or Photo {photo_id} not found.")
             return False, "Frame or Photo not found."
+        
+        # Ensure frame has a playlist
+        if not frame.playlist_id:
+            playlist_name = f"{frame.name} Playlist"
+            base_name = playlist_name
+            counter = 1
+            while Playlist.query.filter_by(name=playlist_name).first():
+                counter += 1
+                playlist_name = f"{base_name} ({counter})"
+            playlist = Playlist(name=playlist_name)
+            db.session.add(playlist)
+            db.session.flush()
+            frame.playlist_id = playlist.id
 
         # Shift existing entries' order down by 1
-        PlaylistEntry.query.filter_by(frame_id=frame_id).update({
+        PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).update({
             PlaylistEntry.order: PlaylistEntry.order + 1
         })
 
         # Add the new photo at the beginning (order 0)
         new_entry = PlaylistEntry(
-            frame_id=frame_id,
+            playlist_id=frame.playlist_id,
             photo_id=photo.id,
             order=0,
             date_added=datetime.utcnow()
@@ -1077,98 +1090,11 @@ def add_photo_to_frame_playlist(photo_id, frame_id):
 # Routes - Admin Web Interface
 # ------------------------------------------------------------------------------
 
-# Home page (Admin index)
+# Home page - redirect to frames
 @app.route('/')
 def index():
-    """Render the home dashboard with status overview."""
-    now = datetime.now(pytz.UTC)
-    
-    # Get frames with status
-    frames = PhotoFrame.query.order_by(PhotoFrame.order).all()
-    for frame in frames:
-        # Ensure times are timezone-aware
-        if frame.last_wake_time and frame.last_wake_time.tzinfo is None:
-            frame.last_wake_time = pytz.UTC.localize(frame.last_wake_time)
-        if frame.next_wake_time and frame.next_wake_time.tzinfo is None:
-            frame.next_wake_time = pytz.UTC.localize(frame.next_wake_time)
-        
-        # Get status tuple (code, text, color)
-        status = frame.get_status(now)
-        frame.status = status[0]
-        frame.status_text = status[1]
-        frame.status_color = status[2]
-        
-        # Format relative times
-        frame.last_wake_relative = format_relative_time(frame.last_wake_time, now)
-        frame.next_wake_relative = format_relative_time(frame.next_wake_time, now)
-    
-    # Get counts
-    photo_count = Photo.query.count()
-    playlist_count = CustomPlaylist.query.count()
-    schedule_count = ScheduledGeneration.query.filter_by(is_active=True).count()
-    
-    # Build recent activity from various sources
-    recent_activity = []
-    
-    # Helper to normalize time to UTC
-    def normalize_time(dt):
-        if dt is None:
-            return None
-        if dt.tzinfo is None:
-            return pytz.UTC.localize(dt)
-        return dt.astimezone(pytz.UTC)
-    
-    # Recent photo uploads
-    recent_photos = Photo.query.order_by(Photo.uploaded_at.desc()).limit(5).all()
-    for photo in recent_photos:
-        if photo.uploaded_at:
-            upload_time = normalize_time(photo.uploaded_at)
-            recent_activity.append({
-                'type': 'upload',
-                'icon': 'cloud-upload',
-                'text': f'Photo "{photo.filename}" uploaded',
-                'time': upload_time,
-                'time_ago': format_relative_time(upload_time, now)
-            })
-    
-    # Recent playlist changes
-    recent_entries = PlaylistEntry.query.order_by(PlaylistEntry.date_added.desc()).limit(5).all()
-    for entry in recent_entries:
-        if entry.date_added and entry.photo:
-            entry_time = normalize_time(entry.date_added)
-            frame_name = entry.frame.name if entry.frame else (entry.custom_playlist.name if entry.custom_playlist else 'Unknown')
-            recent_activity.append({
-                'type': 'playlist',
-                'icon': 'collection-play',
-                'text': f'Photo added to "{frame_name}"',
-                'time': entry_time,
-                'time_ago': format_relative_time(entry_time, now)
-            })
-    
-    # Recent frame photo updates
-    for frame in frames:
-        if frame.last_wake_time and frame.current_photo:
-            wake_time = normalize_time(frame.last_wake_time)
-            frame_name = frame.name or frame.id
-            recent_activity.append({
-                'type': 'frame_update',
-                'icon': 'display',
-                'text': f'"{frame_name}" displayed new photo',
-                'time': wake_time,
-                'time_ago': format_relative_time(wake_time, now)
-            })
-    
-    # Sort by time and limit (use epoch 0 for None times)
-    min_time = pytz.UTC.localize(datetime.min.replace(year=1970))
-    recent_activity.sort(key=lambda x: x['time'] if x['time'] else min_time, reverse=True)
-    recent_activity = recent_activity[:8]
-    
-    return render_template('home.html',
-                          frames=frames,
-                          photo_count=photo_count,
-                          playlist_count=playlist_count,
-                          schedule_count=schedule_count,
-                          recent_activity=recent_activity)
+    """Redirect to frames page."""
+    return redirect(url_for('manage_frames'))
 
 # Photo Upload
 @app.route('/upload', methods=['GET', 'POST'])
@@ -1468,20 +1394,47 @@ def upload_photo():
 
             # After the photo is added to the database and before the background analysis,
             # check if we need to add it to a playlist
-            if frame_id:
+            target_playlist_id = request.form.get('playlist_id')
+            if target_playlist_id:
+                # Direct playlist_id provided
                 try:
+                    target_playlist_id = int(target_playlist_id)
                     # Shift existing entries
-                    PlaylistEntry.query.filter_by(frame_id=frame_id)\
+                    PlaylistEntry.query.filter_by(playlist_id=target_playlist_id)\
                         .update({PlaylistEntry.order: PlaylistEntry.order + 1})
                     
                     # Add new entry at the beginning
                     entry = PlaylistEntry(
-                        frame_id=frame_id,
+                        playlist_id=target_playlist_id,
                         photo_id=photo.id,
                         order=0
                     )
                     db.session.add(entry)
                     db.session.commit()
+                except Exception as e:
+                    app.logger.error(f"Error adding photo to playlist: {e}")
+                    if is_api_request:
+                        return jsonify({
+                            'success': False,
+                            'error': f'Error adding to playlist: {str(e)}'
+                        }), 500
+            elif frame_id:
+                # Legacy: frame_id provided, use frame's playlist
+                try:
+                    frame = db.session.get(PhotoFrame, frame_id)
+                    if frame and frame.playlist_id:
+                        # Shift existing entries
+                        PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id)\
+                            .update({PlaylistEntry.order: PlaylistEntry.order + 1})
+                        
+                        # Add new entry at the beginning
+                        entry = PlaylistEntry(
+                            playlist_id=frame.playlist_id,
+                            photo_id=photo.id,
+                            order=0
+                        )
+                        db.session.add(entry)
+                        db.session.commit()
                 except Exception as e:
                     app.logger.error(f"Error adding photo to playlist: {e}")
                     if is_api_request:
@@ -1505,21 +1458,30 @@ def upload_photo():
             flash('File type not allowed.')
             return redirect(request.url)
 
-    # Get all photos and frames for the display
+    # Get all photos and playlists for the display
     photos = Photo.query.order_by(Photo.uploaded_at.desc()).all()
     
-    frames = PhotoFrame.query.all()
+    # Get playlists with their recent photos for preview
+    playlists = Playlist.query.order_by(Playlist.name).all()
+    playlists_with_previews = []
+    for playlist in playlists:
+        recent_entries = playlist.entries.order_by(PlaylistEntry.order.desc()).limit(4).all()
+        recent_photos = [entry.photo for entry in recent_entries if entry.photo]
+        playlists_with_previews.append({
+            'playlist': playlist,
+            'recent_photos': recent_photos
+        })
     is_connected = google_photos.is_connected()
     
     # Load server settings to check AI analysis status
     server_settings = load_server_settings()
     ai_enabled = server_settings.get('ai_analysis_enabled', False)
     
-    # Determine the last frame ID with a photo uploaded
-    last_frame_id = None
+    # Determine the last playlist ID with a photo uploaded
+    last_playlist_id = None
     latest_playlist_entry = PlaylistEntry.query.order_by(PlaylistEntry.id.desc()).first()
-    if latest_playlist_entry:
-        last_frame_id = latest_playlist_entry.frame_id
+    if latest_playlist_entry and latest_playlist_entry.playlist_id:
+        last_playlist_id = latest_playlist_entry.playlist_id
     
     # Check if Unsplash and Pixabay API keys are configured
     unsplash_settings = unsplash_integration.load_settings()
@@ -1530,10 +1492,10 @@ def upload_photo():
     
     return render_template('upload.html', 
                          photos=photos, 
-                         frames=frames,
+                         playlists=playlists_with_previews,
                          google_photos_connected=is_connected,
                          ai_analysis_enabled=ai_enabled,
-                         last_frame_id=last_frame_id,
+                         last_playlist_id=last_playlist_id,
                          unsplash_api_key=bool(unsplash_api_key),
                          pixabay_api_key=bool(pixabay_api_key))
 
@@ -1548,23 +1510,8 @@ def delete_photo(photo_id):
     try:
         photo = Photo.query.get_or_404(photo_id)
         
-        # Check if photo is in any playlists
-        playlist_entries = PlaylistEntry.query.filter_by(photo_id=photo_id).all()
-        frame_names = []
-        if playlist_entries:
-            frame_ids = set(entry.frame_id for entry in playlist_entries)
-            frames = PhotoFrame.query.filter(PhotoFrame.id.in_(frame_ids)).all()
-            frame_names = [frame.name or frame.id for frame in frames]
-            
-            force_delete = request.args.get('force', '').lower() == 'true'
-            if not force_delete:
-                return jsonify({
-                    'requires_confirmation': True,
-                    'frames': frame_names,
-                    'message': 'Photo is used in playlists'
-                }), 409
-
-            PlaylistEntry.query.filter_by(photo_id=photo_id).delete()
+        # Remove photo from all playlists
+        PlaylistEntry.query.filter_by(photo_id=photo_id).delete()
         
         # Delete all versions of the file
         files_to_delete = [
@@ -1662,9 +1609,10 @@ def manage_frames():
             return redirect(url_for('manage_frames'))
         
         # Create new frame
+        frame_name = name or f"Frame {device_id}"
         frame = PhotoFrame(
             id=device_id,
-            name=name or f"Frame {device_id}",
+            name=frame_name,
             sleep_interval=sleep_interval,
             battery_level=None,
             last_diagnostic=None,
@@ -1673,6 +1621,22 @@ def manage_frames():
         
         try:
             db.session.add(frame)
+            db.session.flush()  # Get frame ID before creating playlist
+            
+            # Auto-create a playlist for the new frame
+            playlist_name = f"{frame_name} Playlist"
+            # Handle duplicate names
+            base_name = playlist_name
+            counter = 1
+            while Playlist.query.filter_by(name=playlist_name).first():
+                counter += 1
+                playlist_name = f"{base_name} ({counter})"
+            
+            playlist = Playlist(name=playlist_name)
+            db.session.add(playlist)
+            db.session.flush()
+            frame.playlist_id = playlist.id
+            
             db.session.commit()
             
             if frame_type == 'virtual':
@@ -1729,14 +1693,18 @@ def manage_frames():
             })
         return jsonify({'frames': frames_data})
     
+    # Get all playlists for the playlist selector
+    playlists = Playlist.query.order_by(Playlist.name).all()
+    
     return render_template('manage_frames.html', 
                          frames=frames, 
                          discovered=discovered,
+                         playlists=playlists,
                          get_current_photo=PhotoHelper.get_current_photo,
                          get_next_photo=PhotoHelper.get_next_photo,
                          Photo=Photo,
                          now=now,
-                         server_settings=server_settings)  # Added server_settings
+                         server_settings=server_settings)
 
 class PhotoHelper:
     @classmethod
@@ -1751,91 +1719,66 @@ class PhotoHelper:
 
     @classmethod
     def get_next_photo(cls, frame_id):
-        """Get the next photo for a frame."""
+        """Get the next photo object for a frame."""
         frame = PhotoFrame.query.get(frame_id)
-        if not frame or not frame.shuffle_enabled:
-            # Use existing sequential logic
-            entries = PlaylistEntry.query.filter_by(frame_id=frame_id).order_by(PlaylistEntry.order).limit(2).all()
-            if len(entries) > 1:
-                photo = db.session.get(Photo, entries[1].photo_id)
-                if photo:
-                    return photo.filename
+        if not frame or not frame.playlist_id:
             return None
-
-        # Shuffle logic
-        entries = PlaylistEntry.query.filter_by(frame_id=frame_id).all()
-        if not entries:
-            return None
-
-        # Create a session key specific to this frame's shuffle session
-        shuffle_key = f'frame_{frame_id}_shuffle'
-        shown_entries = session.get(shuffle_key, [])
-
-        # If we've shown all entries, reset the tracking
-        if len(shown_entries) >= len(entries):
-            shown_entries = []
-
-        # Get available entries (those not yet shown)
-        available_entries = [entry for entry in entries 
-                            if entry.id not in shown_entries]
-
-        if available_entries:
-            chosen_entry = random.choice(available_entries)
-            shown_entries.append(chosen_entry.id)
-            session[shuffle_key] = shown_entries
-            if chosen_entry.photo:
-                return chosen_entry.photo.filename
-
+            
+        # Get the first entry in the playlist (this is what will play next)
+        # The "next" photo is the first one in order since current_photo tracks what's playing
+        entry = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).order_by(PlaylistEntry.order).first()
+        if entry and entry.photo:
+            return entry.photo
+            
         return None
 
-# Manage Playlist for a Given Frame
+# Manage Playlist for a Given Frame - redirects to playlist edit page
 @app.route('/frames/<frame_id>/playlist', methods=['GET', 'POST'])
 def edit_playlist(frame_id):
     frame = PhotoFrame.query.get_or_404(frame_id)
     
+    # Ensure frame has a playlist
+    if not frame.playlist:
+        playlist_name = f"{frame.name} Playlist"
+        base_name = playlist_name
+        counter = 1
+        while Playlist.query.filter_by(name=playlist_name).first():
+            counter += 1
+            playlist_name = f"{base_name} ({counter})"
+        playlist = Playlist(name=playlist_name)
+        db.session.add(playlist)
+        db.session.flush()
+        frame.playlist_id = playlist.id
+        db.session.commit()
+    
+    # POST requests still work for backward compatibility
     if request.method == 'POST':
         data = request.get_json()
         photo_ids = [int(pid) for pid in data['photo_ids'].split(',') if pid.strip()]
         
-        # Remove existing playlist entries
-        PlaylistEntry.query.filter_by(frame_id=frame_id).delete()
+        # Remove existing playlist entries from the frame's playlist
+        PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).delete()
         
         # Add new entries with order preserved
         for order, photo_id in enumerate(photo_ids):
             playlist_entry = PlaylistEntry(
-                frame_id=frame_id,
+                playlist_id=frame.playlist_id,
                 photo_id=photo_id,
                 order=order,
-                date_added=datetime.utcnow() if not PlaylistEntry.query.filter_by(
-                    frame_id=frame_id, photo_id=photo_id).first() else PlaylistEntry.query.filter_by(
-                    frame_id=frame_id, photo_id=photo_id).first().date_added
+                date_added=datetime.utcnow()
             )
             db.session.add(playlist_entry)
-            
+        
+        # Update playlist timestamp
+        frame.playlist.updated_at = datetime.utcnow()
         db.session.commit()
+        
         if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
             app.mqtt_integration.update_frame_options(frame)
         return jsonify({'success': True, 'message': 'Playlist updated successfully'})
 
-    # Always return photos in manual order by default
-    playlist_photos = [entry.photo for entry in 
-                      PlaylistEntry.query.filter_by(frame_id=frame_id)
-                      .order_by(PlaylistEntry.order).all()]
-    
-    # Get photos not in playlist
-    playlist_photo_ids = [photo.id for photo in playlist_photos]
-    bench_photos = Photo.query.filter(~Photo.id.in_(playlist_photo_ids)).all() 
-
-    # Load server settings to check AI analysis status
-    server_settings = load_server_settings()
-    ai_enabled = server_settings.get('ai_analysis_enabled', False)
-
-    return render_template('edit_playlist.html',
-                         frame=frame,
-                         playlist_photos=playlist_photos,
-                         bench_photos=bench_photos,
-                         ai_analysis_enabled=ai_enabled,
-                         now=datetime.now())
+    # GET requests redirect to the playlist edit page
+    return redirect(url_for('edit_custom_playlist', playlist_id=frame.playlist_id))
 
 # Manage Frame Settings
 @app.route('/frames/<frame_id>/settings', methods=['GET', 'POST'])
@@ -1850,9 +1793,30 @@ def edit_frame_settings(frame_id):
     local_tz = pytz.timezone(server_settings['timezone'])
     
     if request.method == 'POST':
-        frame.name = request.form.get('name')
+        old_frame_name = frame.name
+        new_frame_name = request.form.get('name')
+        frame.name = new_frame_name
         frame.sleep_interval = float(request.form.get('sleep_interval', 5.0))
+        
+        # If frame name changed, check if there's a playlist with the old name and rename it
+        if old_frame_name and new_frame_name and old_frame_name != new_frame_name:
+            # Check for playlist with old frame name pattern (e.g., "Device 1234 Playlist")
+            old_playlist_name = f"{old_frame_name} Playlist"
+            new_playlist_name = f"{new_frame_name} Playlist"
+            
+            matching_playlist = Playlist.query.filter_by(name=old_playlist_name).first()
+            if matching_playlist:
+                # Make sure the new name doesn't conflict with an existing playlist
+                existing_playlist = Playlist.query.filter_by(name=new_playlist_name).first()
+                if not existing_playlist:
+                    matching_playlist.name = new_playlist_name
+                    app.logger.info(f"Renamed playlist '{old_playlist_name}' to '{new_playlist_name}'")
         frame.orientation = request.form.get('orientation', 'portrait')
+        
+        # Handle playlist assignment
+        playlist_id = request.form.get('playlist_id')
+        if playlist_id:
+            frame.playlist_id = int(playlist_id)
         
         # Handle image settings
         frame.contrast_factor = float(request.form.get('contrast_factor', 1.0))
@@ -1873,6 +1837,9 @@ def edit_frame_settings(frame_id):
         else:
             # If color_map_text is empty, explicitly set color_map to None
             frame.color_map = None
+        
+        # Handle shuffle setting
+        frame.shuffle_enabled = request.form.get('shuffle_enabled') == 'on'
         
         # Convert deep sleep times from local to UTC
         frame.deep_sleep_enabled = request.form.get('deep_sleep_enabled') == 'on'
@@ -1934,9 +1901,13 @@ def edit_frame_settings(frame_id):
     # Note: We don't set a default color map if it's null
     # as a NULL/blank color_map means the server should ignore color mapping
     
+    # Get all playlists for the playlist selector
+    playlists = Playlist.query.order_by(Playlist.name).all()
+    
     return render_template('edit_settings.html', 
                          frame=frame, 
                          frames=PhotoFrame.query.all(),
+                         playlists=playlists,
                          now=datetime.now(timezone.utc),
                          timedelta=timedelta,
                          weather_enabled=weather_integration.settings.get('enabled', False),
@@ -2142,9 +2113,10 @@ def register_frame():
         frame = db.session.get(PhotoFrame, device_id) 
         if not frame:
             # Create new frame with all properties
+            frame_name = data.get('name', f'Device {device_id}')
             frame = PhotoFrame(
                 id=device_id,
-                name=data.get('name', f'Device {device_id}'),
+                name=frame_name,
                 manufacturer=properties.get('manufacturer'),
                 model=properties.get('model'),
                 hardware_rev=properties.get('hardware_rev'),
@@ -2155,6 +2127,22 @@ def register_frame():
                 sleep_interval=30
             )
             db.session.add(frame)
+            db.session.flush()
+            
+            # Auto-create a playlist for the new frame
+            playlist_name = f"{frame_name} Playlist"
+            # Handle duplicate names
+            base_name = playlist_name
+            counter = 1
+            while Playlist.query.filter_by(name=playlist_name).first():
+                counter += 1
+                playlist_name = f"{base_name} ({counter})"
+            
+            playlist = Playlist(name=playlist_name)
+            db.session.add(playlist)
+            db.session.flush()
+            frame.playlist_id = playlist.id
+            
             print(f"Created new frame with properties:", {
                 'manufacturer': frame.manufacturer,
                 'model': frame.model,
@@ -2162,7 +2150,8 @@ def register_frame():
                 'firmware_rev': frame.firmware_rev,
                 'screen_resolution': frame.screen_resolution,
                 'aspect_ratio': frame.aspect_ratio,
-                'os': frame.os
+                'os': frame.os,
+                'playlist_id': frame.playlist_id
             })
         else:
             # Update existing frame properties
@@ -2173,6 +2162,22 @@ def register_frame():
             frame.screen_resolution = properties.get('screen_resolution', frame.screen_resolution)
             frame.aspect_ratio = properties.get('aspect_ratio', frame.aspect_ratio)
             frame.os = properties.get('os', frame.os)
+            
+            # Ensure frame has a playlist (for frames created before migration)
+            if not frame.playlist_id:
+                playlist_name = f"{frame.name} Playlist"
+                base_name = playlist_name
+                counter = 1
+                while Playlist.query.filter_by(name=playlist_name).first():
+                    counter += 1
+                    playlist_name = f"{base_name} ({counter})"
+                
+                playlist = Playlist(name=playlist_name)
+                db.session.add(playlist)
+                db.session.flush()
+                frame.playlist_id = playlist.id
+                print(f"Created playlist for existing frame {frame.id}")
+            
             print(f"Updated existing frame with properties:", {
                 'manufacturer': frame.manufacturer,
                 'model': frame.model,
@@ -2180,7 +2185,8 @@ def register_frame():
                 'firmware_rev': frame.firmware_rev,
                 'screen_resolution': frame.screen_resolution,
                 'aspect_ratio': frame.aspect_ratio,
-                'os': frame.os
+                'os': frame.os,
+                'playlist_id': frame.playlist_id
             })
         
         # Update diagnostic information if provided
@@ -2222,9 +2228,11 @@ def get_current_photo():
         app.logger.info(f"Found frame: {frame.id}")
         app.logger.info(f"Frame overlay preferences: {frame.overlay_preferences}")
         
-        # Get all playlist entries ordered by order
-        playlist = PlaylistEntry.query.filter_by(frame_id=device_id)\
-                                    .order_by(PlaylistEntry.order).all()
+        # Get all playlist entries ordered by order via frame's playlist
+        playlist = []
+        if frame.playlist_id:
+            playlist = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id)\
+                                        .order_by(PlaylistEntry.order).all()
         app.logger.info(f"Playlist entries found: {len(playlist)}")
         
         if playlist:
@@ -2451,8 +2459,8 @@ def handle_empty_playlist(frame, output_type):
 
 def get_next_entry(frame, playlist):
     """Select next playlist entry based on shuffle settings."""
-    if frame.shuffle_enabled:
-        entries = PlaylistEntry.query.filter_by(frame_id=frame.id).all()
+    if frame.shuffle_enabled and frame.playlist_id:
+        entries = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).all()
         if not entries:
             return None
 
@@ -2701,8 +2709,10 @@ def get_frame_diagnostics():
     online_threshold = timedelta(minutes=5)
     
     for frame in frames:
-        # Get frame's playlist using PlaylistEntry
-        playlist = PlaylistEntry.query.filter_by(frame_id=frame.id).order_by(PlaylistEntry.order).all()
+        # Get frame's playlist using PlaylistEntry via frame's playlist
+        playlist = []
+        if frame.playlist_id:
+            playlist = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).order_by(PlaylistEntry.order).all()
         
         last_ping = frame.last_wake_time or datetime.min
         is_online = (current_time - last_ping) < online_threshold
@@ -3175,10 +3185,23 @@ def add_to_playlist():
         
         if not frame or not photo:
             return jsonify({'error': 'Frame or photo not found'}), 404
+        
+        # Ensure frame has a playlist
+        if not frame.playlist:
+            playlist_name = f"{frame.name} Playlist"
+            base_name = playlist_name
+            counter = 1
+            while Playlist.query.filter_by(name=playlist_name).first():
+                counter += 1
+                playlist_name = f"{base_name} ({counter})"
+            playlist = Playlist(name=playlist_name)
+            db.session.add(playlist)
+            db.session.flush()
+            frame.playlist_id = playlist.id
 
         # Check if photo is already in the frame's playlist
         existing_entry = PlaylistEntry.query.filter_by(
-            frame_id=frame_id,
+            playlist_id=frame.playlist_id,
             photo_id=photo_id
         ).first()
         
@@ -3188,7 +3211,7 @@ def add_to_playlist():
             
             # Update entries with order less than the current entry
             db.session.query(PlaylistEntry)\
-                .filter(PlaylistEntry.frame_id == frame_id)\
+                .filter(PlaylistEntry.playlist_id == frame.playlist_id)\
                 .filter(PlaylistEntry.order < current_order)\
                 .update({
                     PlaylistEntry.order: PlaylistEntry.order + 1
@@ -3208,14 +3231,14 @@ def add_to_playlist():
             
         # Shift all existing playlist entries down by one
         db.session.query(PlaylistEntry)\
-            .filter_by(frame_id=frame_id)\
+            .filter_by(playlist_id=frame.playlist_id)\
             .update({
                 PlaylistEntry.order: PlaylistEntry.order + 1
             })
         
         # Create new playlist entry at order 0 (next up)
         playlist_entry = PlaylistEntry(
-            frame_id=frame_id,
+            playlist_id=frame.playlist_id,
             photo_id=photo_id,
             order=0  # This will be the next up photo
         )
@@ -3583,11 +3606,13 @@ def test_overlay(frame_id):
     if not frame:
         return jsonify({'error': 'Frame not found'}), 404
 
-    playlist = PlaylistEntry.query.filter_by(frame_id=frame_id).order_by(PlaylistEntry.order).first()
-    if not playlist or not playlist.photo:
+    playlist_entry = None
+    if frame.playlist_id:
+        playlist_entry = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).order_by(PlaylistEntry.order).first()
+    if not playlist_entry or not playlist_entry.photo:
         return jsonify({'error': 'No photos in playlist'}), 404
 
-    photo = playlist.photo
+    photo = playlist_entry.photo
     orientation = frame.orientation or 'portrait'
     photo_path = get_photo_path(photo, orientation)  # Helper function to get correct path
 
@@ -3677,6 +3702,51 @@ def list_frames():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/frames/<frame_id>/playlist', methods=['PUT'])
+def change_frame_playlist(frame_id):
+    """Change the playlist assigned to a frame."""
+    try:
+        frame = db.session.get(PhotoFrame, frame_id)
+        if not frame:
+            return jsonify({'error': 'Frame not found'}), 404
+        
+        data = request.get_json()
+        playlist_id = data.get('playlist_id')
+        
+        if playlist_id:
+            playlist = Playlist.query.get(playlist_id)
+            if not playlist:
+                return jsonify({'error': 'Playlist not found'}), 404
+            frame.playlist_id = playlist_id
+        else:
+            # Create a new playlist for this frame if none specified
+            playlist_name = f"{frame.name} Playlist"
+            base_name = playlist_name
+            counter = 1
+            while Playlist.query.filter_by(name=playlist_name).first():
+                counter += 1
+                playlist_name = f"{base_name} ({counter})"
+            
+            playlist = Playlist(name=playlist_name)
+            db.session.add(playlist)
+            db.session.flush()
+            frame.playlist_id = playlist.id
+        
+        db.session.commit()
+        
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
+            app.mqtt_integration.update_frame_options(frame)
+        
+        return jsonify({
+            'success': True,
+            'playlist_id': frame.playlist_id,
+            'playlist_name': frame.playlist.name
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/frames/<frame_id>/delete', methods=['DELETE'])
 def delete_frame(frame_id):
     """Delete a frame and its associated data."""
@@ -3704,8 +3774,8 @@ def delete_frame(frame_id):
             except Exception as e:
                 app.logger.error(f"Error cleaning up MQTT entities: {e}")
 
-        # Delete all playlist entries for this frame
-        PlaylistEntry.query.filter_by(frame_id=frame_id).delete()
+        # Get the frame's playlist before deleting
+        playlist_id = frame.playlist_id
         
         # Delete any scheduled generation tasks associated with this frame
         scheduled_generations = ScheduledGeneration.query.filter_by(frame_id=frame_id).all()
@@ -3714,6 +3784,18 @@ def delete_frame(frame_id):
         
         # Delete the frame
         db.session.delete(frame)
+        
+        # Delete the frame's playlist if no other frames are using it
+        if playlist_id:
+            other_frames_using_playlist = PhotoFrame.query.filter_by(playlist_id=playlist_id).count()
+            if other_frames_using_playlist == 0:
+                # Delete playlist entries first
+                PlaylistEntry.query.filter_by(playlist_id=playlist_id).delete()
+                # Delete the playlist
+                playlist = Playlist.query.get(playlist_id)
+                if playlist:
+                    db.session.delete(playlist)
+        
         db.session.commit()
         
         return jsonify({
@@ -3874,32 +3956,25 @@ def execute_generation(schedule_id):
     try:
         schedule = ScheduledGeneration.query.get_or_404(schedule_id)
 
-        # For custom playlist schedules
+        # For custom playlist schedules - just assign the playlist to the frame
         if schedule.service == 'custom_playlist':
             try:
                 playlist_id = int(schedule.model)
-                playlist = CustomPlaylist.query.get(playlist_id)
+                playlist = Playlist.query.get(playlist_id)
                 if not playlist:
                     return jsonify({'error': 'Playlist not found'}), 404
 
-                # Get valid entries
+                # Get valid entries to verify playlist has content
                 entries = playlist.entries.order_by(PlaylistEntry.order).all()
                 valid_entries = [e for e in entries if e.photo_id and e.photo]
                 
                 if not valid_entries:
                     return jsonify({'error': 'No valid photos in playlist'}), 400
 
-                # Clear existing frame playlist
-                PlaylistEntry.query.filter_by(frame_id=schedule.frame_id).delete()
-
-                # Add new entries
-                for order, entry in enumerate(valid_entries, 1):
-                    new_entry = PlaylistEntry(
-                        frame_id=schedule.frame_id,
-                        photo_id=entry.photo_id,
-                        order=order
-                    )
-                    db.session.add(new_entry)
+                # Simply assign the playlist to the frame
+                frame = PhotoFrame.query.get(schedule.frame_id)
+                if frame:
+                    frame.playlist_id = playlist_id
 
                 # Record in generation history
                 history = GenerationHistory(
@@ -3952,14 +4027,16 @@ def execute_generation(schedule_id):
         db.session.commit()
         
         # Add to frame's playlist
-        playlist_entry = PlaylistEntry(
-            frame_id=schedule.frame_id,
-            photo_id=photo.id,
-            order=db.session.query(db.func.max(PlaylistEntry.order))
-                      .filter_by(frame_id=schedule.frame_id)
-                      .scalar() or 0 + 1
-        )
-        db.session.add(playlist_entry)
+        frame = PhotoFrame.query.get(schedule.frame_id)
+        if frame and frame.playlist_id:
+            playlist_entry = PlaylistEntry(
+                playlist_id=frame.playlist_id,
+                photo_id=photo.id,
+                order=db.session.query(db.func.max(PlaylistEntry.order))
+                          .filter_by(playlist_id=frame.playlist_id)
+                          .scalar() or 0 + 1
+            )
+            db.session.add(playlist_entry)
         
         # Record in generation history
         history = GenerationHistory(
@@ -4137,20 +4214,9 @@ def import_frame_settings(frame_id):
         if hasattr(source_frame, 'color_map'):
             target_frame.color_map = source_frame.color_map
 
-        # Delete existing playlist entries
-        PlaylistEntry.query.filter_by(frame_id=frame_id).delete()
-
-        # Copy playlist entries
-        source_playlist = PlaylistEntry.query.filter_by(frame_id=source_frame_id)\
-                                           .order_by(PlaylistEntry.order).all()
-        
-        for entry in source_playlist:
-            new_entry = PlaylistEntry(
-                frame_id=frame_id,
-                photo_id=entry.photo_id,
-                order=entry.order
-            )
-            db.session.add(new_entry)
+        # Assign the source frame's playlist to the target frame
+        if source_frame.playlist_id:
+            target_frame.playlist_id = source_frame.playlist_id
 
         db.session.commit()
 
@@ -4263,15 +4329,17 @@ def next_photo(frame_id):
     if not frame:
         return jsonify({'error': 'Frame not found'}), 404
     
+    # Get playlist entries via frame's playlist
+    playlist = []
+    if frame.playlist_id:
+        playlist = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id)\
+                                    .order_by(PlaylistEntry.order).all()
+    
+    if not playlist:
+        return jsonify({'error': 'Playlist is empty'}), 404
+    
     # Use the frame timing manager for virtual frames
     if frame.frame_type == 'virtual':
-        # Get all playlist entries ordered by order
-        playlist = PlaylistEntry.query.filter_by(frame_id=frame_id)\
-                                    .order_by(PlaylistEntry.order).all()
-        
-        if not playlist:
-            return jsonify({'error': 'Playlist is empty'}), 404
-        
         # First, call the frame timing manager to handle the transition
         # This will update the current_photo_id to the next photo in the playlist
         result = frame_timing_manager.force_transition(frame_id, direction='next')
@@ -4282,6 +4350,11 @@ def next_photo(frame_id):
         frame = db.session.get(PhotoFrame, frame_id)
         if not frame or not frame.current_photo_id:
             return jsonify({'error': 'Frame update failed'}), 500
+        
+        # Refresh the playlist
+        if frame.playlist_id:
+            playlist = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id)\
+                                        .order_by(PlaylistEntry.order).all()
         
         # Now update the playlist order based on the new current_photo_id
         # Find the current photo's entry in the playlist
@@ -4308,14 +4381,6 @@ def next_photo(frame_id):
             app.logger.info(f"Updated playlist order for virtual frame {frame_id} after transition")
         
         return jsonify(result)
-    
-    # For physical frames, use the existing logic
-    # Get all playlist entries ordered by order
-    playlist = PlaylistEntry.query.filter_by(frame_id=frame_id).order_by(PlaylistEntry.order).all()
-    
-    # Check if playlist is empty
-    if not playlist:
-        return jsonify({'error': 'Playlist is empty'}), 404
     
     # Find the current photo's position in the playlist
     current_position = 0
@@ -4371,14 +4436,17 @@ def prev_photo(frame_id):
     if not frame:
         return jsonify({'error': 'Frame not found'}), 404
     
+    # Get playlist entries via frame's playlist
+    playlist = []
+    if frame.playlist_id:
+        playlist = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id)\
+                                    .order_by(PlaylistEntry.order).all()
+    
+    if not playlist:
+        return jsonify({'error': 'Playlist is empty'}), 404
+    
     # Use the frame timing manager for virtual frames
     if frame.frame_type == 'virtual':
-        # Get all playlist entries ordered by order
-        playlist = PlaylistEntry.query.filter_by(frame_id=frame_id)\
-                                    .order_by(PlaylistEntry.order).all()
-        
-        if not playlist:
-            return jsonify({'error': 'Playlist is empty'}), 404
         
         # First, call the frame timing manager to handle the transition
         # This will update the current_photo_id to the previous photo in the playlist
@@ -4418,12 +4486,7 @@ def prev_photo(frame_id):
         return jsonify(result)
     
     # For physical frames, use the existing logic
-    # Get all playlist entries ordered by order
-    playlist = PlaylistEntry.query.filter_by(frame_id=frame_id).order_by(PlaylistEntry.order).all()
-    
-    # Check if playlist is empty
-    if not playlist:
-        return jsonify({'error': 'Playlist is empty'}), 404
+    # Playlist already fetched at the start of the function
     
     # Find the current photo's position in the playlist
     current_position = 0
@@ -4799,9 +4862,10 @@ def clear_frame_playlist(frame_id):
     """Clear all photos from a frame's playlist."""
     frame = PhotoFrame.query.get_or_404(frame_id)
     
-    # Remove all playlist entries for this frame
-    PlaylistEntry.query.filter_by(frame_id=frame_id).delete()
-    db.session.commit()
+    # Remove all playlist entries from the frame's playlist
+    if frame.playlist_id:
+        PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).delete()
+        db.session.commit()
     
     if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
         app.mqtt_integration.update_frame_options(frame)
@@ -5238,10 +5302,13 @@ def add_unsplash_to_frame():
         frame = db.session.get(PhotoFrame, frame_id)
         if not frame:
             return jsonify({'error': 'Frame not found'}), 404
+        
+        if not frame.playlist_id:
+            return jsonify({'error': 'Frame does not have a playlist'}), 400
 
-        # Get current max order
+        # Get current max order from frame's playlist
         max_order = db.session.query(db.func.max(PlaylistEntry.order))\
-                      .filter_by(frame_id=frame_id)\
+                      .filter_by(playlist_id=frame.playlist_id)\
                       .scalar() or -1
 
         # Add each photo to the database and playlist
@@ -5300,9 +5367,9 @@ def add_unsplash_to_frame():
                 db.session.add(photo)
                 db.session.flush()  # Get photo.id without committing
 
-                # Create playlist entry
+                # Create playlist entry in frame's playlist
                 entry = PlaylistEntry(
-                    frame_id=frame_id,
+                    playlist_id=frame.playlist_id,
                     photo_id=photo.id,
                     order=max_order + 1 + i
                 )
@@ -5374,14 +5441,16 @@ def test_unsplash_schedule(schedule_id):
             raise Exception("Failed to create photo record")
 
         # Add to frame's playlist
-        playlist_entry = PlaylistEntry(
-            frame_id=schedule.frame_id,
-            photo_id=photo.id,
-            order=db.session.query(db.func.max(PlaylistEntry.order))
-                      .filter_by(frame_id=schedule.frame_id)
-                      .scalar() or 0 + 1
-        )
-        db.session.add(playlist_entry)
+        frame = PhotoFrame.query.get(schedule.frame_id)
+        if frame and frame.playlist_id:
+            playlist_entry = PlaylistEntry(
+                playlist_id=frame.playlist_id,
+                photo_id=photo.id,
+                order=db.session.query(db.func.max(PlaylistEntry.order))
+                          .filter_by(playlist_id=frame.playlist_id)
+                          .scalar() or 0 + 1
+            )
+            db.session.add(playlist_entry)
 
         # Record in generation history
         history = GenerationHistory(
@@ -5472,14 +5541,16 @@ def execute_generation(schedule_id):
                     raise Exception("Failed to create photo record")
 
                 # Add to frame's playlist
-                playlist_entry = PlaylistEntry(
-                    frame_id=schedule.frame_id,
-                    photo_id=photo.id,
-                    order=db.session.query(db.func.max(PlaylistEntry.order))
-                              .filter_by(frame_id=schedule.frame_id)
-                              .scalar() or 0 + 1
-                )
-                db.session.add(playlist_entry)
+                frame = PhotoFrame.query.get(schedule.frame_id)
+                if frame and frame.playlist_id:
+                    playlist_entry = PlaylistEntry(
+                        playlist_id=frame.playlist_id,
+                        photo_id=photo.id,
+                        order=db.session.query(db.func.max(PlaylistEntry.order))
+                                  .filter_by(playlist_id=frame.playlist_id)
+                                  .scalar() or 0 + 1
+                    )
+                    db.session.add(playlist_entry)
 
                 # Record success in history
                 history = GenerationHistory(
@@ -5608,10 +5679,13 @@ def add_pixabay_to_frame():
         frame = db.session.get(PhotoFrame, frame_id)
         if not frame:
             return jsonify({'error': 'Frame not found'}), 404
+        
+        if not frame.playlist_id:
+            return jsonify({'error': 'Frame does not have a playlist'}), 400
 
-        # Get current max order
+        # Get current max order from frame's playlist
         max_order = db.session.query(db.func.max(PlaylistEntry.order))\
-                      .filter_by(frame_id=frame_id)\
+                      .filter_by(playlist_id=frame.playlist_id)\
                       .scalar() or -1
 
         # Add each photo to the playlist
@@ -5676,9 +5750,9 @@ def add_pixabay_to_frame():
                 db.session.add(photo)
                 db.session.flush()  # Get photo.id without committing
 
-                # Create playlist entry
+                # Create playlist entry in frame's playlist
                 entry = PlaylistEntry(
-                    frame_id=frame_id,
+                    playlist_id=frame.playlist_id,
                     photo_id=photo.id,
                     order=max_order + 1 + i
                 )
@@ -5775,14 +5849,16 @@ def test_pixabay_schedule(schedule_id):
             raise Exception("Failed to create photo record")
 
         # Add to frame's playlist
-        playlist_entry = PlaylistEntry(
-            frame_id=schedule.frame_id,
-            photo_id=photo.id,
-            order=db.session.query(db.func.max(PlaylistEntry.order))
-                      .filter_by(frame_id=schedule.frame_id)
-                      .scalar() or 0 + 1
-        )
-        db.session.add(playlist_entry)
+        frame = PhotoFrame.query.get(schedule.frame_id)
+        if frame and frame.playlist_id:
+            playlist_entry = PlaylistEntry(
+                playlist_id=frame.playlist_id,
+                photo_id=photo.id,
+                order=db.session.query(db.func.max(PlaylistEntry.order))
+                          .filter_by(playlist_id=frame.playlist_id)
+                          .scalar() or 0 + 1
+            )
+            db.session.add(playlist_entry)
 
         # Record in generation history
         history = GenerationHistory(
@@ -5996,14 +6072,16 @@ def execute_generation(schedule_id):
                     raise Exception("Failed to create photo record")
 
                 # Add to frame's playlist
-                playlist_entry = PlaylistEntry(
-                    frame_id=schedule.frame_id,
-                    photo_id=photo.id,
-                    order=db.session.query(db.func.max(PlaylistEntry.order))
-                              .filter_by(frame_id=schedule.frame_id)
-                              .scalar() or 0 + 1
-                )
-                db.session.add(playlist_entry)
+                frame = PhotoFrame.query.get(schedule.frame_id)
+                if frame and frame.playlist_id:
+                    playlist_entry = PlaylistEntry(
+                        playlist_id=frame.playlist_id,
+                        photo_id=photo.id,
+                        order=db.session.query(db.func.max(PlaylistEntry.order))
+                                  .filter_by(playlist_id=frame.playlist_id)
+                                  .scalar() or 0 + 1
+                    )
+                    db.session.add(playlist_entry)
 
                 # Record success in history
                 history = GenerationHistory(
@@ -6081,25 +6159,27 @@ def reorder_frames():
 
 @app.route('/playlists')
 def manage_playlists():
-    playlists = CustomPlaylist.query.all()
+    playlists = Playlist.query.all()
     frames = PhotoFrame.query.order_by(PhotoFrame.order, PhotoFrame.name).all()
     return render_template('playlists/manage.html', playlists=playlists, frames=frames)
 
 @app.route('/api/custom-playlists', methods=['GET'])
 def get_custom_playlists():
-    """Get all custom playlists."""
-    playlists = CustomPlaylist.query.all()
+    """Get all playlists."""
+    playlists = Playlist.query.all()
     return jsonify([{
         'id': p.id,
         'name': p.name,
         'photo_count': p.entries.count(),
+        'frame_count': len(p.frames),
+        'frames': [{'id': f.id, 'name': f.name} for f in p.frames],
         'created_at': p.created_at.isoformat(),
         'updated_at': p.updated_at.isoformat()
     } for p in playlists])
 
 @app.route('/api/custom-playlists', methods=['POST'])
 def create_custom_playlist():
-    """Create a new custom playlist."""
+    """Create a new playlist."""
     if not request.is_json:
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
@@ -6109,7 +6189,7 @@ def create_custom_playlist():
     if not name:
         return jsonify({'error': 'Name is required'}), 400
     
-    playlist = CustomPlaylist(name=name)
+    playlist = Playlist(name=name)
     db.session.add(playlist)
     db.session.commit()
     
@@ -6121,51 +6201,89 @@ def create_custom_playlist():
 
 @app.route('/playlists/<int:playlist_id>/edit')
 def edit_custom_playlist(playlist_id):
-    """Page for editing a custom playlist."""
-    playlist = CustomPlaylist.query.get_or_404(playlist_id)
-    photos = Photo.query.all()  # You might want to paginate this
-    return render_template('playlists/edit.html', playlist=playlist, photos=photos)
+    """Page for editing a playlist."""
+    playlist = Playlist.query.get_or_404(playlist_id)
+    
+    # Get photos in playlist order
+    playlist_photos = [entry.photo for entry in playlist.entries.order_by(PlaylistEntry.order).all() if entry.photo]
+    
+    # Get photos not in playlist
+    playlist_photo_ids = [photo.id for photo in playlist_photos]
+    bench_photos = Photo.query.filter(~Photo.id.in_(playlist_photo_ids)).order_by(Photo.uploaded_at.desc()).all() if playlist_photo_ids else Photo.query.order_by(Photo.uploaded_at.desc()).all()
+    
+    return render_template('playlists/edit.html', 
+                         playlist=playlist, 
+                         playlist_photos=playlist_photos,
+                         bench_photos=bench_photos)
 
 @app.route('/api/custom-playlists/<int:playlist_id>/entries', methods=['POST'])
 def add_to_custom_playlist(playlist_id):
-    """Add photos to a custom playlist."""
-    playlist = CustomPlaylist.query.get_or_404(playlist_id)
+    """Add photos to a playlist."""
+    playlist = Playlist.query.get_or_404(playlist_id)
     
     if not request.is_json:
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
     data = request.get_json()
     photo_ids = data.get('photo_ids', [])
+    position = data.get('position', 'end')  # 'start' or 'end'
     
     if not photo_ids:
         return jsonify({'error': 'No photos specified'}), 400
     
     try:
-        # Get the next order number
-        next_order = db.session.query(db.func.max(PlaylistEntry.order)).filter(
-            PlaylistEntry.custom_playlist_id == playlist_id 
-        ).scalar() or 0
-        next_order += 1
+        # Check which photos are already in the playlist
+        existing_photo_ids = set(
+            entry.photo_id for entry in 
+            PlaylistEntry.query.filter_by(playlist_id=playlist_id).all()
+        )
         
-        # Add new entries
+        # Filter out duplicates
+        new_photo_ids = [pid for pid in photo_ids if pid not in existing_photo_ids]
+        skipped_count = len(photo_ids) - len(new_photo_ids)
+        
         entries_added = []
-        for photo_id in photo_ids:
-            # Create entry with frame_id explicitly set to None
-            entry = PlaylistEntry(
-                frame_id="custom",  # Explicitly set to None
-                custom_playlist_id=playlist_id,
-                photo_id=photo_id,
-                order=next_order
-            )
-            db.session.add(entry)
-            entries_added.append(entry)
-            next_order += 1
         
-        db.session.commit()
+        if new_photo_ids:
+            if position == 'start':
+                # Shift existing entries to make room at the beginning
+                num_new = len(new_photo_ids)
+                PlaylistEntry.query.filter_by(playlist_id=playlist_id)\
+                    .update({PlaylistEntry.order: PlaylistEntry.order + num_new})
+                
+                # Add new entries at the beginning
+                for order, photo_id in enumerate(new_photo_ids):
+                    entry = PlaylistEntry(
+                        playlist_id=playlist_id,
+                        photo_id=photo_id,
+                        order=order
+                    )
+                    db.session.add(entry)
+                    entries_added.append(entry)
+            else:
+                # Add to end (default behavior)
+                next_order = db.session.query(db.func.max(PlaylistEntry.order)).filter(
+                    PlaylistEntry.playlist_id == playlist_id 
+                ).scalar() or 0
+                next_order += 1
+                
+                for photo_id in new_photo_ids:
+                    entry = PlaylistEntry(
+                        playlist_id=playlist_id,
+                        photo_id=photo_id,
+                        order=next_order
+                    )
+                    db.session.add(entry)
+                    entries_added.append(entry)
+                    next_order += 1
+            
+            db.session.commit()
         
         # Return the updated entries for the playlist
         return jsonify({
             'success': True,
+            'added_count': len(entries_added),
+            'skipped_count': skipped_count,
             'entries': [{
                 'id': entry.id,
                 'photo_id': entry.photo_id,
@@ -6178,6 +6296,22 @@ def add_to_custom_playlist(playlist_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/custom-playlists/<int:playlist_id>/entries', methods=['DELETE'])
+def clear_playlist_entries(playlist_id):
+    """Clear all entries from a playlist."""
+    try:
+        playlist = Playlist.query.get_or_404(playlist_id)
+        PlaylistEntry.query.filter_by(playlist_id=playlist_id).delete()
+        playlist.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/photos')
 def get_all_photos():
     """Get all photos for the photo selector."""
@@ -6188,28 +6322,69 @@ def get_all_photos():
         'thumbnail': photo.thumbnail
     } for photo in photos])
 
+
+@app.route('/api/photos/<int:photo_id>', methods=['DELETE'])
+def api_delete_photo(photo_id):
+    """Delete a photo and all its file versions (original, portrait, landscape, thumbnail)."""
+    try:
+        photo = Photo.query.get_or_404(photo_id)
+        
+        # Remove photo from all playlists
+        PlaylistEntry.query.filter_by(photo_id=photo_id).delete()
+        
+        # Delete all versions of the file
+        upload_folder = app.config['UPLOAD_FOLDER']
+        files_to_delete = [
+            (photo.filename, upload_folder),  # Original
+            (photo.portrait_version, upload_folder),  # Portrait version
+            (photo.landscape_version, upload_folder),  # Landscape version
+            (photo.thumbnail, os.path.join(upload_folder, 'thumbnails')),  # Thumbnail
+        ]
+        
+        for filename, folder in files_to_delete:
+            if filename:
+                file_path = os.path.join(folder, filename)
+                try:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        app.logger.info(f"Deleted file: {file_path}")
+                except Exception as e:
+                    app.logger.error(f"Error deleting file {file_path}: {e}")
+        
+        # Delete the database record
+        db.session.delete(photo)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Photo deleted successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting photo {photo_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/frames/<frame_id>/apply-playlist/<int:playlist_id>', methods=['POST'])
 def apply_playlist_to_frame(frame_id, playlist_id):
-    """Apply a custom playlist to a frame."""
+    """Apply a playlist to a frame by setting the frame's playlist_id."""
     try:
         # Get the frame and playlist
         frame = PhotoFrame.query.get_or_404(frame_id)
-        playlist = CustomPlaylist.query.get_or_404(playlist_id)
+        playlist = Playlist.query.get_or_404(playlist_id)
         
-        # Delete existing frame playlist entries
-        PlaylistEntry.query.filter_by(frame_id=frame_id).delete()
-        
-        # Copy entries from custom playlist to frame
-        for i, entry in enumerate(playlist.entries):
-            new_entry = PlaylistEntry(
-                frame_id=frame_id,
-                photo_id=entry.photo_id,
-                order=i
-            )
-            db.session.add(new_entry)
+        # Simply assign the playlist to the frame (no copying needed)
+        frame.playlist_id = playlist_id
         
         db.session.commit()
-        return jsonify({'success': True})
+        
+        if hasattr(app, 'mqtt_integration') and app.mqtt_integration:
+            app.mqtt_integration.update_frame_options(frame)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Playlist "{playlist.name}" assigned to frame',
+            'playlist_id': playlist_id,
+            'playlist_name': playlist.name
+        })
         
     except Exception as e:
         db.session.rollback()
@@ -6217,14 +6392,14 @@ def apply_playlist_to_frame(frame_id, playlist_id):
 
 @app.route('/api/custom-playlists/<int:playlist_id>/entries/<int:entry_id>', methods=['DELETE'])
 def delete_playlist_entry(playlist_id, entry_id):
-    """Delete a single entry from a custom playlist."""
+    """Delete a single entry from a playlist."""
     try:
         # Get the playlist and entry
-        playlist = CustomPlaylist.query.get_or_404(playlist_id)
+        playlist = Playlist.query.get_or_404(playlist_id)
         entry = PlaylistEntry.query.get_or_404(entry_id)
         
         # Verify entry belongs to this playlist
-        if entry.custom_playlist_id != playlist_id:
+        if entry.playlist_id != playlist_id:
             return jsonify({'error': 'Entry does not belong to this playlist'}), 400
         
         # Delete the entry
@@ -6232,7 +6407,7 @@ def delete_playlist_entry(playlist_id, entry_id):
         
         # Reorder remaining entries to ensure no gaps
         remaining_entries = PlaylistEntry.query.filter_by(
-            custom_playlist_id=playlist_id
+            playlist_id=playlist_id
         ).order_by(PlaylistEntry.order).all()
         
         for i, entry in enumerate(remaining_entries):
@@ -6247,10 +6422,10 @@ def delete_playlist_entry(playlist_id, entry_id):
 
 @app.route('/api/custom-playlists/<int:playlist_id>/entries/reorder', methods=['POST'])
 def reorder_playlist_entries(playlist_id):
-    """Update the order of entries in a custom playlist."""
+    """Update the order of entries in a playlist."""
     try:
         # Get the playlist
-        playlist = CustomPlaylist.query.get_or_404(playlist_id)
+        playlist = Playlist.query.get_or_404(playlist_id)
         
         # Get the entries data from request
         data = request.get_json()
@@ -6263,7 +6438,7 @@ def reorder_playlist_entries(playlist_id):
         entry_ids = [entry['id'] for entry in entries]
         db_entries = PlaylistEntry.query.filter(
             PlaylistEntry.id.in_(entry_ids),
-            PlaylistEntry.custom_playlist_id == playlist_id
+            PlaylistEntry.playlist_id == playlist_id
         ).all()
         
         if len(db_entries) != len(entry_ids):
@@ -6281,14 +6456,61 @@ def reorder_playlist_entries(playlist_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/custom-playlists/<int:playlist_id>', methods=['PUT'])
+def update_custom_playlist(playlist_id):
+    """Update a playlist's details (name, etc.)."""
+    try:
+        playlist = Playlist.query.get_or_404(playlist_id)
+        
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type must be application/json'}), 400
+        
+        data = request.get_json()
+        
+        if 'name' in data:
+            new_name = data['name'].strip()
+            if not new_name:
+                return jsonify({'error': 'Name cannot be empty'}), 400
+            playlist.name = new_name
+        
+        playlist.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'playlist': {
+                'id': playlist.id,
+                'name': playlist.name
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/custom-playlists/<int:playlist_id>', methods=['DELETE'])
 def delete_custom_playlist(playlist_id):
-    """Delete a custom playlist and all its entries."""
+    """Delete a playlist and all its entries."""
     try:
-        playlist = CustomPlaylist.query.get_or_404(playlist_id)
+        playlist = Playlist.query.get_or_404(playlist_id)
+        force = request.args.get('force', '').lower() == 'true'
+        
+        # Check if any frames are using this playlist
+        frames_using_playlist = PhotoFrame.query.filter_by(playlist_id=playlist_id).all()
+        if frames_using_playlist:
+            if not force:
+                frame_names = [f.name or f.id for f in frames_using_playlist]
+                return jsonify({
+                    'error': f'Cannot delete playlist - it is being used by {len(frames_using_playlist)} frame(s): {", ".join(frame_names)}',
+                    'frames': [{'id': f.id, 'name': f.name} for f in frames_using_playlist]
+                }), 400
+            
+            # Force delete: unassign playlist from all frames
+            for frame in frames_using_playlist:
+                frame.playlist_id = None
         
         # Delete all entries first
-        PlaylistEntry.query.filter_by(custom_playlist_id=playlist_id).delete()
+        PlaylistEntry.query.filter_by(playlist_id=playlist_id).delete()
         
         # Delete the playlist
         db.session.delete(playlist)

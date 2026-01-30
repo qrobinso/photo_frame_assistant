@@ -91,14 +91,25 @@ class PhotoFrame(db.Model):
     # Overlay preferences
     overlay_preferences = db.Column(db.Text, default='{"weather": false, "metadata": false, "qrcode": false}')
 
+    # Playlist assignment - frames reference a playlist (N:1)
+    playlist_id = db.Column(db.Integer, db.ForeignKey('playlist.id'), nullable=True)
+
     # Relationships
     current_photo = db.relationship('Photo', foreign_keys=[current_photo_id])
-    playlist_entries = db.relationship('PlaylistEntry', backref='frame', lazy='dynamic', order_by='PlaylistEntry.order')
+    playlist = db.relationship('Playlist', back_populates='frames')
     scheduled_generations = db.relationship('ScheduledGeneration', backref='frame', lazy='dynamic')
 
     # Timestamps
     last_sync_time = db.Column(db.DateTime) # For sync group tracking
     diagnostics = db.Column(JSON)  # Add this line to store diagnostic data
+
+    @property
+    def playlist_entries(self):
+        """Backward-compatible property to get playlist entries via the assigned playlist."""
+        if self.playlist:
+            return self.playlist.entries
+        # Return empty query for backward compatibility
+        return PlaylistEntry.query.filter(False)
 
     def __repr__(self):
         return f"<PhotoFrame {self.id}: {self.name}>"
@@ -155,19 +166,22 @@ class PhotoFrame(db.Model):
 
 class PlaylistEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    frame_id = db.Column(db.String(50), db.ForeignKey('photo_frame.id'), nullable=True) # FK to PhotoFrame
     photo_id = db.Column(db.Integer, db.ForeignKey('photo.id'), nullable=False) # FK to Photo
     order = db.Column(db.Integer, nullable=False)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
-    custom_playlist_id = db.Column(db.Integer, db.ForeignKey('custom_playlist.id'), nullable=True) # FK to CustomPlaylist
+    # Playlist reference - entries belong to playlists
+    playlist_id = db.Column(db.Integer, db.ForeignKey('playlist.id'), nullable=True)
 
-    # Relationships defined via backref in PhotoFrame and CustomPlaylist
+    # Relationships defined via backref in Playlist
 
     def __repr__(self):
-        playlist_type = f"Frame {self.frame_id}" if self.frame_id else f"CustomPlaylist {self.custom_playlist_id}"
-        return f"<PlaylistEntry {self.id} photo={self.photo_id} order={self.order} in {playlist_type}>"
+        return f"<PlaylistEntry {self.id} photo={self.photo_id} order={self.order} in Playlist {self.playlist_id}>"
 
-class CustomPlaylist(db.Model):
+
+class Playlist(db.Model):
+    """Playlist model - photos are organized into playlists, which are assigned to frames."""
+    __tablename__ = 'playlist'
+    
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -175,13 +189,20 @@ class CustomPlaylist(db.Model):
 
     # Relationship to playlist entries
     entries = db.relationship('PlaylistEntry',
-                            backref='custom_playlist',
+                            backref='playlist',
                             lazy='dynamic',
                             cascade='all, delete-orphan',
                             order_by='PlaylistEntry.order')
+    
+    # Relationship to frames using this playlist
+    frames = db.relationship('PhotoFrame', back_populates='playlist')
 
     def __repr__(self):
-        return f'<CustomPlaylist {self.id}: {self.name}>'
+        return f'<Playlist {self.id}: {self.name}>'
+
+
+# Alias for backward compatibility with existing code
+CustomPlaylist = Playlist
 
 class ScheduledGeneration(db.Model):
     id = db.Column(db.Integer, primary_key=True)
