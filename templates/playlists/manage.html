@@ -127,11 +127,26 @@
         padding: 1rem;
     }
     
-    .playlist-name {
+    .playlist-photos-link {
+        display: block;
+        text-decoration: none;
+    }
+    
+    .playlist-photos-link:hover .playlist-photos {
+        opacity: 0.9;
+    }
+    
+    .playlist-name-link {
         font-weight: 600;
         font-size: 1rem;
         color: #212529;
         margin-bottom: 0.25rem;
+        text-decoration: none;
+        display: block;
+    }
+    
+    .playlist-name-link:hover {
+        color: #0d6efd;
     }
     
     .playlist-meta {
@@ -315,33 +330,35 @@
         <div class="playlist-grid">
             {% for playlist in playlists %}
             <div class="playlist-card">
-                <div class="playlist-photos">
-                    {% set entries = playlist.entries.limit(3).all() %}
-                    {% for entry in entries %}
-                        <div class="playlist-photo">
-                            {% if entry.photo and entry.photo.thumbnail %}
-                                <img src="{{ url_for('serve_thumbnail', filename=entry.photo.thumbnail) }}" 
-                                     alt="Photo" loading="lazy">
-                            {% else %}
+                <a href="{{ url_for('edit_custom_playlist', playlist_id=playlist.id) }}" class="playlist-photos-link">
+                    <div class="playlist-photos">
+                        {% set entries = playlist.entries.limit(3).all() %}
+                        {% for entry in entries %}
+                            <div class="playlist-photo">
+                                {% if entry.photo and entry.photo.thumbnail %}
+                                    <img src="{{ url_for('serve_thumbnail', filename=entry.photo.thumbnail) }}" 
+                                         alt="Photo" loading="lazy">
+                                {% else %}
+                                    <div class="playlist-photo-placeholder">
+                                        <i class="bi bi-image"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        {% for i in range(3 - entries|length) %}
+                            <div class="playlist-photo">
                                 <div class="playlist-photo-placeholder">
                                     <i class="bi bi-image"></i>
                                 </div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                    {% for i in range(3 - entries|length) %}
-                        <div class="playlist-photo">
-                            <div class="playlist-photo-placeholder">
-                                <i class="bi bi-image"></i>
                             </div>
-                        </div>
-                    {% endfor %}
-                    {% if playlist.entries.count() > 3 %}
-                        <div class="playlist-more">+{{ playlist.entries.count() - 3 }}</div>
-                    {% endif %}
-                </div>
+                        {% endfor %}
+                        {% if playlist.entries.count() > 3 %}
+                            <div class="playlist-more">+{{ playlist.entries.count() - 3 }}</div>
+                        {% endif %}
+                    </div>
+                </a>
                 <div class="playlist-info">
-                    <div class="playlist-name">{{ playlist.name }}</div>
+                    <a href="{{ url_for('edit_custom_playlist', playlist_id=playlist.id) }}" class="playlist-name-link">{{ playlist.name }}</a>
                     <div class="playlist-meta">
                         <span><i class="bi bi-images"></i> {{ playlist.entries.count() }} photos</span>
                         <span><i class="bi bi-display"></i> {{ playlist.frames|length }} frame{{ 's' if playlist.frames|length != 1 else '' }}</span>
