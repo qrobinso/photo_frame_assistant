@@ -60,6 +60,7 @@ class PhotoFrame(db.Model):
     current_photo_id = db.Column(db.Integer, db.ForeignKey('photo.id'))
     sync_group_id = db.Column(db.Integer, db.ForeignKey('sync_group.id'))
     shuffle_enabled = db.Column(db.Boolean, default=False)
+    snap_to_hour = db.Column(db.Boolean, default=False)  # Align photo changes to clock hours when interval >= 60 min
     deep_sleep_enabled = db.Column(db.Boolean, default=False)
     deep_sleep_start = db.Column(db.Integer) # Hour in UTC (0-23)
     deep_sleep_end = db.Column(db.Integer)   # Hour in UTC (0-23)

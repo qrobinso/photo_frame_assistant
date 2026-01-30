@@ -277,6 +277,131 @@
         font-weight: 600;
     }
     
+    /* Clickable playlist badge */
+    .playlist-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.125rem 0.5rem;
+        background: #e9ecef;
+        border-radius: 1rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+    }
+    
+    .playlist-badge:hover {
+        background: #dee2e6;
+        color: #212529;
+    }
+    
+    .playlist-badge.no-playlist {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .playlist-badge.no-playlist:hover {
+        background: #ffe69c;
+    }
+    
+    /* Playlist Selection Modal */
+    .playlist-option {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 0.5rem;
+    }
+    
+    .playlist-option:hover {
+        border-color: #0d6efd;
+        background: #f8f9ff;
+    }
+    
+    .playlist-option.selected {
+        border-color: #0d6efd;
+        background: #e7f1ff;
+    }
+    
+    .playlist-preview {
+        width: 56px;
+        height: 56px;
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 1px;
+        background: #e9ecef;
+    }
+    
+    .playlist-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .playlist-preview-empty {
+        width: 56px;
+        height: 56px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+    
+    .playlist-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .playlist-name {
+        font-weight: 600;
+        color: #212529;
+    }
+    
+    .playlist-meta {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .playlist-frames {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+        margin-top: 0.25rem;
+    }
+    
+    .playlist-frame-tag {
+        font-size: 0.65rem;
+        padding: 0.125rem 0.375rem;
+        background: #e9ecef;
+        border-radius: 0.25rem;
+        color: #495057;
+    }
+    
+    .playlist-frame-tag.current {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .playlist-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
     /* Frame Actions */
     .frame-actions {
         display: flex;
@@ -464,6 +589,37 @@
     .btn-text-short {
         display: none;
     }
+    
+    /* Clickable preview images */
+    .clickable-preview {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .clickable-preview:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    
+    .preview-mat {
+        position: relative;
+    }
+    
+    .preview-mat:has(.clickable-preview)::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0);
+        transition: background 0.2s;
+        pointer-events: none;
+    }
+    
+    .preview-mat:has(.clickable-preview):hover::after {
+        background: rgba(0,0,0,0.1);
+    }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 {% endblock %}
@@ -520,13 +676,18 @@
                                     {% set current_photo = Photo.query.get(frame.current_photo_id) %}
                                     {% if current_photo %}
                                         {% if current_photo.media_type == 'video' %}
-                                        <video class="preview-image current-photo" autoplay muted loop>
+                                        <video class="preview-image current-photo clickable-preview" 
+                                               data-photo-id="{{ current_photo.id }}"
+                                               onclick="editPhoto({{ current_photo.id }})"
+                                               autoplay muted loop>
                                             <source src="{{ url_for('serve_photo', filename=current_photo.filename) }}" type="video/mp4">
                                         </video>
                                         {% else %}
                                         <img src="{{ url_for('serve_thumbnail', filename=current_photo.filename.replace('thumb_', '')) }}" 
                                              onerror="this.onerror=null; this.src='{{ url_for('serve_photo', filename=current_photo.filename) }}'"
-                                             class="preview-image current-photo" 
+                                             class="preview-image current-photo clickable-preview" 
+                                             data-photo-id="{{ current_photo.id }}"
+                                             onclick="editPhoto({{ current_photo.id }})"
                                              alt="Current photo">
                                         {% endif %}
                                     {% else %}
@@ -548,13 +709,18 @@
                                     {% set next_photo = get_current_photo(frame.id) %}
                                     {% if next_photo %}
                                         {% if next_photo.media_type == 'video' %}
-                                        <video class="preview-image next-photo" muted>
+                                        <video class="preview-image next-photo clickable-preview" 
+                                               data-photo-id="{{ next_photo.id }}"
+                                               onclick="editPhoto({{ next_photo.id }})"
+                                               muted>
                                             <source src="{{ url_for('serve_photo', filename=next_photo.filename) }}" type="video/mp4">
                                         </video>
                                         {% else %}
                                         <img src="{{ url_for('serve_thumbnail', filename=next_photo.filename) }}" 
                                              onerror="this.onerror=null; this.src='{{ url_for('serve_photo', filename=next_photo.filename) }}'"
-                                             class="preview-image next-photo" 
+                                             class="preview-image next-photo clickable-preview" 
+                                             data-photo-id="{{ next_photo.id }}"
+                                             onclick="editPhoto({{ next_photo.id }})"
                                              alt="Next photo">
                                         {% endif %}
                                     {% else %}
@@ -569,12 +735,13 @@
                 <div class="frame-details">
                     <div class="frame-meta">
                         {% if frame.playlist %}
-                        <span class="meta-item playlist-info" title="Current playlist">
-                            <i class="bi bi-collection-play"></i> 
-                            <a href="{{ url_for('edit_custom_playlist', playlist_id=frame.playlist.id) }}" class="text-decoration-none">
-                                {{ frame.playlist.name }}
-                            </a>
-                        </span>
+                        <button class="playlist-badge" onclick="openPlaylistSelector('{{ frame.id }}', {{ frame.playlist.id }})" title="Change playlist">
+                            <i class="bi bi-collection-play"></i> {{ frame.playlist.name }}
+                        </button>
+                        {% else %}
+                        <button class="playlist-badge no-playlist" onclick="openPlaylistSelector('{{ frame.id }}', null)" title="Select playlist">
+                            <i class="bi bi-collection-play"></i> No playlist
+                        </button>
                         {% endif %}
                         {% if frame.sync_group %}
                         <a href="{{ url_for('manage_sync_groups') }}" class="sync-badge">
@@ -648,6 +815,9 @@
     </div>
 </div>
 
+<!-- Photo Edit Modal (reusable component) -->
+{% include 'partials/photo_edit_modal.html' %}
+
 <!-- Add Frame Modal -->
 <div class="modal fade" id="addFrameModal" tabindex="-1">
     <div class="modal-dialog">
@@ -692,6 +862,77 @@
                         <button type="submit" class="btn btn-primary">Add Frame</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Playlist Selection Modal -->
+<div class="modal fade" id="playlistSelectorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-collection-play me-2"></i>Select Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="playlistSelectorFrameId" value="">
+                {% if playlists %}
+                <div class="playlist-list" id="playlistList">
+                    {% for playlist in playlists %}
+                    <div class="playlist-option" data-playlist-id="{{ playlist.id }}">
+                        {% set recent_photos = playlist.entries.limit(4).all() %}
+                        {% if recent_photos %}
+                        <div class="playlist-preview">
+                            {% for entry in recent_photos %}
+                            {% if entry.photo %}
+                            <img src="{{ url_for('serve_thumbnail', filename=entry.photo.thumbnail) if entry.photo.thumbnail else url_for('serve_photo', filename=entry.photo.filename) }}" alt="">
+                            {% else %}
+                            <div style="background: #dee2e6;"></div>
+                            {% endif %}
+                            {% endfor %}
+                            {% for i in range(4 - recent_photos|length) %}
+                            <div style="background: #dee2e6;"></div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="playlist-preview-empty">
+                            <i class="bi bi-collection-play"></i>
+                        </div>
+                        {% endif %}
+                        <div class="playlist-details">
+                            <div class="playlist-name">{{ playlist.name }}</div>
+                            <div class="playlist-meta">
+                                {{ playlist.entries.count() }} photos
+                            </div>
+                            {% if playlist.frames %}
+                            <div class="playlist-frames">
+                                {% for frame in playlist.frames[:3] %}
+                                <span class="playlist-frame-tag" data-frame-id="{{ frame.id }}">
+                                    <i class="bi bi-display me-1"></i>{{ frame.name or frame.id }}
+                                </span>
+                                {% endfor %}
+                                {% if playlist.frames|length > 3 %}
+                                <span class="playlist-frame-tag">+{{ playlist.frames|length - 3 }} more</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-collection text-muted" style="font-size: 2.5rem;"></i>
+                    <p class="text-muted mt-2">No playlists yet.<br>Playlists are created automatically when you add frames.</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmPlaylistBtn" disabled>
+                    <i class="bi bi-check-lg"></i> Select Playlist
+                </button>
             </div>
         </div>
     </div>
@@ -936,5 +1177,92 @@ function showToast(message, type = 'success') {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
 }
+
+// Playlist selector modal
+let selectedPlaylistId = null;
+let playlistSelectorModal = null;
+
+function openPlaylistSelector(frameId, currentPlaylistId) {
+    // Store the frame ID
+    document.getElementById('playlistSelectorFrameId').value = frameId;
+    selectedPlaylistId = null;
+    
+    // Reset all selections
+    document.querySelectorAll('.playlist-option').forEach(opt => {
+        opt.classList.remove('selected');
+        // Mark current playlist's frame tag
+        opt.querySelectorAll('.playlist-frame-tag').forEach(tag => {
+            tag.classList.remove('current');
+            if (tag.dataset.frameId === frameId) {
+                tag.classList.add('current');
+            }
+        });
+    });
+    
+    // Pre-select current playlist if exists
+    if (currentPlaylistId) {
+        const currentOption = document.querySelector(`.playlist-option[data-playlist-id="${currentPlaylistId}"]`);
+        if (currentOption) {
+            currentOption.classList.add('selected');
+            selectedPlaylistId = currentPlaylistId;
+        }
+    }
+    
+    // Update button state
+    document.getElementById('confirmPlaylistBtn').disabled = !selectedPlaylistId;
+    
+    // Show modal
+    if (!playlistSelectorModal) {
+        playlistSelectorModal = new bootstrap.Modal(document.getElementById('playlistSelectorModal'));
+    }
+    playlistSelectorModal.show();
+}
+
+// Playlist option click handler
+document.querySelectorAll('.playlist-option').forEach(option => {
+    option.addEventListener('click', function() {
+        document.querySelectorAll('.playlist-option').forEach(o => o.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedPlaylistId = this.dataset.playlistId;
+        document.getElementById('confirmPlaylistBtn').disabled = false;
+    });
+});
+
+// Confirm playlist selection
+document.getElementById('confirmPlaylistBtn').addEventListener('click', async function() {
+    const frameId = document.getElementById('playlistSelectorFrameId').value;
+    if (!frameId || !selectedPlaylistId) return;
+    
+    this.disabled = true;
+    this.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Saving...';
+    
+    try {
+        const response = await fetch(`/api/frames/${frameId}/playlist`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playlist_id: parseInt(selectedPlaylistId) })
+        });
+        
+        if (response.ok) {
+            showToast('Playlist updated');
+            playlistSelectorModal.hide();
+            // Reload to reflect changes
+            setTimeout(() => location.reload(), 500);
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'Error updating playlist', 'error');
+        }
+    } catch (error) {
+        showToast('Error updating playlist', 'error');
+    } finally {
+        this.disabled = false;
+        this.innerHTML = '<i class="bi bi-check-lg"></i> Select Playlist';
+    }
+});
+
+// Add spin animation
+const spinStyle = document.createElement('style');
+spinStyle.textContent = '@keyframes spin { to { transform: rotate(360deg); } } .spin { animation: spin 1s linear infinite; }';
+document.head.appendChild(spinStyle);
 </script>
 {% endblock %}

@@ -433,7 +433,7 @@ def is_in_deep_sleep(frame, current_time_utc=None):
         return current_hour >= start or current_hour < end
 
 def calculate_sleep_interval(frame, current_time_utc=None):
-    """Calculate the effective sleep interval considering deep sleep (in minutes, UTC)."""
+    """Calculate the effective sleep interval considering deep sleep and snap-to-hour (in minutes, UTC)."""
     if current_time_utc is None:
         current_time_utc = datetime.now(timezone.utc)
     elif current_time_utc.tzinfo is None:
@@ -468,6 +468,36 @@ def calculate_sleep_interval(frame, current_time_utc=None):
             minutes_to_sleep = (end_time - current_time_utc).total_seconds() / 60.0
             logger.debug(f"Frame {frame.id} next wake is in deep sleep. Sleeping for {minutes_to_sleep:.1f} mins until {end_time.isoformat()}.")
             return max(minutes_to_sleep, base_interval)
+
+    # Handle snap-to-hour when interval is 60+ minutes
+    if getattr(frame, 'snap_to_hour', False) and base_interval >= 60:
+        interval_hours = base_interval / 60.0
+        # Round to nearest integer hour for alignment (e.g., 60->1, 180->3, 1440->24)
+        interval_hours = max(1, round(interval_hours))
+        
+        # Calculate next aligned hour
+        current_hour = current_time_utc.hour
+        # Find next hour that aligns with the interval (e.g., for 3-hour: 0, 3, 6, 9...)
+        next_aligned_hour = ((current_hour // interval_hours) + 1) * interval_hours
+        
+        # Calculate the target time
+        target_time = current_time_utc.replace(minute=0, second=0, microsecond=0)
+        if next_aligned_hour >= 24:
+            # Wraps to next day
+            days_ahead = next_aligned_hour // 24
+            target_time = target_time + timedelta(days=days_ahead)
+            target_time = target_time.replace(hour=next_aligned_hour % 24)
+        else:
+            target_time = target_time.replace(hour=next_aligned_hour)
+        
+        minutes_to_aligned = (target_time - current_time_utc).total_seconds() / 60.0
+        
+        # Ensure we don't return a negative or zero interval
+        if minutes_to_aligned <= 0:
+            minutes_to_aligned += interval_hours * 60
+        
+        logger.debug(f"Frame {frame.id} snap-to-hour enabled. Next aligned time: {target_time.isoformat()}, sleeping {minutes_to_aligned:.1f} mins.")
+        return minutes_to_aligned
 
     # Not in deep sleep, and next wake is not in deep sleep
     return base_interval
@@ -1855,6 +1885,9 @@ def edit_frame_settings(frame_id):
         
         # Handle shuffle setting
         frame.shuffle_enabled = request.form.get('shuffle_enabled') == 'on'
+        
+        # Handle snap to hour setting
+        frame.snap_to_hour = request.form.get('snap_to_hour') == 'on'
         
         # Convert deep sleep times from local to UTC
         frame.deep_sleep_enabled = request.form.get('deep_sleep_enabled') == 'on'
@@ -6394,6 +6427,22 @@ def get_all_photos():
         'filename': photo.filename,
         'thumbnail': photo.thumbnail
     } for photo in photos])
+
+
+@app.route('/api/photos/<int:photo_id>', methods=['GET'])
+def api_get_photo(photo_id):
+    """Get a single photo's details."""
+    try:
+        photo = Photo.query.get_or_404(photo_id)
+        return jsonify({
+            'id': photo.id,
+            'filename': photo.filename,
+            'thumbnail': photo.thumbnail,
+            'media_type': photo.media_type
+        })
+    except Exception as e:
+        app.logger.error(f"Error fetching photo {photo_id}: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/photos/<int:photo_id>', methods=['DELETE'])

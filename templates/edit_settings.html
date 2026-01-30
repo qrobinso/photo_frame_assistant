@@ -742,6 +742,17 @@
                             <button type="button" class="quick-btn" onclick="setSleepInterval(180)">3 hours</button>
                             <button type="button" class="quick-btn" onclick="setSleepInterval(1440)">1 day</button>
                         </div>
+                        
+                        <div class="toggle-group" id="snapToHourGroup" style="margin-top: 1rem; {% if frame.sleep_interval < 60 %}display: none;{% endif %}">
+                            <div class="toggle-info">
+                                <div class="toggle-label"><i class="bi bi-clock me-2"></i>Snap to Top of Hour</div>
+                                <div class="toggle-description">Change photos at clock hours (e.g., 1:00, 2:00) instead of relative intervals</div>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="snap_to_hour" name="snap_to_hour"
+                                       {% if frame.snap_to_hour %}checked{% endif %}>
+                            </div>
+                        </div>
                     {% endif %}
                 </div>
             </div>
@@ -1141,6 +1152,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const controls = document.querySelector('.deep-sleep-controls');
         controls.style.display = this.checked ? 'block' : 'none';
     });
+    
+    // Sleep interval change - update snap-to-hour visibility
+    const sleepIntervalInput = document.getElementById('sleep_interval');
+    if (sleepIntervalInput) {
+        sleepIntervalInput.addEventListener('input', updateSnapToHourVisibility);
+        // Initial visibility check on page load
+        updateSnapToHourVisibility();
+    }
 });
 
 // Card toggle
@@ -1157,6 +1176,17 @@ function updateSliderValue(elementId, value) {
 // Sleep interval quick buttons
 function setSleepInterval(minutes) {
     document.getElementById('sleep_interval').value = minutes;
+    updateSnapToHourVisibility();
+}
+
+// Show/hide snap-to-hour toggle based on interval value
+function updateSnapToHourVisibility() {
+    const intervalInput = document.getElementById('sleep_interval');
+    const snapGroup = document.getElementById('snapToHourGroup');
+    if (intervalInput && snapGroup) {
+        const interval = parseFloat(intervalInput.value) || 0;
+        snapGroup.style.display = interval >= 60 ? '' : 'none';
+    }
 }
 
 // Color map functions

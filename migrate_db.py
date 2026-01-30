@@ -16,10 +16,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 def migrate_db():
-    """Add event_log table to the database."""
+    """Run database migrations."""
     with app.app_context():
-        # Create the event_log table using SQL
         with db.engine.connect() as conn:
+            # Create the event_log table using SQL
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS event_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +32,15 @@ def migrate_db():
                 )
             '''))
             conn.commit()
-        print("Added event_log table to database")
+            print("Added event_log table to database")
+            
+            # Add snap_to_hour column to photo_frame table
+            try:
+                conn.execute(text('ALTER TABLE photo_frame ADD COLUMN snap_to_hour BOOLEAN DEFAULT 0'))
+                conn.commit()
+                print("Added snap_to_hour column to photo_frame table")
+            except Exception:
+                pass  # Column already exists
 
 if __name__ == '__main__':
     migrate_db()

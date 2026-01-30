@@ -213,7 +213,23 @@ docker-compose exec photo-server python db_manager.py --create --force
 
 ### Data loss after rebuild/recreate
 
-If your data disappeared after rebuilding or recreating the container, your data may be in an old volume with a different name. Check for existing volumes:
+If your data disappeared after rebuilding or recreating the container, there are several potential causes:
+
+**1. Check the startup logs for volume verification**
+
+The container logs show detailed information about data persistence at startup:
+
+```bash
+docker logs photo-frame-assistant 2>&1 | head -50
+```
+
+Look for these sections:
+- `=== Volume Check ===` - Shows if the volume marker exists (indicates proper persistence)
+- `=== Volume Contents Verification ===` - Shows actual file counts
+
+**2. Check if data is in the correct volume**
+
+Your data may be in an old volume with a different name. Check for existing volumes:
 
 ```bash
 docker volume ls

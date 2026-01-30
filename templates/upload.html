@@ -491,37 +491,6 @@
         color: #495057;
     }
     
-    /* Photo Edit Modal */
-    #photoEditModal .modal-dialog {
-        max-width: 900px;
-    }
-    
-    .edit-preview {
-        background: #1a1a2e;
-        padding: 1rem;
-        border-radius: 8px;
-        text-align: center;
-    }
-    
-    .edit-preview img {
-        max-width: 100%;
-        max-height: 400px;
-    }
-    
-    .edit-controls {
-        margin-top: 1.5rem;
-    }
-    
-    .control-group {
-        margin-bottom: 1rem;
-    }
-    
-    .control-label {
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #495057;
-        margin-bottom: 0.5rem;
-    }
     
     /* Source Modals */
     .source-grid {
@@ -998,64 +967,8 @@
     </div>
 </div>
 
-<!-- Photo Edit Modal -->
-<div class="modal fade" id="photoEditModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Edit Photo</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="edit-preview text-center mb-3" style="background: #1a1a2e; padding: 1rem; border-radius: 8px;">
-                    <img id="editPreview" src="" alt="Preview" style="max-width: 100%; max-height: 300px; transition: transform 0.3s;">
-                </div>
-                
-                <!-- Rotation - Most common edit -->
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Rotate</label>
-                    <div class="btn-group w-100">
-                        <button type="button" class="btn btn-outline-secondary" onclick="rotatePreview(-90)">
-                            <i class="bi bi-arrow-counterclockwise"></i> Left 90°
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" onclick="rotatePreview(180)">
-                            <i class="bi bi-arrow-repeat"></i> 180°
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" onclick="rotatePreview(90)">
-                            <i class="bi bi-arrow-clockwise"></i> Right 90°
-                        </button>
-                    </div>
-                    <div class="text-center mt-2 text-muted small" id="rotationLabel">No rotation</div>
-                </div>
-                
-                <!-- Simple adjustments -->
-                <div class="mb-3">
-                    <label class="form-label fw-semibold d-flex justify-content-between">
-                        Brightness <span id="brightnessValue">100%</span>
-                    </label>
-                    <input type="range" class="form-range" id="brightnessSlider" min="50" max="150" value="100">
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label fw-semibold d-flex justify-content-between">
-                        Contrast <span id="contrastValue">100%</span>
-                    </label>
-                    <input type="range" class="form-range" id="contrastSlider" min="50" max="150" value="100">
-                </div>
-                
-                <button type="button" class="btn btn-link btn-sm p-0 text-muted" onclick="resetEdits()">
-                    <i class="bi bi-arrow-counterclockwise"></i> Reset all changes
-                </button>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveEditBtn" onclick="savePhotoEdit()">
-                    <i class="bi bi-check-lg"></i> Save Changes
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Photo Edit Modal (reusable component) -->
+{% include 'partials/photo_edit_modal.html' %}
 
 <!-- Upload Progress -->
 <div id="uploadProgress" class="position-fixed bottom-0 end-0 m-3 p-3 bg-white rounded-3 shadow" style="display: none; min-width: 280px; z-index: 1050;">
@@ -1073,7 +986,6 @@
 <script>
 let bulkMode = false;
 let selectedPhotos = new Set();
-let currentEditPhotoId = null;
 let selectedPlaylistId = null;
 let photosToAdd = null;
 
@@ -1270,137 +1182,7 @@ document.getElementById('confirmAddBtn').addEventListener('click', async functio
     }
 });
 
-// Photo edit state
-let currentRotation = 0;
-
-function editPhoto(photoId) {
-    currentEditPhotoId = photoId;
-    currentRotation = 0;
-    
-    const photoItem = document.querySelector(`.photo-item[data-photo-id="${photoId}"]`);
-    const filename = photoItem.dataset.filename;
-    
-    // Load full image (not thumbnail)
-    document.getElementById('editPreview').src = `/photos/${filename}`;
-    document.getElementById('editPreview').style.transform = 'rotate(0deg)';
-    document.getElementById('editPreview').style.filter = '';
-    
-    // Reset controls
-    document.getElementById('brightnessSlider').value = 100;
-    document.getElementById('contrastSlider').value = 100;
-    document.getElementById('brightnessValue').textContent = '100%';
-    document.getElementById('contrastValue').textContent = '100%';
-    document.getElementById('rotationLabel').textContent = 'No rotation';
-    
-    new bootstrap.Modal(document.getElementById('photoEditModal')).show();
-}
-
-// Apply preview filters
-document.getElementById('brightnessSlider').addEventListener('input', function() {
-    document.getElementById('brightnessValue').textContent = this.value + '%';
-    applyPreviewFilters();
-});
-
-document.getElementById('contrastSlider').addEventListener('input', function() {
-    document.getElementById('contrastValue').textContent = this.value + '%';
-    applyPreviewFilters();
-});
-
-function applyPreviewFilters() {
-    const brightness = document.getElementById('brightnessSlider').value;
-    const contrast = document.getElementById('contrastSlider').value;
-    document.getElementById('editPreview').style.filter = 
-        `brightness(${brightness}%) contrast(${contrast}%)`;
-}
-
-function rotatePreview(degrees) {
-    currentRotation = (currentRotation + degrees) % 360;
-    if (currentRotation < 0) currentRotation += 360;
-    
-    document.getElementById('editPreview').style.transform = `rotate(${currentRotation}deg)`;
-    
-    // Update label
-    const labels = { 0: 'No rotation', 90: 'Rotated 90° right', 180: 'Rotated 180°', 270: 'Rotated 90° left' };
-    document.getElementById('rotationLabel').textContent = labels[currentRotation] || `Rotated ${currentRotation}°`;
-}
-
-function resetEdits() {
-    currentRotation = 0;
-    document.getElementById('brightnessSlider').value = 100;
-    document.getElementById('contrastSlider').value = 100;
-    document.getElementById('brightnessValue').textContent = '100%';
-    document.getElementById('contrastValue').textContent = '100%';
-    document.getElementById('rotationLabel').textContent = 'No rotation';
-    document.getElementById('editPreview').style.transform = 'rotate(0deg)';
-    document.getElementById('editPreview').style.filter = '';
-}
-
-async function savePhotoEdit() {
-    if (!currentEditPhotoId) return;
-    
-    const saveBtn = document.getElementById('saveEditBtn');
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="bi bi-hourglass-split spin"></i> Saving...';
-    
-    // Get values - convert slider (50-150) to factor (0.5-1.5)
-    const brightness = document.getElementById('brightnessSlider').value / 100;
-    const contrast = document.getElementById('contrastSlider').value / 100;
-    
-    // Build edit data - only include changed values
-    const editData = {};
-    
-    if (brightness !== 1.0) {
-        editData.brightness = brightness;
-    }
-    if (contrast !== 1.0) {
-        editData.contrast = contrast;
-    }
-    if (currentRotation !== 0) {
-        // PIL rotation is counter-clockwise, so we need to negate for expected behavior
-        editData.rotation = -currentRotation;
-    }
-    
-    // Check if any edits were made
-    if (Object.keys(editData).length === 0) {
-        showToast('No changes to save');
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';
-        bootstrap.Modal.getInstance(document.getElementById('photoEditModal')).hide();
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/photos/${currentEditPhotoId}/edit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(editData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showToast('Photo saved successfully!');
-            
-            // Refresh the thumbnail in the grid with cache bust
-            const photoItem = document.querySelector(`.photo-item[data-photo-id="${currentEditPhotoId}"]`);
-            if (photoItem) {
-                const img = photoItem.querySelector('img');
-                const currentSrc = img.src.split('?')[0];
-                img.src = currentSrc + '?t=' + Date.now();
-            }
-            
-            bootstrap.Modal.getInstance(document.getElementById('photoEditModal')).hide();
-        } else {
-            showToast('Error: ' + (result.error || 'Failed to save'), 'error');
-        }
-    } catch (error) {
-        console.error('Save error:', error);
-        showToast('Error saving photo', 'error');
-    } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';
-    }
-}
+// Photo edit functions are loaded from the shared partial (photo_edit_modal.html)
 
 // Delete photo
 async function deletePhoto(photoId) {
@@ -1520,9 +1302,6 @@ function showToast(message, type = 'success') {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// Add spin animation
-const style = document.createElement('style');
-style.textContent = '@keyframes spin { to { transform: rotate(360deg); } } .spin { animation: spin 1s linear infinite; }';
-document.head.appendChild(style);
+// Spin animation is provided by the photo edit modal partial
 </script>
 {% endblock %}

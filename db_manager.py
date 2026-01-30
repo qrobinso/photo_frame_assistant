@@ -11,7 +11,7 @@ import argparse
 import json
 import sqlite3
 from datetime import datetime
-from sqlalchemy import create_engine, inspect, MetaData, Table, Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Text
+from sqlalchemy import create_engine, inspect, MetaData, Table, Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Text, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.types import JSON
@@ -72,6 +72,44 @@ def create_database():
         logger.error(f"Error creating database: {e}")
         return False
 
+def get_column_type_sql(column):
+    """Convert SQLAlchemy column type to SQLite type string"""
+    from sqlalchemy import Integer, String, Float, Boolean, DateTime, Text
+    from sqlalchemy.types import JSON
+    
+    col_type = type(column.type)
+    
+    if col_type == Integer:
+        return "INTEGER"
+    elif col_type == String:
+        length = getattr(column.type, 'length', None)
+        return f"VARCHAR({length})" if length else "VARCHAR(255)"
+    elif col_type == Text:
+        return "TEXT"
+    elif col_type == Float:
+        return "FLOAT"
+    elif col_type == Boolean:
+        return "BOOLEAN"
+    elif col_type == DateTime:
+        return "DATETIME"
+    elif col_type == JSON or col_type.__name__ == 'JSON':
+        return "JSON"
+    else:
+        # Default to TEXT for unknown types
+        return "TEXT"
+
+def get_column_default_sql(column):
+    """Get the default value clause for a column"""
+    if column.default is not None:
+        default_value = column.default.arg
+        if isinstance(default_value, bool):
+            return f"DEFAULT {1 if default_value else 0}"
+        elif isinstance(default_value, (int, float)):
+            return f"DEFAULT {default_value}"
+        elif isinstance(default_value, str):
+            return f"DEFAULT '{default_value}'"
+    return ""
+
 def migrate_database():
     """Migrate the database schema to match the current models"""
     try:
@@ -98,22 +136,38 @@ def migrate_database():
                 for table_name in missing_tables:
                     metadata.tables[table_name].create(engine)
             
-            # Check for missing columns in existing tables
+            # Check for missing columns in existing tables and add them
             for table_name in existing_tables:
                 if table_name in metadata.tables:
                     # Get existing columns
                     existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
                     
-                    # Get model columns
-                    model_columns = {col.name for col in metadata.tables[table_name].columns}
+                    # Get model columns as a dict for easy access
+                    model_table = metadata.tables[table_name]
+                    model_columns = {col.name: col for col in model_table.columns}
                     
                     # Find missing columns
-                    missing_columns = model_columns - existing_columns
-                    if missing_columns:
-                        logger.info(f"Table '{table_name}' is missing columns: {', '.join(missing_columns)}")
-                        logger.info(f"Please run a manual migration for table '{table_name}'")
+                    missing_column_names = set(model_columns.keys()) - existing_columns
+                    if missing_column_names:
+                        logger.info(f"Table '{table_name}' is missing columns: {', '.join(missing_column_names)}")
+                        
+                        # Add each missing column
+                        with engine.connect() as conn:
+                            for col_name in missing_column_names:
+                                column = model_columns[col_name]
+                                col_type = get_column_type_sql(column)
+                                col_default = get_column_default_sql(column)
+                                
+                                sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type} {col_default}".strip()
+                                try:
+                                    conn.execute(text(sql))
+                                    conn.commit()
+                                    logger.info(f"  Added column '{col_name}' to table '{table_name}'")
+                                except Exception as e:
+                                    # Column might already exist (race condition) or other issue
+                                    logger.warning(f"  Could not add column '{col_name}': {e}")
             
-            logger.info("Database migration check complete!")
+            logger.info("Database migration complete!")
             return True
     except Exception as e:
         logger.error(f"Error during database migration: {e}")
