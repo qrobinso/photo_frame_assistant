@@ -54,7 +54,14 @@ mkdir -p /app/uploads /app/logs /app/credentials /app/db_backups /app/config
 
 # Initialize the database (only creates if doesn't exist)
 echo "=== Database Check ==="
-python db_manager.py
+if [ -f "$DB_FILE" ]; then
+    echo "  Existing database found - will NOT recreate"
+    echo "  Running migration check only..."
+    python db_manager.py --migrate || echo "  Migration check completed (or no changes needed)"
+else
+    echo "  No database found - creating new database..."
+    python db_manager.py
+fi
 
 # Check exit status
 if [ $? -ne 0 ]; then

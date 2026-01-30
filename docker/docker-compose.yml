@@ -1,9 +1,9 @@
 services:
   photo-server:
     image: ghcr.io/qrobinso/photo_frame_assistant_server:latest  # We would host the image on GitHub Container Registry
-    # Alternatively, build directly from GitHub
+    # Build from local directory (use parent directory which contains the full app)
     build:
-      context: https://github.com/qrobinso/photo_frame_assistant_server.git#main
+      context: ..
       dockerfile: docker/Dockerfile
     container_name: photo-frame-assistant
     network_mode: "host"  # Use host networking mode
