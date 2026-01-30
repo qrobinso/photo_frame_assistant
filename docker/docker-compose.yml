@@ -24,4 +24,7 @@ services:
 
 volumes:
   photo_data:
-    driver: local 
+    # Use explicit name to ensure volume persists across rebuilds/recreates
+    # WARNING: Do not use 'docker compose down -v' as it will delete this volume and all data!
+    name: photo-frame-data
+    driver: local

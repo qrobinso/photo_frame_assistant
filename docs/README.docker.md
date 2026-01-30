@@ -64,14 +64,41 @@ environment:
 
 ### Persistent Data
 
-The following data is stored in persistent volumes:
+All persistent data (photos, database, logs) is stored in a Docker named volume:
 
-- `./uploads:/app/uploads` - Uploaded photos and generated images
-- `./app.db:/app/app.db` - SQLite database
-- `./logs:/app/logs` - Application logs
-- `./credentials:/app/credentials` - API credentials
-- `./server_settings.json:/app/server_settings.json` - Server configuration
-- `./photogen_settings.json:/app/photogen_settings.json` - Photo generation settings
+- `photo-frame-data:/app/data` - Contains uploads, database, and logs
+
+Configuration files are stored in a bind mount:
+
+- `./config:/app/config` - Configuration files (server settings, integrations, etc.)
+
+**IMPORTANT: Data Persistence**
+
+Your photos and database are stored in the `photo-frame-data` Docker volume. This volume persists across:
+- Container restarts (`docker compose restart`)
+- Container recreation (`docker compose up -d` after rebuilds)
+- Image updates
+
+**WARNING: Never use `docker compose down -v`** - the `-v` flag deletes volumes and will permanently delete all your photos and database!
+
+To check your volume status:
+```bash
+docker volume ls | grep photo-frame
+docker volume inspect photo-frame-data
+```
+
+To safely update/rebuild without losing data:
+```bash
+# Safe - data is preserved:
+docker compose build
+docker compose up -d
+
+# Safe - just restarts:
+docker compose restart
+
+# DANGEROUS - deletes all data:
+# docker compose down -v   # DO NOT USE unless you want to delete everything
+```
 
 ## Managing the Container
 
@@ -183,6 +210,32 @@ If the database doesn't initialize correctly, you can manually run the database 
 ```
 docker-compose exec photo-server python db_manager.py --create --force
 ```
+
+### Data loss after rebuild/recreate
+
+If your data disappeared after rebuilding or recreating the container, your data may be in an old volume with a different name. Check for existing volumes:
+
+```bash
+docker volume ls
+```
+
+You might see volumes like `docker_photo_data` or `photo_frame_assistant_photo_data` (the old auto-generated names). To migrate data from an old volume to the new `photo-frame-data` volume:
+
+```bash
+# 1. Stop the container
+docker compose down
+
+# 2. Create a temporary container to copy data
+docker run --rm -v OLD_VOLUME_NAME:/old -v photo-frame-data:/new alpine sh -c "cp -a /old/. /new/"
+
+# 3. Start the container
+docker compose up -d
+
+# 4. Verify your data is restored, then optionally remove the old volume
+docker volume rm OLD_VOLUME_NAME
+```
+
+Replace `OLD_VOLUME_NAME` with the actual old volume name (e.g., `docker_photo_data`).
 
 ### Hardware Access
 

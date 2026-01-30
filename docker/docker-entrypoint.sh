@@ -7,21 +7,53 @@ echo "Starting Photo Server initialization..."
 UPLOAD_DIR="${UPLOAD_PATH:-/app/uploads}"
 LOG_DIR="${LOG_PATH:-/app/logs}"
 CONFIG_DIR="${CONFIG_PATH:-/app/config}"
-DB_DIR=$(dirname "${DB_PATH:-/app/app.db}")
+DB_FILE="${DB_PATH:-/app/app.db}"
+DB_DIR=$(dirname "$DB_FILE")
 
-echo "Creating directories..."
+echo "=== Data Paths ==="
 echo "  Upload path: $UPLOAD_DIR"
 echo "  Log path: $LOG_DIR"
 echo "  Config path: $CONFIG_DIR"
+echo "  Database file: $DB_FILE"
 echo "  Database directory: $DB_DIR"
 
+# Check if the data volume is mounted (look for .volume_marker or existing data)
+if [ -d "/app/data" ]; then
+    echo "=== Volume Check ==="
+    echo "  /app/data exists"
+    
+    # Create a marker file to verify volume persistence
+    if [ ! -f "/app/data/.volume_marker" ]; then
+        echo "  Creating volume marker (first run with this volume)"
+        date > /app/data/.volume_marker
+    else
+        echo "  Volume marker found - volume is persisting correctly"
+        echo "  Volume created: $(cat /app/data/.volume_marker)"
+    fi
+    
+    # Show existing data
+    if [ -f "$DB_FILE" ]; then
+        echo "  Existing database found: $DB_FILE ($(stat -c%s "$DB_FILE" 2>/dev/null || echo "unknown") bytes)"
+    else
+        echo "  No existing database at $DB_FILE"
+    fi
+    
+    if [ -d "$UPLOAD_DIR" ]; then
+        PHOTO_COUNT=$(find "$UPLOAD_DIR" -maxdepth 1 -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" \) 2>/dev/null | wc -l)
+        echo "  Existing photos in uploads: $PHOTO_COUNT"
+    else
+        echo "  No uploads directory yet"
+    fi
+fi
+
+echo "=== Creating directories ==="
 mkdir -p "$UPLOAD_DIR/thumbnails" "$LOG_DIR" "$CONFIG_DIR/credentials" "$DB_DIR/db_backups"
 
 # Also create legacy paths for backward compatibility with any hardcoded references
 mkdir -p /app/uploads /app/logs /app/credentials /app/db_backups /app/config
 
-# Initialize the database
-echo "Checking database..."
+# Initialize the database (only creates if doesn't exist)
+echo "=== Database Check ==="
 python db_manager.py
 
 # Check exit status
