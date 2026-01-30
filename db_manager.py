@@ -23,8 +23,9 @@ logger = logging.getLogger(__name__)
 
 # Get the absolute path of the directory
 basedir = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(basedir, 'app.db')
-db_backup_dir = os.path.join(basedir, 'db_backups')
+# Use DB_PATH environment variable for Docker compatibility
+db_path = os.environ.get('DB_PATH', os.path.join(basedir, 'app.db'))
+db_backup_dir = os.path.join(os.path.dirname(db_path), 'db_backups')
 
 def backup_database():
     """Create a backup of the database before making changes"""

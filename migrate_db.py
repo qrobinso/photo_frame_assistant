@@ -6,9 +6,10 @@ import os
 # Initialize Flask app
 app = Flask(__name__)
 
-# Configure database
+# Configure database (use DB_PATH environment variable for Docker compatibility)
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'app.db')
+db_path = os.environ.get('DB_PATH', os.path.join(basedir, 'app.db'))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize SQLAlchemy

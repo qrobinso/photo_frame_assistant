@@ -65,17 +65,23 @@ from integrations.overlays.overlay_manager import OverlayManager, MetadataOverla
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 basedir = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
+
+# Use environment variables for paths (for Docker volume mounting)
+# Falls back to local directories when not running in Docker
+UPLOAD_FOLDER = os.environ.get('UPLOAD_PATH', os.path.join(basedir, 'uploads'))
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'app.db')
+
+# Database path (for persistence in Docker)
+DB_PATH = os.environ.get('DB_PATH', os.path.join(basedir, 'app.db'))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + DB_PATH
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Load max upload size from settings later in initialization
 
 # Constants
 ZEROCONF_PORT = 5000
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'heic', 'heif', 'mp4', 'mov', 'MOV', 'avif'}
-CONFIG_DIR = os.path.join(basedir, 'config')
-CREDENTIALS_DIR = os.path.join(basedir, 'credentials')
+CONFIG_DIR = os.environ.get('CONFIG_PATH', os.path.join(basedir, 'config'))
+CREDENTIALS_DIR = os.path.join(CONFIG_DIR, 'credentials')
 INTEGRATIONS_DIR = os.path.join(basedir, 'integrations')
 OVERLAYS_DIR = os.path.join(INTEGRATIONS_DIR, 'overlays')
 

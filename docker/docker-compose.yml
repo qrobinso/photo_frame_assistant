@@ -16,6 +16,7 @@ services:
       - CONFIG_PATH=/app/config  # Config location
       - UPLOAD_PATH=/app/data/uploads
       - LOG_PATH=/app/data/logs
+      - DB_PATH=/app/data/app.db  # Database location
     restart: unless-stopped
     privileged: true  # For hardware access
     devices:

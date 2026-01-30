@@ -33,7 +33,9 @@ def get_app():
     """Create Flask app instance for database operations."""
     app = Flask(__name__)
     basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'app.db')
+    # Use DB_PATH environment variable for Docker compatibility
+    db_path = os.environ.get('DB_PATH', os.path.join(basedir, 'app.db'))
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     return app
 

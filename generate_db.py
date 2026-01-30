@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Get the absolute path of the directory
 basedir = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(basedir, 'app.db')
+# Use DB_PATH environment variable for Docker compatibility
+db_path = os.environ.get('DB_PATH', os.path.join(basedir, 'app.db'))
 
 # Check if database already exists
 if os.path.exists(db_path):
