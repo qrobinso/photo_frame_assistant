@@ -4,11 +4,18 @@ set -e
 echo "Starting Photo Server initialization..."
 
 # Create necessary directories using environment variables (with defaults)
-UPLOAD_DIR="${UPLOAD_PATH:-/app/uploads}"
-LOG_DIR="${LOG_PATH:-/app/logs}"
+# For Docker, these should point to /app/data/* which is the mounted volume
+UPLOAD_DIR="${UPLOAD_PATH:-/app/data/uploads}"
+LOG_DIR="${LOG_PATH:-/app/data/logs}"
 CONFIG_DIR="${CONFIG_PATH:-/app/config}"
-DB_FILE="${DB_PATH:-/app/app.db}"
+DB_FILE="${DB_PATH:-/app/data/app.db}"
 DB_DIR=$(dirname "$DB_FILE")
+
+# Export these so db_manager.py and server.py pick them up
+export UPLOAD_PATH="$UPLOAD_DIR"
+export LOG_PATH="$LOG_DIR"
+export CONFIG_PATH="$CONFIG_DIR"
+export DB_PATH="$DB_FILE"
 
 echo "=== Data Paths ==="
 echo "  Upload path: $UPLOAD_DIR"
@@ -49,17 +56,44 @@ fi
 echo "=== Creating directories ==="
 mkdir -p "$UPLOAD_DIR/thumbnails" "$LOG_DIR" "$CONFIG_DIR/credentials" "$DB_DIR/db_backups"
 
-# Also create legacy paths for backward compatibility with any hardcoded references
-mkdir -p /app/uploads /app/logs /app/credentials /app/db_backups /app/config
+# Create symlinks from legacy paths to volume paths for backward compatibility
+# This ensures ANY code using old paths will still write to the persistent volume
+echo "=== Setting up legacy path symlinks ==="
+# Remove old directories if they exist (but not if they're already symlinks)
+for legacy_path in /app/uploads /app/logs /app/db_backups; do
+    if [ -d "$legacy_path" ] && [ ! -L "$legacy_path" ]; then
+        # Check if directory has files - if so, move them to volume first
+        if [ "$(ls -A $legacy_path 2>/dev/null)" ]; then
+            echo "  Moving existing files from $legacy_path to volume..."
+            cp -rn "$legacy_path"/* "$UPLOAD_DIR/" 2>/dev/null || true
+        fi
+        rm -rf "$legacy_path"
+    fi
+done
+
+# Create symlinks to volume paths
+ln -sfn "$UPLOAD_DIR" /app/uploads 2>/dev/null || true
+ln -sfn "$LOG_DIR" /app/logs 2>/dev/null || true
+ln -sfn "$DB_DIR/db_backups" /app/db_backups 2>/dev/null || true
+
+echo "  /app/uploads -> $UPLOAD_DIR"
+echo "  /app/logs -> $LOG_DIR"
+echo "  /app/db_backups -> $DB_DIR/db_backups"
+
+# Config and credentials stay as regular directories (bind mount for config)
+mkdir -p /app/credentials /app/config
 
 # Initialize the database (only creates if doesn't exist)
 echo "=== Database Check ==="
+echo "  Checking for database at: $DB_FILE"
+echo "  DB_PATH env var is: $DB_PATH"
 if [ -f "$DB_FILE" ]; then
-    echo "  Existing database found - will NOT recreate"
+    DB_SIZE=$(stat -c%s "$DB_FILE" 2>/dev/null || echo "unknown")
+    echo "  SUCCESS: Existing database found ($DB_SIZE bytes) - will NOT recreate"
     echo "  Running migration check only..."
     python db_manager.py --migrate || echo "  Migration check completed (or no changes needed)"
 else
-    echo "  No database found - creating new database..."
+    echo "  No database found at $DB_FILE - creating new database..."
     python db_manager.py
 fi
 
@@ -221,7 +255,16 @@ fi
 
 # Make sure permissions are correct
 chmod -R 777 "$UPLOAD_DIR" "$LOG_DIR" "$CONFIG_DIR" "$DB_DIR/db_backups" 2>/dev/null || true
-chmod -R 777 /app/uploads /app/logs /app/credentials /app/db_backups /app/config 2>/dev/null || true
+chmod -R 777 /app/credentials /app/config 2>/dev/null || true
+
+# Final verification - show what's actually in the data directory
+echo "=== Volume Contents Verification ==="
+echo "  Database: $(ls -la $DB_FILE 2>/dev/null || echo 'NOT FOUND')"
+echo "  Upload files: $(find $UPLOAD_DIR -maxdepth 1 -type f 2>/dev/null | wc -l) files"
+echo "  Thumbnails: $(find $UPLOAD_DIR/thumbnails -type f 2>/dev/null | wc -l) files"
+echo "  Symlink check:"
+ls -la /app/uploads 2>/dev/null | head -1 || echo "    /app/uploads not found"
+ls -la /app/logs 2>/dev/null | head -1 || echo "    /app/logs not found"
 
 echo "Initialization complete. Starting Photo Server..."
 exec python server.py 
