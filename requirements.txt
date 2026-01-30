@@ -20,3 +20,4 @@ wand
 pillow-avif-plugin
 pillow-heif
 pysmb>=1.2.9
+numpy
