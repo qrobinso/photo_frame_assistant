@@ -354,8 +354,16 @@
         justify-content: center;
         gap: 1rem;
         padding: 0.75rem;
-        border-top: 1px solid #e9ecef;
         background: #f8f9fa;
+    }
+    
+    .pagination-controls-top {
+        border-bottom: 1px solid #e9ecef;
+        border-radius: 12px 12px 0 0;
+    }
+    
+    .pagination-controls-bottom {
+        border-top: 1px solid #e9ecef;
         border-radius: 0 0 12px 12px;
     }
     
@@ -559,6 +567,19 @@
                 </div>
             </div>
             <div class="photos-container">
+                {% if bench_photos|length >= 50 %}
+                <div class="pagination-controls pagination-controls-top" id="paginationControlsTop">
+                    <button class="btn btn-sm btn-outline-secondary pagination-prev" disabled>
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="pagination-info">
+                        Page <span class="current-page">1</span> of <span class="total-pages">1</span>
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary pagination-next">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+                {% endif %}
                 <div id="photosGrid" class="photos-grid">
                     {% for photo in bench_photos %}
                     <div class="photo-item {% if photo.id in playlist_photos|map(attribute='id')|list %}in-queue{% endif %}" 
@@ -575,14 +596,14 @@
                     {% endfor %}
                 </div>
                 {% if bench_photos|length >= 50 %}
-                <div class="pagination-controls" id="paginationControls">
-                    <button class="btn btn-sm btn-outline-secondary" id="prevPageBtn" disabled>
+                <div class="pagination-controls pagination-controls-bottom" id="paginationControlsBottom">
+                    <button class="btn btn-sm btn-outline-secondary pagination-prev" disabled>
                         <i class="bi bi-chevron-left"></i>
                     </button>
                     <span class="pagination-info">
-                        Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+                        Page <span class="current-page">1</span> of <span class="total-pages">1</span>
                     </span>
-                    <button class="btn btn-sm btn-outline-secondary" id="nextPageBtn">
+                    <button class="btn btn-sm btn-outline-secondary pagination-next">
                         <i class="bi bi-chevron-right"></i>
                     </button>
                 </div>
@@ -966,38 +987,32 @@ function updatePagination() {
         item.style.display = (index >= start && index < end) ? '' : 'none';
     });
     
-    // Update pagination controls
-    const paginationControls = document.getElementById('paginationControls');
-    if (paginationControls) {
-        document.getElementById('currentPage').textContent = currentPage;
-        document.getElementById('totalPages').textContent = totalPages;
-        document.getElementById('prevPageBtn').disabled = currentPage <= 1;
-        document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
-    }
+    // Update all pagination controls (top and bottom)
+    document.querySelectorAll('.current-page').forEach(el => el.textContent = currentPage);
+    document.querySelectorAll('.total-pages').forEach(el => el.textContent = totalPages);
+    document.querySelectorAll('.pagination-prev').forEach(btn => btn.disabled = currentPage <= 1);
+    document.querySelectorAll('.pagination-next').forEach(btn => btn.disabled = currentPage >= totalPages);
 }
 
-// Pagination button handlers
-const prevPageBtn = document.getElementById('prevPageBtn');
-const nextPageBtn = document.getElementById('nextPageBtn');
-
-if (prevPageBtn) {
-    prevPageBtn.addEventListener('click', function() {
+// Pagination button handlers (for all prev/next buttons)
+document.querySelectorAll('.pagination-prev').forEach(btn => {
+    btn.addEventListener('click', function() {
         if (currentPage > 1) {
             currentPage--;
             updatePagination();
         }
     });
-}
+});
 
-if (nextPageBtn) {
-    nextPageBtn.addEventListener('click', function() {
+document.querySelectorAll('.pagination-next').forEach(btn => {
+    btn.addEventListener('click', function() {
         const totalPages = Math.ceil(allPhotoItems.length / PHOTOS_PER_PAGE);
         if (currentPage < totalPages) {
             currentPage++;
             updatePagination();
         }
     });
-}
+});
 
 // Sort photos
 document.getElementById('photoSort').addEventListener('change', function() {
