@@ -2,254 +2,419 @@
 
 {% block extra_head %}
 <style>
-    :root {
-        --bg-color: #fff;
-        --text-color: #333;
-        --card-bg: #fff;
-        --border-color: #f0f0f0;
-        --shadow-color: rgba(0,0,0,0.1);
-        --input-bg: #fff;
-        --input-border: #ced4da;
-        --hover-bg: #f8f9fa;
-    }
-
-    [data-theme="dark"] {
-        --bg-color: #1a1a1a;
-        --text-color: #e0e0e0;
-        --card-bg: #2d2d2d;
-        --border-color: #404040;
-        --shadow-color: rgba(0,0,0,0.3);
-        --input-bg: #3d3d3d;
-        --input-border: #505050;
-        --hover-bg: #383838;
-    }
-
-    body {
-        background-color: var(--bg-color);
-        color: var(--text-color);
-    }
-
     .info-container {
-        max-width: 800px;
+        max-width: 1200px;
         margin: 0 auto;
-        padding: 20px;
+        padding: 0 1rem;
     }
-
-    .info-card {
-        background: var(--card-bg);
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 4px var(--shadow-color);
-    }
-
-    .info-title {
-        color: var(--text-color);
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid var(--border-color);
-    }
-
-    .info-grid {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 10px;
+    
+    /* Page Header */
+    .page-header {
+        display: flex;
         align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
     }
-
-    .info-label {
-        font-weight: bold;
-        color: var(--text-color);
+    
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #212529;
+        margin: 0;
     }
-
-    .info-value {
-        color: var(--text-color);
+    
+    /* Info Cards */
+    .info-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-bottom: 1rem;
+        overflow: hidden;
+        transition: all 0.2s;
     }
-
-    .status-good {
-        color: #28a745;
+    
+    .info-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     }
-
-    .status-warning {
-        color: #ffc107;
+    
+    .info-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #f1f3f5;
+        gap: 0.75rem;
     }
-
-    .status-danger {
-        color: #dc3545;
+    
+    .info-card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #212529;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
-
-    .progress-bar {
-        height: 20px;
-        background: #f0f0f0;
-        border-radius: 10px;
+    
+    .info-card-title i {
+        color: #6c757d;
+    }
+    
+    .info-card-body {
+        padding: 1.25rem;
+    }
+    
+    /* Settings Grid */
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+    
+    .setting-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+    
+    .setting-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .setting-value {
+        font-size: 0.95rem;
+        color: #212529;
+    }
+    
+    .setting-value .form-control,
+    .setting-value .form-select {
+        font-size: 0.95rem;
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+    
+    .stat-item {
+        text-align: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #212529;
+        line-height: 1.2;
+    }
+    
+    .stat-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 0.25rem;
+    }
+    
+    /* Progress Bar */
+    .progress-custom {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
         overflow: hidden;
     }
-
-    .progress-fill {
+    
+    .progress-custom-bar {
         height: 100%;
-        background: #007bff;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         transition: width 0.3s ease;
     }
-
-    .status-circle {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 8px;
+    
+    .progress-custom-bar.warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
-
-    .status-online {
-        background-color: #28a745;
+    
+    .progress-custom-bar.danger {
+        background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%);
     }
-
-    .status-offline {
-        background-color: #dc3545;
+    
+    /* Frames List */
+    .frames-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
     }
-
-    .frame-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
+    
     .frame-item {
-        padding: 10px;
-        border-bottom: 1px solid #eee;
-    }
-
-    .frame-item:last-child {
-        border-bottom: none;
-    }
-
-    .frame-details {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 10px;
-        margin-top: 10px;
-        font-size: 0.9em;
-        color: #666;
-    }
-
-    .frame-name {
-        font-weight: bold;
-        color: #333;
-    }
-
-    .frame-metrics {
         background: #f8f9fa;
-        border-radius: 6px;
-        padding: 10px;
-        margin-top: 10px;
+        border-radius: 10px;
+        padding: 1rem;
+        transition: all 0.2s;
     }
-
-    .metric-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 8px;
+    
+    .frame-item:hover {
+        background: #f1f3f5;
     }
-
-    .metric-item {
+    
+    .frame-item-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+    
+    .frame-item-name {
+        font-weight: 600;
+        color: #212529;
+        font-size: 1rem;
+    }
+    
+    .frame-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 2rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .frame-status-badge.online {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .frame-status-badge.sleeping {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .frame-status-badge.offline {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .frame-status-badge .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    
+    .frame-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .frame-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+    
+    .frame-meta-item i {
+        font-size: 0.75rem;
+        width: 14px;
         text-align: center;
-        padding: 8px;
     }
-
-    .metric-value {
-        font-size: 1.1em;
-        font-weight: bold;
-        color: #333;
+    
+    /* Info List */
+    .info-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
     }
-
-    .metric-label {
-        font-size: 0.8em;
-        color: #666;
-    }
-
-    .wake-times {
+    
+    .info-row {
         display: flex;
         justify-content: space-between;
-        font-size: 0.85em;
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px solid #eee;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f1f3f5;
     }
-
-    @media (max-width: 576px) {
-        .info-grid {
-            grid-template-columns: 1fr;
-            gap: 5px;
-        }
-        
-        .info-label {
-            color: #999;
-            font-size: 0.9em;
-        }
-
-        .wake-times {
-            flex-direction: column;
-            gap: 5px;
-        }
+    
+    .info-row:last-child {
+        border-bottom: none;
     }
-
-    .library-list {
+    
+    .info-row-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .info-row-value {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #212529;
+    }
+    
+    /* Status Colors */
+    .status-good { color: #28a745; }
+    .status-warning { color: #ffc107; }
+    .status-danger { color: #dc3545; }
+    
+    /* Library Grid */
+    .library-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 20px;
-        padding: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
     }
-
-    .library-item {
-        background: var(--hover-bg);
-        border-radius: 6px;
-        padding: 15px;
+    
+    .library-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
     }
-
-    .library-item h4 {
-        color: var(--text-color);
-        margin-bottom: 10px;
-        padding-bottom: 5px;
-        border-bottom: 1px solid var(--border-color);
+    
+    .library-card h5 {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
     }
-
-    .library-item ul {
+    
+    .library-list {
         list-style: none;
         padding: 0;
         margin: 0;
     }
-
-    .library-item li {
-        padding: 5px 0;
-        color: var(--text-color);
-    }
-
-    .library-item li:not(:last-child) {
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .status-dot {
-        font-size: 1.2em;
-        line-height: 1;
-    }
-    .status-text {
-        font-size: 0.8em;
-    }
-
-    .form-control {
-        background-color: var(--input-bg);
-        border-color: var(--input-border);
-        color: var(--text-color);
-        max-width: 300px;
+    
+    .library-list li {
+        font-size: 0.85rem;
+        color: #495057;
+        padding: 0.25rem 0;
+        display: flex;
+        justify-content: space-between;
     }
     
-    .form-control:focus {
-        background-color: var(--input-bg);
-        border-color: var(--input-border);
-        color: var(--text-color);
+    .library-list li span {
+        color: #6c757d;
+        font-size: 0.8rem;
     }
     
-    @media (max-width: 576px) {
-        .form-control {
-            max-width: 100%;
+    /* AI Section */
+    .ai-section {
+        background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .ai-section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .badge-experimental {
+        background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
+        color: white;
+        font-size: 0.65rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    /* Progress Section */
+    .analysis-progress {
+        background: #e7f3ff;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .analysis-progress .progress {
+        height: 24px;
+        border-radius: 12px;
+    }
+    
+    /* Card Footer */
+    .info-card-footer {
+        padding: 1rem 1.25rem;
+        background: #f8f9fa;
+        border-top: 1px solid #f1f3f5;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    
+    /* Credits */
+    .credits-section {
+        text-align: center;
+        padding: 2rem;
+    }
+    
+    .credits-section p {
+        margin: 0.5rem 0;
+        color: #6c757d;
+    }
+    
+    .credits-section .heart {
+        color: #dc3545;
+        font-weight: 500;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        opacity: 0.5;
+    }
+    
+    /* Code Block */
+    .code-block {
+        background: #f1f3f5;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        font-size: 0.8rem;
+        font-family: monospace;
+        overflow-x: auto;
+        margin: 0;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .page-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .frame-meta {
+            flex-direction: column;
+            gap: 0.25rem;
         }
     }
 </style>
@@ -257,332 +422,421 @@
 
 {% block content %}
 <div class="info-container">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-sliders me-2"></i>System Settings & Info</h1>
+    </div>
 
+    <!-- Server Settings Card -->
     <div class="info-card">
-        <h2 class="info-title">Server Settings</h2>
-        <div class="info-grid">
-            <div class="info-label">Server Name:</div>
-            <div class="info-value">
-                <input type="text" class="form-control" id="serverName" value="{{ server_name }}">
-            </div>
-
-            <div class="info-label">Time Zone:</div>
-            <div class="info-value">
-                <select class="form-control" id="timeZone">
-                    {% for tz in timezones %}
-                    <option value="{{ tz }}" {% if tz == current_timezone %}selected{% endif %}>{{ tz }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="info-label">Auto-cleanup Temp Files:</div>
-            <div class="info-value">
-                <select class="form-control" id="cleanupInterval">
-                    <option value="0" {% if cleanup_interval == 0 %}selected{% endif %}>Disabled</option>
-                    <option value="1" {% if cleanup_interval == 1 %}selected{% endif %}>1 hour</option>
-                    <option value="24" {% if cleanup_interval == 24 %}selected{% endif %}>24 hours</option>
-                    <option value="168" {% if cleanup_interval == 168 %}selected{% endif %}>1 week</option>
-                </select>
-            </div>
-
-            <div class="info-label">Log Level:</div>
-            <div class="info-value">
-                <select class="form-control" id="logLevel">
-                    <option value="DEBUG" {% if log_level == 'DEBUG' %}selected{% endif %}>Debug</option>
-                    <option value="INFO" {% if log_level == 'INFO' %}selected{% endif %}>Info</option>
-                    <option value="WARNING" {% if log_level == 'WARNING' %}selected{% endif %}>Warning</option>
-                    <option value="ERROR" {% if log_level == 'ERROR' %}selected{% endif %}>Error</option>
-                </select>
-            </div>
-
-            <div class="info-label">Max Upload Size:</div>
-            <div class="info-value">
-                <select class="form-control" id="maxUploadSize">
-                    <option value="5" {% if max_upload_size == 5 %}selected{% endif %}>5 MB</option>
-                    <option value="10" {% if max_upload_size == 10 %}selected{% endif %}>10 MB</option>
-                    <option value="20" {% if max_upload_size == 20 %}selected{% endif %}>20 MB</option>
-                    <option value="50" {% if max_upload_size == 50 %}selected{% endif %}>50 MB</option>
-                </select>
-            </div>
-
-            <div class="info-label">Discovery Port:</div>
-            <div class="info-value">
-                <input type="number" class="form-control" id="discoveryPort" value="{{ discovery_port }}" min="1024" max="65535">
-            </div>
-
-            <div class="info-label">Dark Mode:</div>
-            <div class="info-value">
-                <div class="form-check form-switch">
-                    <input type="checkbox" class="form-check-input" id="darkMode" {% if dark_mode %}checked{% endif %}>
-                    <label class="form-check-label" for="darkMode">Enable Dark Mode</label>
+        <div class="info-card-header">
+            <h2 class="info-card-title"><i class="bi bi-gear"></i> Server Settings</h2>
+        </div>
+        <div class="info-card-body">
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label class="setting-label" for="serverName">Server Name</label>
+                    <input type="text" class="form-control" id="serverName" value="{{ server_name }}">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="timeZone">Time Zone</label>
+                    <select class="form-select" id="timeZone">
+                        {% for tz in timezones %}
+                        <option value="{{ tz }}" {% if tz == current_timezone %}selected{% endif %}>{{ tz }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="cleanupInterval">Auto-cleanup Temp Files</label>
+                    <select class="form-select" id="cleanupInterval">
+                        <option value="0" {% if cleanup_interval == 0 %}selected{% endif %}>Disabled</option>
+                        <option value="1" {% if cleanup_interval == 1 %}selected{% endif %}>1 hour</option>
+                        <option value="24" {% if cleanup_interval == 24 %}selected{% endif %}>24 hours</option>
+                        <option value="168" {% if cleanup_interval == 168 %}selected{% endif %}>1 week</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="logLevel">Log Level</label>
+                    <select class="form-select" id="logLevel">
+                        <option value="DEBUG" {% if log_level == 'DEBUG' %}selected{% endif %}>Debug</option>
+                        <option value="INFO" {% if log_level == 'INFO' %}selected{% endif %}>Info</option>
+                        <option value="WARNING" {% if log_level == 'WARNING' %}selected{% endif %}>Warning</option>
+                        <option value="ERROR" {% if log_level == 'ERROR' %}selected{% endif %}>Error</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="maxUploadSize">Max Upload Size</label>
+                    <select class="form-select" id="maxUploadSize">
+                        <option value="5" {% if max_upload_size == 5 %}selected{% endif %}>5 MB</option>
+                        <option value="10" {% if max_upload_size == 10 %}selected{% endif %}>10 MB</option>
+                        <option value="20" {% if max_upload_size == 20 %}selected{% endif %}>20 MB</option>
+                        <option value="50" {% if max_upload_size == 50 %}selected{% endif %}>50 MB</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="discoveryPort">Discovery Port</label>
+                    <input type="number" class="form-control" id="discoveryPort" value="{{ discovery_port }}" min="1024" max="65535">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Dark Mode</label>
+                    <div class="form-check form-switch mt-1">
+                        <input type="checkbox" class="form-check-input" id="darkMode" {% if dark_mode %}checked{% endif %}>
+                        <label class="form-check-label" for="darkMode">Enable Dark Mode</label>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="text-end mt-3">
-            <button class="btn btn-primary" onclick="saveServerSettings()">Save Settings</button>
+        <div class="info-card-footer">
+            <button class="btn btn-primary" onclick="saveServerSettings()">
+                <i class="bi bi-check-lg me-1"></i>Save Settings
+            </button>
         </div>
     </div>
 
+    <!-- AI Photo Analysis Card -->
     <div class="info-card">
-        <h2 class="info-title">
-            AI Photo Analysis
-            <span class="badge bg-warning text-dark" style="font-size: 0.5em; vertical-align: middle;">Experimental</span>
-        </h2>
-        <p class="mb-4">Use your local AI server to analyze photos and generate descriptions automatically.</p>
-        
-        <div class="info-grid">
-            <div class="info-label">Enable Analysis:</div>
-            <div class="info-value">
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input" id="aiAnalysisEnabled" 
-                           {% if ai_analysis_enabled %}checked{% endif %}>
-                    <label class="form-check-label" for="aiAnalysisEnabled">
-                        Automatically analyze new photos
-                    </label>
+        <div class="info-card-header">
+            <h2 class="info-card-title">
+                <i class="bi bi-stars"></i> AI Photo Analysis
+                <span class="badge-experimental">Experimental</span>
+            </h2>
+        </div>
+        <div class="info-card-body">
+            <p class="text-muted mb-3">Use your local AI server to analyze photos and generate descriptions automatically.</p>
+            
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label class="setting-label">Enable Analysis</label>
+                    <div class="form-check mt-1">
+                        <input type="checkbox" class="form-check-input" id="aiAnalysisEnabled" 
+                               {% if ai_analysis_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="aiAnalysisEnabled">
+                            Automatically analyze new photos
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="aiServerUrl">Server URL</label>
+                    <input type="text" class="form-control" id="aiServerUrl" 
+                           value="{{ ai_settings.custom_server_base_url }}" placeholder="http://localhost:11434">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="aiApiKey">API Key</label>
+                    <input type="password" class="form-control" id="aiApiKey" 
+                           value="{{ ai_settings.custom_server_api_key }}" placeholder="Optional">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label" for="aiModel">Model</label>
+                    <input type="text" class="form-control" id="aiModel" 
+                           value="{{ ai_settings.default_models.custom }}" placeholder="e.g., llava">
                 </div>
             </div>
-
-            <div class="info-label">Server URL:</div>
-            <div class="info-value">
-                <input type="text" class="form-control" id="aiServerUrl" 
-                       value="{{ ai_settings.custom_server_base_url }}">
-            </div>
-
-            <div class="info-label">API Key:</div>
-            <div class="info-value">
-                <input type="text" class="form-control" id="aiApiKey" 
-                       value="{{ ai_settings.custom_server_api_key }}">
-            </div>
-
-            <div class="info-label">Model:</div>
-            <div class="info-value">
-                <input type="text" class="form-control" id="aiModel" 
-                       value="{{ ai_settings.default_models.custom }}">
-            </div>
-        </div>
-        
-        <div class="text-end mt-3">
-            <button class="btn btn-secondary me-2" id="testConnection" onclick="testAIConnection()" disabled>
-                Test Connection
-            </button>
-            <button class="btn btn-secondary me-2" id="runAnalysis" onclick="startPhotoAnalysis()" disabled>
-                Run on Existing Photos
-            </button>
-            <button class="btn btn-primary" onclick="saveAISettings()">Save AI Settings</button>
-        </div>
-
-        <!-- Add progress section -->
-        <div id="analysisProgress" class="mt-3" style="display: none;">
-            <div class="alert alert-info">
-                <p>Processing photos... Please do not leave this page.</p>
-                <div class="progress" style="height: 20px;">
-                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+            
+            <div id="analysisProgress" class="analysis-progress" style="display: none;">
+                <p class="mb-2"><i class="bi bi-hourglass-split me-2"></i>Processing photos... Please do not leave this page.</p>
+                <div class="progress">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
                          role="progressbar" style="width: 0%">
                         <span id="progressText">0/0 photos</span>
                     </div>
                 </div>
-                <button class="btn btn-warning btn-sm mt-2" onclick="cancelAnalysis()">Cancel</button>
+                <button class="btn btn-warning btn-sm mt-2" onclick="cancelAnalysis()">
+                    <i class="bi bi-x-lg me-1"></i>Cancel
+                </button>
             </div>
         </div>
+        <div class="info-card-footer">
+            <button class="btn btn-outline-secondary" id="testConnection" onclick="testAIConnection()" disabled>
+                <i class="bi bi-plug me-1"></i>Test Connection
+            </button>
+            <button class="btn btn-outline-secondary" id="runAnalysis" onclick="startPhotoAnalysis()" disabled>
+                <i class="bi bi-play-fill me-1"></i>Run on Existing
+            </button>
+            <button class="btn btn-primary" onclick="saveAISettings()">
+                <i class="bi bi-check-lg me-1"></i>Save AI Settings
+            </button>
+        </div>
     </div>
-    
+
+    <!-- Connected Frames Card -->
     <div class="info-card">
-        <h2 class="info-title">Connected Frames</h2>
-        {% if frames %}
-            {% for frame in frames %}
-                <div class="frame-item" style="margin-bottom: 20px; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
-                    <h3 style="display: flex; align-items: center; gap: 10px;">
-                        Frame ID: {{ frame.id }}
+        <div class="info-card-header">
+            <h2 class="info-card-title"><i class="bi bi-display"></i> Connected Frames</h2>
+            <span class="badge bg-secondary">{{ frames|length }} frame{{ 's' if frames|length != 1 else '' }}</span>
+        </div>
+        <div class="info-card-body">
+            {% if frames %}
+            <div class="frames-list">
+                {% for frame in frames %}
+                <div class="frame-item">
+                    <div class="frame-item-header">
+                        <span class="frame-item-name">{{ frame.name or 'Frame ' ~ frame.id }}</span>
                         {% set status = frame.get_status(now) %}
-                        <div class="d-flex align-items-center">
-                            <span class="status-dot me-2" title="{{ status[1] }}" style="color: {{ status[2] }}">●</span>
-                            <span class="status-text" style="color: {{ status[2] }}">{{ status[1] }}</span>
-                        </div>
-                    </h3>
-                    <div class="frame-details">
-                        <div><strong>Name:</strong> {{ frame.name }}</div>
-                        <div><strong>IP Address:</strong> {{ frame.ip_address }}</div>
+                        {% if status[0] == 2 %}
+                        <span class="frame-status-badge online"><span class="dot"></span> Online</span>
+                        {% elif status[0] == 1 %}
+                        <span class="frame-status-badge sleeping"><span class="dot"></span> Sleeping</span>
+                        {% else %}
+                        <span class="frame-status-badge offline"><span class="dot"></span> Offline</span>
+                        {% endif %}
+                    </div>
+                    <div class="frame-meta">
+                        <span class="frame-meta-item">
+                            <i class="bi bi-hash"></i> {{ frame.id }}
+                        </span>
+                        <span class="frame-meta-item">
+                            <i class="bi bi-wifi"></i> {{ frame.ip_address or 'Unknown IP' }}
+                        </span>
+                        {% if frame.screen_resolution %}
+                        <span class="frame-meta-item">
+                            <i class="bi bi-aspect-ratio"></i> {{ frame.screen_resolution }}
+                        </span>
+                        {% endif %}
                         {% if frame.manufacturer %}
-                            <div><strong>Manufacturer:</strong> {{ frame.manufacturer }}</div>
-                        {% endif %}
-                        {% if frame.model %}
-                            <div><strong>Model:</strong> {{ frame.model }}</div>
-                        {% endif %}
-                        {% if frame.hardware_rev %}
-                            <div><strong>Hardware Rev:</strong> {{ frame.hardware_rev }}</div>
+                        <span class="frame-meta-item">
+                            <i class="bi bi-building"></i> {{ frame.manufacturer }}
+                        </span>
                         {% endif %}
                         {% if frame.firmware_rev %}
-                            <div><strong>Firmware Rev:</strong> {{ frame.firmware_rev }}</div>
+                        <span class="frame-meta-item">
+                            <i class="bi bi-code-slash"></i> v{{ frame.firmware_rev }}
+                        </span>
                         {% endif %}
-                        {% if frame.screen_resolution %}
-                            <div><strong>Resolution:</strong> {{ frame.screen_resolution }}</div>
-                        {% endif %}
-                        {% if frame.aspect_ratio %}
-                            <div><strong>Aspect Ratio:</strong> {{ frame.aspect_ratio }}</div>
-                        {% endif %}
-                        {% if frame.os %}
-                            <div><strong>OS:</strong> {{ frame.os }}</div>
-                        {% endif %}
-                        
-                        <div class="wake-times">
-                            <div>
-                                <strong>Last Wake:</strong> 
-                                {% if frame.last_wake_time %}
-                                    {{ frame.last_wake_time.strftime('%H:%M:%S') }}
-                                {% else %}
-                                    Never
-                                {% endif %}
-                            </div>
-                            <div>
-                                <strong>Next Wake:</strong> 
-                                {% if frame.next_wake_time %}
-                                    {{ frame.next_wake_time.strftime('%H:%M:%S') }}
-                                {% else %}
-                                    Unknown
-                                {% endif %}
-                            </div>
+                        <span class="frame-meta-item">
+                            <i class="bi bi-clock"></i> 
+                            Last: {% if frame.last_wake_time %}{{ frame.last_wake_time.strftime('%H:%M') }}{% else %}Never{% endif %}
+                        </span>
+                        <span class="frame-meta-item">
+                            <i class="bi bi-clock-history"></i> 
+                            Next: {% if frame.next_wake_time %}{{ frame.next_wake_time.strftime('%H:%M') }}{% else %}Unknown{% endif %}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="bi bi-display d-block"></i>
+                <p>No frames connected yet</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Storage & Photos Row -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h2 class="info-card-title"><i class="bi bi-hdd"></i> Storage</h2>
+                </div>
+                <div class="info-card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">{{ storage.used }} used of {{ storage.total }}</span>
+                            <span class="fw-bold {% if storage.percent > 90 %}text-danger{% elif storage.percent > 75 %}text-warning{% endif %}">{{ storage.percent }}%</span>
+                        </div>
+                        <div class="progress-custom">
+                            <div class="progress-custom-bar {% if storage.percent > 90 %}danger{% elif storage.percent > 75 %}warning{% endif %}" 
+                                 style="width: {{ storage.percent }}%"></div>
+                        </div>
+                    </div>
+                    <div class="info-list">
+                        <div class="info-row">
+                            <span class="info-row-label">Total Space</span>
+                            <span class="info-row-value">{{ storage.total }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-row-label">Free Space</span>
+                            <span class="info-row-value">{{ storage.free }}</span>
                         </div>
                     </div>
                 </div>
-            {% endfor %}
-        {% else %}
-            <p>No frames connected</p>
-        {% endif %}
-    </div>
-
-    <div class="info-card">
-        <h2 class="info-title">Storage</h2>
-        <div class="info-grid">
-            <div class="info-label">Total Space:</div>
-            <div class="info-value">{{ storage.total }}</div>
-            
-            <div class="info-label">Used Space:</div>
-            <div class="info-value">{{ storage.used }}</div>
-            
-            <div class="info-label">Free Space:</div>
-            <div class="info-value">{{ storage.free }}</div>
-            
-            <div class="info-label">Usage:</div>
-            <div class="info-value">
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: {{ storage.percent }}%"></div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h2 class="info-card-title"><i class="bi bi-images"></i> Photos</h2>
                 </div>
-                {{ storage.percent }}%
+                <div class="info-card-body">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value">{{ photos.total }}</div>
+                            <div class="stat-label">Total Photos</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ photos.total_size }}</div>
+                            <div class="stat-label">Total Size</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ photos.avg_size }}</div>
+                            <div class="stat-label">Avg Size</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="info-card">
-        <h2 class="info-title">Photos</h2>
-        <div class="info-grid">
-            <div class="info-label">Total Photos:</div>
-            <div class="info-value">{{ photos.total }}</div>
-            
-            <div class="info-label">Total Size:</div>
-            <div class="info-value">{{ photos.total_size }}</div>
-            
-            <div class="info-label">Average Size:</div>
-            <div class="info-value">{{ photos.avg_size }}</div>
-        </div>
-    </div>
-
-    <div class="info-card">
-        <h2 class="info-title">System</h2>
-        <div class="info-grid">
-            <div class="info-label">CPU Temperature:</div>
-            <div class="info-value {% if system.cpu_temp > 70 %}status-danger{% elif system.cpu_temp > 60 %}status-warning{% else %}status-good{% endif %}">
-                {{ system.cpu_temp }}°C
+    <!-- System & Network Row -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h2 class="info-card-title"><i class="bi bi-cpu"></i> System</h2>
+                </div>
+                <div class="info-card-body">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value {% if system.cpu_temp > 70 %}text-danger{% elif system.cpu_temp > 60 %}text-warning{% else %}text-success{% endif %}">
+                                {{ system.cpu_temp }}°C
+                            </div>
+                            <div class="stat-label">CPU Temp</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ system.cpu_usage }}%</div>
+                            <div class="stat-label">CPU Usage</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ system.memory_usage }}%</div>
+                            <div class="stat-label">Memory</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" style="font-size: 1rem;">{{ system.uptime }}</div>
+                            <div class="stat-label">Uptime</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
-            <div class="info-label">CPU Usage:</div>
-            <div class="info-value">{{ system.cpu_usage }}%</div>
-            
-            <div class="info-label">Memory Usage:</div>
-            <div class="info-value">{{ system.memory_usage }}%</div>
-            
-            <div class="info-label">Uptime:</div>
-            <div class="info-value">{{ system.uptime }}</div>
         </div>
-    </div>
-
-    <div class="info-card">
-        <h2 class="info-title">Network</h2>
-        <div class="info-grid">
-            <div class="info-label">IP Address:</div>
-            <div class="info-value">{{ network.ip }}</div>
-            
-            <div class="info-label">Hostname:</div>
-            <div class="info-value">{{ network.hostname }}</div>
-            
-            <div class="info-label">Connection:</div>
-            <div class="info-value status-good">{{ network.connection_type }}</div>
-        </div>
-    </div>
-
-    <div class="info-card">
-        <h2 class="info-title">Version Information</h2>
-        <div class="info-grid">
-            <div class="info-label">Server Version:</div>
-            <div class="info-value">{{ version }}</div>
-            
-            <div class="info-label">Python Version:</div>
-            <div class="info-value">{{ system.python_version }}</div>
-
-            <div class="info-label">Server ID:</div>
-            <div class="info-value">{{ server_id }}</div>
-        </div>
-    </div>
-
-    <div class="info-card">
-        <h2 class="info-title">Discovery Information</h2>
-        <div class="info-grid">
-            <div class="info-label">Service Name:</div>
-            <div class="info-value">{{ discovery.service_name }}</div>
-
-            <div class="info-label">Service Type:</div>
-            <div class="info-value">{{ discovery.service_type }}</div>
-
-            <div class="info-label">Port:</div>
-            <div class="info-value">{{ discovery.port }}</div>
-
-            <div class="info-label">Properties:</div>
-            <div class="info-value">
-                <pre class="mb-0"><code>{{ discovery.properties | tojson(indent=2) }}</code></pre>
+        
+        <div class="col-md-6">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h2 class="info-card-title"><i class="bi bi-globe"></i> Network</h2>
+                </div>
+                <div class="info-card-body">
+                    <div class="info-list">
+                        <div class="info-row">
+                            <span class="info-row-label">IP Address</span>
+                            <span class="info-row-value">{{ network.ip }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-row-label">Hostname</span>
+                            <span class="info-row-value">{{ network.hostname }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-row-label">Connection</span>
+                            <span class="info-row-value text-success">{{ network.connection_type }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="info-card">
-        <h2 class="info-title">Open Source Libraries</h2>
-        <div class="library-list">
-            <div class="library-item">
-                <h4>Backend</h4>
-                <ul>
-                    <li>Flask - Web framework</li>
-                    <li>SQLAlchemy - Database ORM</li>
-                    <li>Werkzeug - WSGI utilities</li>
-                    <li>psutil - System monitoring</li>
-                    <li>Pillow - Image processing</li>
-                    <li>zeroconf - Network service discovery</li>
-                </ul>
+    <!-- Version & Discovery Row -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h2 class="info-card-title"><i class="bi bi-info-circle"></i> Version</h2>
+                </div>
+                <div class="info-card-body">
+                    <div class="info-list">
+                        <div class="info-row">
+                            <span class="info-row-label">Server Version</span>
+                            <span class="info-row-value">{{ version }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-row-label">Python Version</span>
+                            <span class="info-row-value">{{ system.python_version }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-row-label">Server ID</span>
+                            <span class="info-row-value" style="font-family: monospace; font-size: 0.8rem;">{{ server_id }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="library-item">
-                <h4>Frontend</h4>
-                <ul>
-                    <li>Bootstrap - UI framework</li>
-                    <li>SortableJS - Drag and drop functionality</li>
-                    <li>Font Awesome - Icons</li>
-                </ul>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="info-card">
+                <div class="info-card-header">
+                    <h2 class="info-card-title"><i class="bi bi-broadcast"></i> Discovery</h2>
+                </div>
+                <div class="info-card-body">
+                    <div class="info-list">
+                        <div class="info-row">
+                            <span class="info-row-label">Service Name</span>
+                            <span class="info-row-value">{{ discovery.service_name }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-row-label">Service Type</span>
+                            <span class="info-row-value">{{ discovery.service_type }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-row-label">Port</span>
+                            <span class="info-row-value">{{ discovery.port }}</span>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="setting-label mb-2">Properties</label>
+                        <pre class="code-block mb-0">{{ discovery.properties | tojson(indent=2) }}</pre>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Open Source Libraries Card -->
     <div class="info-card">
-        <h2 class="info-title">Created by</h2>
-        <div style="text-align: center; padding: 10px;">
-            <p>Created by Quentin Robinson, for Ariana.</p>
-            <p style="color: #dc3545;">I love you.</p>
+        <div class="info-card-header">
+            <h2 class="info-card-title"><i class="bi bi-code-square"></i> Open Source Libraries</h2>
+        </div>
+        <div class="info-card-body">
+            <div class="library-grid">
+                <div class="library-card">
+                    <h5><i class="bi bi-server me-2"></i>Backend</h5>
+                    <ul class="library-list">
+                        <li>Flask <span>Web framework</span></li>
+                        <li>SQLAlchemy <span>Database ORM</span></li>
+                        <li>Werkzeug <span>WSGI utilities</span></li>
+                        <li>psutil <span>System monitoring</span></li>
+                        <li>Pillow <span>Image processing</span></li>
+                        <li>zeroconf <span>Service discovery</span></li>
+                    </ul>
+                </div>
+                <div class="library-card">
+                    <h5><i class="bi bi-window me-2"></i>Frontend</h5>
+                    <ul class="library-list">
+                        <li>Bootstrap <span>UI framework</span></li>
+                        <li>SortableJS <span>Drag & drop</span></li>
+                        <li>Font Awesome <span>Icons</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Credits Card -->
+    <div class="info-card">
+        <div class="info-card-body">
+            <div class="credits-section">
+                <p>Created by <strong>Quentin Robinson</strong>, for Ariana.</p>
+                <p class="heart">I love you.</p>
+            </div>
         </div>
     </div>
 </div>
@@ -601,33 +855,41 @@ function saveServerSettings() {
 
     fetch('/api/server/settings', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Settings saved successfully');
+            showToast('Settings saved successfully');
             applyTheme(settings.dark_mode);
         } else {
-            alert('Error saving settings: ' + data.error);
+            showToast('Error saving settings: ' + data.error, 'error');
         }
     })
-    .catch(error => {
-        alert('Error saving settings: ' + error);
-    });
+    .catch(error => showToast('Error saving settings: ' + error, 'error'));
 }
 
 function applyTheme(isDark) {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
 }
 
-// Initialize theme on page load
 document.addEventListener('DOMContentLoaded', function() {
     const darkMode = document.getElementById('darkMode').checked;
     applyTheme(darkMode);
+    
+    // Initialize AI button states
+    const checkbox = document.getElementById('aiAnalysisEnabled');
+    const testBtn = document.getElementById('testConnection');
+    const runBtn = document.getElementById('runAnalysis');
+    
+    testBtn.disabled = !checkbox.checked;
+    runBtn.disabled = !checkbox.checked;
+    
+    checkbox.addEventListener('change', function(e) {
+        testBtn.disabled = !e.target.checked;
+        runBtn.disabled = !e.target.checked;
+    });
 });
 
 function saveAISettings() {
@@ -643,59 +905,31 @@ function saveAISettings() {
         }
     };
 
-    // Save server settings
     fetch('/api/server/settings', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(serverSettings)
     })
     .then(response => response.json())
     .then(data => {
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to save server settings');
-        }
-        
-        // Save AI settings
+        if (!data.success) throw new Error(data.error || 'Failed to save server settings');
         return fetch('/api/server/ai-settings', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(aiSettings)
         });
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('AI settings saved successfully');
+            showToast('AI settings saved successfully');
             location.reload();
         } else {
             throw new Error(data.error || 'Failed to save AI settings');
         }
     })
-    .catch(error => {
-        alert('Error saving settings: ' + error);
-    });
+    .catch(error => showToast('Error saving settings: ' + error, 'error'));
 }
-
-// Update the AI checkbox handler and initialize button states
-document.addEventListener('DOMContentLoaded', function() {
-    const checkbox = document.getElementById('aiAnalysisEnabled');
-    const testBtn = document.getElementById('testConnection');
-    const runBtn = document.getElementById('runAnalysis');
-    
-    // Initialize button states based on checkbox
-    testBtn.disabled = !checkbox.checked;
-    runBtn.disabled = !checkbox.checked;
-    
-    // Add change handler for future changes
-    checkbox.addEventListener('change', function(e) {
-        testBtn.disabled = !e.target.checked;
-        runBtn.disabled = !e.target.checked;
-    });
-});
 
 async function testAIConnection() {
     const serverUrl = document.getElementById('aiServerUrl').value;
@@ -704,23 +938,18 @@ async function testAIConnection() {
     try {
         const response = await fetch('/api/server/test-ai-connection', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                server_url: serverUrl,
-                api_key: apiKey
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ server_url: serverUrl, api_key: apiKey })
         });
         
         const data = await response.json();
         if (data.success) {
-            alert('Connection successful!');
+            showToast('Connection successful!');
         } else {
-            alert('Connection failed: ' + data.error);
+            showToast('Connection failed: ' + data.error, 'error');
         }
     } catch (error) {
-        alert('Connection failed: ' + error);
+        showToast('Connection failed: ' + error, 'error');
     }
 }
 
@@ -737,16 +966,11 @@ async function startPhotoAnalysis() {
     analysisInProgress = true;
 
     try {
-        const response = await fetch('/api/photos/start-analysis', {
-            method: 'POST'
-        });
-        
+        const response = await fetch('/api/photos/start-analysis', { method: 'POST' });
         if (!response.ok) throw new Error('Failed to start analysis');
-        
-        // Start polling for progress
         pollProgress();
     } catch (error) {
-        alert('Failed to start analysis: ' + error);
+        showToast('Failed to start analysis: ' + error, 'error');
         progressSection.style.display = 'none';
         analysisInProgress = false;
     }
@@ -767,6 +991,7 @@ async function pollProgress() {
             progressText.textContent = `Complete! Processed ${data.total} photos`;
             document.getElementById('analysisProgress').style.display = 'none';
             analysisInProgress = false;
+            showToast('Analysis complete!');
             return;
         }
 
@@ -774,7 +999,6 @@ async function pollProgress() {
         progressBar.style.width = percentage + '%';
         progressText.textContent = `${data.current}/${data.total} photos`;
 
-        // Poll again in 1 second
         setTimeout(pollProgress, 1000);
     } catch (error) {
         console.error('Error polling progress:', error);
@@ -784,14 +1008,22 @@ async function pollProgress() {
 
 async function cancelAnalysis() {
     try {
-        await fetch('/api/photos/cancel-analysis', {
-            method: 'POST'
-        });
+        await fetch('/api/photos/cancel-analysis', { method: 'POST' });
         analysisInProgress = false;
         document.getElementById('analysisProgress').style.display = 'none';
+        showToast('Analysis cancelled');
     } catch (error) {
-        alert('Error canceling analysis: ' + error);
+        showToast('Error canceling analysis: ' + error, 'error');
     }
 }
+
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `position-fixed bottom-0 start-50 translate-middle-x mb-3 p-3 rounded-3 text-white ${type === 'error' ? 'bg-danger' : 'bg-success'}`;
+    toast.style.zIndex = '1060';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
 </script>
-{% endblock %} 
+{% endblock %}
