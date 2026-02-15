@@ -1345,32 +1345,15 @@ def upload_photo():
                 # Generate thumbnail
                 try:
                     with Image.open(filepath) as img:
-                        # Get EXIF orientation if it exists
-                        exif = img._getexif()
-                        orientation = exif.get(274) if exif else None  # 274 is the EXIF tag for orientation
-                        
-                        # Apply EXIF orientation before creating thumbnail
-                        if orientation:
-                            if orientation == 2:
-                                img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                            elif orientation == 3:
-                                img = img.rotate(180, expand=True)
-                            elif orientation == 4:
-                                img = img.transpose(Image.FLIP_TOP_BOTTOM)
-                            elif orientation == 5:
-                                img = img.rotate(-270, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
-                            elif orientation == 6:
-                                img = img.rotate(-90, expand=True)
-                            elif orientation == 7:
-                                img = img.rotate(-90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
-                            elif orientation == 8:
-                                img = img.rotate(-270, expand=True)
-                        
-                        # Create thumbnail from corrected image
-                        img.thumbnail((400, 400))  # Max size 400x400
+                        # Normalize EXIF orientation once for this upload path.
+                        normalized_img = ImageOps.exif_transpose(img)
+
+                        # Create thumbnail from normalized image
+                        thumb_img = normalized_img.copy()
+                        thumb_img.thumbnail((400, 400))  # Max size 400x400
                         thumb_filename = f"thumb_{filename}"
                         thumb_path = os.path.join(thumbnails_dir, thumb_filename)
-                        img.save(thumb_path, "JPEG")
+                        thumb_img.save(thumb_path, "JPEG")
 
                         # Process for both orientations
                         try:
@@ -2577,7 +2560,9 @@ def load_base_image(frame, photo):
     """Load appropriate base image version."""
     filename = get_orientation_filename(frame, photo)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    return Image.open(filepath)
+    with Image.open(filepath) as base_img:
+        # Defensive normalization for legacy files that may still carry EXIF rotation.
+        return ImageOps.exif_transpose(base_img).copy()
 
 def get_orientation_filename(frame, photo):
     """Get filename for correct orientation version."""

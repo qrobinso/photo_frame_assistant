@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, ImageOps
 import logging
 import os
 
@@ -31,57 +31,16 @@ except ImportError:
     logger.warning("You will also need to install ImageMagick: https://imagemagick.org/script/download.php")
 
 class PhotoProcessor:
-    def ensure_orientation(self, img, desired_orientation='portrait', exif_orientation=None):
+    def ensure_orientation(self, img, desired_orientation='portrait'):
         """
         Ensure image is in the desired orientation by cropping.
         Args:
             img: PIL Image object
             desired_orientation: 'portrait' or 'landscape'
-            exif_orientation: Orientation value from EXIF data
         Returns: 
             PIL Image object in the correct orientation
         """
-        logger.info(f"Starting orientation adjustment. EXIF orientation: {exif_orientation}")
-        
-        # EXIF orientation values and their meanings:
-        # 1: Normal (0°)
-        # 2: Mirrored horizontal
-        # 3: Rotated 180°
-        # 4: Mirrored vertical
-        # 5: Mirrored horizontal & rotated 270° CW
-        # 6: Rotated 90° CW
-        # 7: Mirrored horizontal & rotated 90° CW
-        # 8: Rotated 270° CW
-        
-        # First, apply EXIF orientation to get the image right side up
-        if exif_orientation:
-            logger.info(f"Applying EXIF orientation: {exif_orientation}")
-            try:
-                if exif_orientation == 2:
-                    logger.info("Flipping image horizontally")
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                elif exif_orientation == 3:
-                    logger.info("Rotating image 180 degrees")
-                    img = img.rotate(180, expand=True)
-                elif exif_orientation == 4:
-                    logger.info("Flipping image vertically")
-                    img = img.transpose(Image.FLIP_TOP_BOTTOM)
-                elif exif_orientation == 5:
-                    logger.info("Rotating image 270 degrees CW and flipping horizontally")
-                    img = img.rotate(-270, expand=True)
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                elif exif_orientation == 6:
-                    logger.info("Rotating image 90 degrees CW")
-                    img = img.rotate(-90, expand=True)
-                elif exif_orientation == 7:
-                    logger.info("Rotating image 90 degrees CW and flipping horizontally")
-                    img = img.rotate(-90, expand=True)
-                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                elif exif_orientation == 8:
-                    logger.info("Rotating image 270 degrees CW")
-                    img = img.rotate(-270, expand=True)
-            except Exception as e:
-                logger.error(f"Error applying EXIF orientation: {e}")
+        logger.info("Starting orientation adjustment.")
         
         # Get current dimensions
         width, height = img.size
@@ -154,37 +113,19 @@ class PhotoProcessor:
             # Open the image
             img = Image.open(image_path)
             
-            # Get EXIF orientation if it exists
-            exif_orientation = None
-            exif_data = None
-            try:
-                exif = img._getexif()
-                if exif:
-                    exif_orientation = exif.get(274)  # 274 is the EXIF tag for orientation
-                    # Store original EXIF data to preserve it
-                    exif_data = img.info.get('exif')
-            except (AttributeError, KeyError, IndexError, TypeError) as e:
-                logger.warning(f"Could not get EXIF data: {e}")
+            # Normalize orientation once at load time based on EXIF metadata.
+            img = ImageOps.exif_transpose(img)
             
             # Convert RGBA to RGB if necessary
             if img.mode == 'RGBA':
                 img = img.convert('RGB')
             
-            # Determine natural orientation based on EXIF
-            if exif_orientation in [5, 6, 7, 8]:
-                # These orientations indicate the image is naturally portrait
-                natural_orientation = 'portrait'
-            elif exif_orientation in [1, 2, 3, 4]:
-                # These orientations indicate the image is naturally landscape
-                natural_orientation = 'landscape'
-            else:
-                # If no EXIF orientation, use dimensions
-                natural_orientation = 'portrait' if img.height > img.width else 'landscape'
-            
-            logger.info(f"Natural orientation determined to be {natural_orientation} (EXIF: {exif_orientation})")
+            # Determine natural orientation from normalized dimensions.
+            natural_orientation = 'portrait' if img.height > img.width else 'landscape'
+            logger.info(f"Natural orientation determined to be {natural_orientation}")
             
             # Ensure correct orientation
-            img = self.ensure_orientation(img, orientation, exif_orientation)
+            img = self.ensure_orientation(img, orientation)
             
             # Apply image enhancements if frame is provided
             if frame:
@@ -224,13 +165,9 @@ class PhotoProcessor:
                 f"{name}_{orientation}{ext}"
             )
             
-            # Save the processed image - with or without EXIF data
-            if exif_data:
-                logger.info(f"Preserved EXIF data in {orientation} version")
-                resized.save(output_path, quality=95, exif=exif_data)
-            else:
-                logger.info(f"No EXIF data to preserve in {orientation} version")
-                resized.save(output_path, quality=95)
+            # Save the processed image without EXIF orientation metadata.
+            # Derivatives should be pixel-correct and deterministic for frames.
+            resized.save(output_path, quality=95)
                 
             logger.info(f"Saved {orientation} version to {output_path}")
             return output_path
