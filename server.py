@@ -2560,9 +2560,7 @@ def load_base_image(frame, photo):
     """Load appropriate base image version."""
     filename = get_orientation_filename(frame, photo)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    with Image.open(filepath) as base_img:
-        # Defensive normalization for legacy files that may still carry EXIF rotation.
-        return ImageOps.exif_transpose(base_img).copy()
+    return Image.open(filepath)
 
 def get_orientation_filename(frame, photo):
     """Get filename for correct orientation version."""
