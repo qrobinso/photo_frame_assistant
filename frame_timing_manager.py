@@ -173,7 +173,9 @@ class FrameTimingManager:
                 logger.warning(f"Frame {frame.id} has an empty playlist, skipping transition")
                 # Update wake times anyway to prevent constant checking
                 frame.last_wake_time = now
-                frame.next_wake_time = now + timedelta(minutes=frame.sleep_interval)
+                from server import calculate_sleep_interval
+                effective_interval = calculate_sleep_interval(frame, now)
+                frame.next_wake_time = now + timedelta(minutes=effective_interval)
                 session.commit()
                 return
             
@@ -208,14 +210,15 @@ class FrameTimingManager:
             
             # Update wake times (ensure timezone awareness)
             frame.last_wake_time = now
-            
-            # Calculate next wake time safely
-            sleep_interval = frame.sleep_interval if hasattr(frame, 'sleep_interval') else 1
-            frame.next_wake_time = now + timedelta(minutes=sleep_interval)
-            
+
+            # Calculate next wake time using calculate_sleep_interval (handles snap-to-hour and deep sleep)
+            from server import calculate_sleep_interval
+            effective_interval = calculate_sleep_interval(frame, now)
+            frame.next_wake_time = now + timedelta(minutes=effective_interval)
+
             # Commit the changes
             session.commit()
-            
+
             # Replace detailed debug log with more concise info log that only shows occasionally
             if isinstance(frame.id, str) or not frame.id % 10 == 0:  
                 # Only log occasionally to reduce verbosity
@@ -296,10 +299,11 @@ class FrameTimingManager:
                 # Update wake times with timezone-aware datetimes
                 now = datetime.now(timezone.utc)  # Always use UTC
                 frame.last_wake_time = now
-                
-                # Calculate next wake time safely
-                sleep_interval = frame.sleep_interval if hasattr(frame, 'sleep_interval') else 1
-                frame.next_wake_time = now + timedelta(minutes=sleep_interval)
+
+                # Calculate next wake time using calculate_sleep_interval (handles snap-to-hour and deep sleep)
+                from server import calculate_sleep_interval
+                effective_interval = calculate_sleep_interval(frame, now)
+                frame.next_wake_time = now + timedelta(minutes=effective_interval)
                 
                 # Commit the changes
                 self.db.session.commit()

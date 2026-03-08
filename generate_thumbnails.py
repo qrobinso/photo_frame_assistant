@@ -1,5 +1,5 @@
 import os
-from PIL import Image
+from PIL import Image, ImageOps
 from server import app, db, Photo
 import logging
 
@@ -45,6 +45,8 @@ def generate_thumbnails():
             try:
                 # Generate thumbnail
                 with Image.open(original_path) as img:
+                    # Apply EXIF orientation before thumbnailing
+                    img = ImageOps.exif_transpose(img)
                     # Create thumbnail
                     img.thumbnail((400, 400))  # Max size 200x200
                     thumb_filename = f"thumb_{photo.filename}"

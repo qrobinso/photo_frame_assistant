@@ -114,8 +114,8 @@ function editPhoto(photoId) {
 }
 
 function loadPhotoIntoEditor(filename) {
-    // Load full image (not thumbnail)
-    document.getElementById('editPreview').src = `/photos/${filename}`;
+    // Load full image (not thumbnail) with cache buster to reflect latest edits
+    document.getElementById('editPreview').src = `/photos/${filename}?t=${Date.now()}`;
     document.getElementById('editPreview').style.transform = 'rotate(0deg)';
     document.getElementById('editPreview').style.filter = '';
     

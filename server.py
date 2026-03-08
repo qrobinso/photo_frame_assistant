@@ -3152,6 +3152,7 @@ def add_to_gallery():
             # Generate thumbnail
             try:
                 with Image.open(filepath) as img:
+                    img = ImageOps.exif_transpose(img)
                     img.thumbnail((400, 400))
                     thumb_filename = f"thumb_{filename}"
                     thumb_path = os.path.join(thumbnails_dir, thumb_filename)
@@ -3159,7 +3160,7 @@ def add_to_gallery():
             except Exception as e:
                 app.logger.error(f"Error generating thumbnail: {e}")
                 thumb_filename = None
-            
+
             # Process for both orientations
             portrait_path = photo_processor.process_for_orientation(filepath, 'portrait')
             landscape_path = photo_processor.process_for_orientation(filepath, 'landscape')
@@ -3522,6 +3523,7 @@ def import_google_photos():
                     # Generate thumbnail
                     try:
                         with Image.open(filepath) as img:
+                            img = ImageOps.exif_transpose(img)
                             img.thumbnail((400, 400))
                             thumb_filename = f"thumb_{filename}"
                             thumb_path = os.path.join(thumbnails_dir, thumb_filename)
@@ -4246,8 +4248,9 @@ def edit_photo(photo_id):
             
             if hasattr(photo, 'thumbnail') and photo.thumbnail:
                 thumb_path = os.path.join(thumbnails_dir, photo.thumbnail)
-                # Create thumbnail
+                # Create thumbnail (img is already orientation-corrected from editing)
                 thumb_img = img.copy()
+                thumb_img = ImageOps.exif_transpose(thumb_img)
                 thumb_img.thumbnail((400, 400))
                 try:
                     thumb_img.save(thumb_path, quality=85, exif=exif_data)
@@ -5416,6 +5419,7 @@ def add_unsplash_to_frame():
                 
                 try:
                     with Image.open(filepath) as img:
+                        img = ImageOps.exif_transpose(img)
                         img.thumbnail((400, 400))
                         thumb_filename = f"thumb_{download_result['filename']}"
                         thumb_path = os.path.join(thumbnails_dir, thumb_filename)
@@ -5799,6 +5803,7 @@ def add_pixabay_to_frame():
                 
                 try:
                     with Image.open(filepath) as img:
+                        img = ImageOps.exif_transpose(img)
                         img.thumbnail((400, 400))
                         thumb_filename = f"thumb_{download_result['filename']}"
                         thumb_path = os.path.join(thumbnails_dir, thumb_filename)
@@ -6679,7 +6684,11 @@ if __name__ == '__main__':
             print(f"      Version: {get_version()}")
             print(f"      Uploads: {app.config['UPLOAD_FOLDER']}")
             print(f"      Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
-            print(f"      URL: http://{socket.gethostbyname(socket.gethostname())}:{port}/")
+            try:
+                local_ip = socket.gethostbyname(socket.gethostname())
+            except socket.gaierror:
+                local_ip = '127.0.0.1'
+            print(f"      URL: http://{local_ip}:{port}/")
             print(f"      * Running on http://{host}:{port}/ (Press CTRL+C to quit)")
 
     # Start the Flask development server

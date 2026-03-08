@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 import socket
 import subprocess
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 import requests
 import traceback
@@ -949,11 +949,12 @@ def import_from_network():
                                     
                                     # Generate thumbnail
                                     with Image.open(dest_path) as img:
+                                        img = ImageOps.exif_transpose(img)
                                         img.thumbnail((400, 400))
                                         thumb_filename = f"thumb_{unique_filename}"
                                         thumb_path = os.path.join(thumbnails_dir, thumb_filename)
                                         img.save(thumb_path, "JPEG")
-                                        
+
                                         # Update photo record with thumbnail
                                         new_photo.thumbnail = thumb_filename
                                         db.session.commit()
@@ -1112,15 +1113,16 @@ def import_from_network():
                                 
                                 # Generate thumbnail
                                 with Image.open(dest_path) as img:
+                                    img = ImageOps.exif_transpose(img)
                                     img.thumbnail((400, 400))
                                     thumb_filename = f"thumb_{unique_filename}"
                                     thumb_path = os.path.join(thumbnails_dir, thumb_filename)
                                     img.save(thumb_path, "JPEG")
-                                    
+
                                     # Update photo record with thumbnail
                                     new_photo.thumbnail = thumb_filename
                                     db.session.commit()
-                                
+
                                 # Process for orientations
                                 portrait_path = photo_processor.process_for_orientation(dest_path, 'portrait')
                                 if portrait_path:
@@ -1865,11 +1867,12 @@ def import_file_to_frame(location, file_path, frame_id, app, db, Photo, Playlist
                 
                 # Generate thumbnail
                 with Image.open(dest_path) as img:
+                    img = ImageOps.exif_transpose(img)
                     img.thumbnail((400, 400))
                     thumb_filename = f"thumb_{unique_filename}"
                     thumb_path = os.path.join(thumbnails_dir, thumb_filename)
                     img.save(thumb_path, "JPEG")
-                    
+
                     # Update photo record with thumbnail
                     new_photo.thumbnail = thumb_filename
                     db.session.commit()
@@ -2030,13 +2033,14 @@ def check_immich_for_new_media():
                                 os.makedirs(thumbnails_dir, exist_ok=True)
                                 
                                 with Image.open(dest_path) as img:
+                                    img = ImageOps.exif_transpose(img)
                                     img.thumbnail((400, 400))
                                     thumb_filename = f"thumb_{unique_filename}"
                                     thumb_path = os.path.join(thumbnails_dir, thumb_filename)
                                     img.save(thumb_path, "JPEG")
                                     new_photo.thumbnail = thumb_filename
                                     db.session.commit()
-                                
+
                                 portrait_path = photo_processor.process_for_orientation(dest_path, 'portrait')
                                 if portrait_path:
                                     new_photo.portrait_version = os.path.basename(portrait_path)
@@ -2413,15 +2417,16 @@ def import_from_immich():
                             
                             # Generate thumbnail
                             with Image.open(dest_path) as img:
+                                img = ImageOps.exif_transpose(img)
                                 img.thumbnail((400, 400))
                                 thumb_filename = f"thumb_{unique_filename}"
                                 thumb_path = os.path.join(thumbnails_dir, thumb_filename)
                                 img.save(thumb_path, "JPEG")
-                                
+
                                 # Update photo record with thumbnail
                                 new_photo.thumbnail = thumb_filename
                                 db.session.commit()
-                            
+
                             # Process for orientations
                             portrait_path = photo_processor.process_for_orientation(dest_path, 'portrait')
                             if portrait_path:
