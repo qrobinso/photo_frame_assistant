@@ -46,7 +46,7 @@ from integration_routes import integration_routes  # Blueprint for external inte
 from frame_timing_manager import FrameTimingManager
 from imgToArray import img_to_array, img_to_rgb565, img_to_epaper_4bit # For e-paper and RGB565 compression
 from event_logger import EventLogger
-from model import db, init_db, Photo, PhotoFrame, PlaylistEntry, Playlist, CustomPlaylist, ScheduledGeneration, GenerationHistory, SyncGroup
+from model import db, init_db, Photo, PhotoFrame, PlaylistEntry, Playlist, CustomPlaylist, ScheduledGeneration, GenerationHistory, SyncGroup, EventLog
 
 # Integration specific imports
 from integrations.mqtt_integration import MQTTIntegration
@@ -3858,11 +3858,14 @@ def delete_frame(frame_id):
         # Get the frame's playlist before deleting
         playlist_id = frame.playlist_id
         
+        # Delete event logs associated with this frame
+        EventLog.query.filter_by(frame_id=frame_id).delete()
+
         # Delete any scheduled generation tasks associated with this frame
         scheduled_generations = ScheduledGeneration.query.filter_by(frame_id=frame_id).all()
         for schedule in scheduled_generations:
             db.session.delete(schedule)
-        
+
         # Delete the frame
         db.session.delete(frame)
         
