@@ -42,5 +42,13 @@ def migrate_db():
             except Exception:
                 pass  # Column already exists
 
+            # Add source column to photo table (plugin system)
+            try:
+                conn.execute(text('ALTER TABLE photo ADD COLUMN source VARCHAR(50) DEFAULT NULL'))
+                conn.commit()
+                print("Added source column to photo table")
+            except Exception:
+                pass  # Column already exists
+
 if __name__ == '__main__':
     migrate_db()

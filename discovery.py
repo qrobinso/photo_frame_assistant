@@ -66,43 +66,55 @@ class FrameDiscovery:
 
     def get_ip_address(self) -> str:
         """Get the non-localhost IP address of the machine."""
-        try:
-            # Try getting all network interfaces
-            interfaces = socket.getaddrinfo(socket.gethostname(), None)
-            for info in interfaces:
-                # Only look at IPv4 addresses
-                if info[0] == socket.AF_INET:
-                    ip = info[4][0]
-                    if not ip.startswith('127.'):
-                        print(f"Found valid IP: {ip}")
-                        return ip
-                    
-            # If no valid IP found above, try the UDP socket method
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.settimeout(0.1)  # Short timeout since we don't actually need to connect
+        def is_valid(ip):
+            return ip and not ip.startswith('127.') and ip != '0.0.0.0'
+
+        # Method 1: UDP routing trick with multiple targets (works even without internet)
+        for target in [('8.8.8.8', 80), ('1.1.1.1', 80)]:
             try:
-                # We don't need to actually connect to Google's DNS
-                s.connect(('8.8.8.8', 80))
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(target)
                 ip = s.getsockname()[0]
-                print(f"Found IP via UDP socket: {ip}")
-                return ip
-            except Exception as e:
-                print(f"UDP socket method failed: {e}")
-            finally:
                 s.close()
-            
-            # Last resort: Try getting hostname-based IP
-            hostname = socket.gethostname()
-            ip = socket.gethostbyname(hostname)
-            if not ip.startswith('127.'):
-                print(f"Found IP via hostname: {ip}")
-                return ip 
-            
-            raise Exception("No valid non-localhost IP found")
-            
-        except Exception as e:
-            print(f"Error getting IP address: {e}")
-            return '0.0.0.0'  # Return a bindable address instead of localhost
+                if is_valid(ip):
+                    logger.debug(f"Found IP via UDP routing trick: {ip}")
+                    return ip
+            except Exception:
+                pass
+
+        # Method 2: hostname -I (Linux; returns all IPs space-separated)
+        try:
+            import subprocess
+            result = subprocess.run(['hostname', '-I'], capture_output=True, text=True, timeout=2)
+            for ip in result.stdout.strip().split():
+                if is_valid(ip):
+                    logger.debug(f"Found IP via hostname -I: {ip}")
+                    return ip
+        except Exception:
+            pass
+
+        # Method 3: getaddrinfo on hostname
+        try:
+            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+                ip = info[4][0]
+                if is_valid(ip):
+                    logger.debug(f"Found IP via getaddrinfo: {ip}")
+                    return ip
+        except Exception:
+            pass
+
+        # Method 4: gethostbyname_ex (returns all addresses for hostname)
+        try:
+            _, _, ips = socket.gethostbyname_ex(socket.gethostname())
+            for ip in ips:
+                if is_valid(ip):
+                    logger.debug(f"Found IP via gethostbyname_ex: {ip}")
+                    return ip
+        except Exception:
+            pass
+
+        logger.error("Could not determine a valid non-localhost IP address")
+        return '0.0.0.0'
 
     def setup_service(self):
         """Setup and register the Zeroconf service."""

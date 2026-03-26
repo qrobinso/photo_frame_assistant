@@ -31,13 +31,15 @@ except ImportError:
     logger.warning("You will also need to install ImageMagick: https://imagemagick.org/script/download.php")
 
 class PhotoProcessor:
-    def ensure_orientation(self, img, desired_orientation='portrait'):
+    def ensure_orientation(self, img, desired_orientation='portrait', crop_anchor='center'):
         """
         Ensure image is in the desired orientation by cropping.
         Args:
             img: PIL Image object
             desired_orientation: 'portrait' or 'landscape'
-        Returns: 
+            crop_anchor: 'center' (default) or 'top' — controls vertical anchor when
+                         cropping portrait→landscape. 'top' preserves the top of the image.
+        Returns:
             PIL Image object in the correct orientation
         """
         logger.info("Starting orientation adjustment.")
@@ -64,7 +66,7 @@ class PhotoProcessor:
                     bottom = height
                 else:
                     # Crop height to match target ratio
-                    top = (height - new_height) // 2
+                    top = 0 if crop_anchor == 'top' else (height - new_height) // 2
                     left = 0
                     bottom = top + new_height
                     right = width
@@ -96,13 +98,14 @@ class PhotoProcessor:
         logger.info(f"Final image dimensions: {img.width}x{img.height}")
         return img
 
-    def process_for_orientation(self, image_path, orientation='portrait', frame=None):
+    def process_for_orientation(self, image_path, orientation='portrait', frame=None, crop_anchor='center'):
         """
         Process image for target dimensions and ensure correct orientation.
         Args:
             image_path: Path to the image file
             orientation: 'portrait' or 'landscape'
             frame: PhotoFrame object with image settings
+            crop_anchor: 'center' (default) or 'top' — passed to ensure_orientation
         Returns:
             Path to the processed image
         """
@@ -125,7 +128,7 @@ class PhotoProcessor:
             logger.info(f"Natural orientation determined to be {natural_orientation}")
             
             # Ensure correct orientation
-            img = self.ensure_orientation(img, orientation)
+            img = self.ensure_orientation(img, orientation, crop_anchor=crop_anchor)
             
             # Apply image enhancements if frame is provided
             if frame:

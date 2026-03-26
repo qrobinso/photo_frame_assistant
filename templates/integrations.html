@@ -139,35 +139,6 @@
         </div>
     </div>
 
-    <!-- Add Unsplash Integration Card -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">
-                <i class="bi bi-image"></i> Unsplash Integration
-            </h5>
-            <button class="btn btn-sm btn-outline-info" onclick="showUnsplashHelp()">
-                <i class="bi bi-question-circle"></i> Setup Help
-            </button>
-        </div>
-        <div class="card-body">
-            <form id="unsplashForm">
-                <div class="mb-3">
-                    <label for="unsplashApiKey" class="form-label">Unsplash API Key</label>
-                    <div class="input-group">
-                        <input type="password" class="form-control" id="unsplashApiKey" name="api_key">
-                        <button class="btn btn-outline-secondary toggle-password" type="button" data-target="unsplashApiKey">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <a href="/unsplash" class="btn btn-primary">Manage Unsplash Schedules</a>
-                    <button type="submit" class="btn btn-success">Save API Key</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- Add Pixabay Integration Card -->
     <div class="card mb-4">
         <div class="card-header">
@@ -883,20 +854,6 @@
     </div>
 </div>
 
-<!-- Add Unsplash help modal -->
-<div class="modal fade" id="unsplashHelpModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Unsplash Setup Instructions</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="unsplashHelpContent">
-                Loading instructions...
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -993,17 +950,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Load Google Photos status
     updateGooglePhotosStatus();
-
-    // Load Unsplash settings
-    try {
-        const unsplashResponse = await fetch('/api/unsplash/settings');
-        const unsplashSettings = await unsplashResponse.json();
-        if (unsplashSettings.api_key) {
-            document.getElementById('unsplashApiKey').value = unsplashSettings.api_key;
-        }
-    } catch (error) {
-        console.error('Error loading Unsplash settings:', error);
-    }
 
     // Load Pixabay settings
     try {
@@ -1875,54 +1821,6 @@ async function saveQRCodeSettings() {
     } catch (error) {
         alert('Error saving QR code settings: ' + error.message);
     }
-}
-
-// Add Unsplash form handler
-document.getElementById('unsplashForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    try {
-        const response = await fetch('/api/unsplash/settings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                api_key: document.getElementById('unsplashApiKey').value
-            })
-        });
-        
-        if (!response.ok) throw new Error('Failed to save settings');
-        
-        alert('Unsplash API settings saved successfully');
-    } catch (error) {
-        alert('Error saving Unsplash API settings: ' + error.message);
-    }
-});
-
-// Show Unsplash help modal
-async function showUnsplashHelp() {
-    const modal = new bootstrap.Modal(document.getElementById('unsplashHelpModal'));
-    const contentDiv = document.getElementById('unsplashHelpContent');
-    
-    try {
-        const response = await fetch('/static/docs/unsplash_setup.md');
-        const text = await response.text();
-        
-        if (!text) {
-            throw new Error('No content received');
-        }
-
-        contentDiv.innerHTML = `<div class="markdown-body">${marked.parse(text)}</div>`;
-    } catch (error) {
-        console.error('Error loading Unsplash setup instructions:', error);
-        contentDiv.innerHTML = `
-            <div class="alert alert-danger">
-                Error loading setup instructions: ${error.message}<br>
-                Please check the browser console for more details.
-            </div>`;
-    }
-    
-    modal.show();
 }
 
 // Add Pixabay settings handling

@@ -478,6 +478,15 @@
                 </div>
                 
                 <div class="setting-item">
+                    <label class="setting-label">Frame Discovery</label>
+                    <div class="form-check form-switch mt-1">
+                        <input type="checkbox" class="form-check-input" id="discoveryEnabled" {% if discovery_enabled %}checked{% endif %} onchange="onDiscoveryToggle(this)">
+                        <label class="form-check-label" for="discoveryEnabled">Enable mDNS frame discovery</label>
+                    </div>
+                    <small class="text-muted">Disable when running multiple PFA servers to prevent conflicts.</small>
+                </div>
+
+                <div class="setting-item" id="discoveryPortItem" {% if not discovery_enabled %}style="opacity:0.5;pointer-events:none;"{% endif %}>
                     <label class="setting-label" for="discoveryPort">Discovery Port</label>
                     <input type="number" class="form-control" id="discoveryPort" value="{{ discovery_port }}" min="1024" max="65535">
                 </div>
@@ -842,6 +851,17 @@
 </div>
 
 <script>
+function onDiscoveryToggle(checkbox) {
+    const portItem = document.getElementById('discoveryPortItem');
+    if (checkbox.checked) {
+        portItem.style.opacity = '';
+        portItem.style.pointerEvents = '';
+    } else {
+        portItem.style.opacity = '0.5';
+        portItem.style.pointerEvents = 'none';
+    }
+}
+
 function saveServerSettings() {
     const settings = {
         server_name: document.getElementById('serverName').value,
@@ -849,6 +869,7 @@ function saveServerSettings() {
         cleanup_interval: parseInt(document.getElementById('cleanupInterval').value),
         log_level: document.getElementById('logLevel').value,
         max_upload_size: parseInt(document.getElementById('maxUploadSize').value),
+        discovery_enabled: document.getElementById('discoveryEnabled').checked,
         discovery_port: parseInt(document.getElementById('discoveryPort').value),
         dark_mode: document.getElementById('darkMode').checked
     };

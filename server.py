@@ -43,15 +43,15 @@ from photo_analysis import PhotoAnalyzer
 from logger_config import setup_logger
 from scheduler import GenerationScheduler
 from integration_routes import integration_routes  # Blueprint for external integration routes
+from plugin_routes import plugin_bp               # Blueprint for plugin system
 from frame_timing_manager import FrameTimingManager
 from imgToArray import img_to_array, img_to_rgb565, img_to_epaper_4bit # For e-paper and RGB565 compression
 from event_logger import EventLogger
-from model import db, init_db, Photo, PhotoFrame, PlaylistEntry, Playlist, CustomPlaylist, ScheduledGeneration, GenerationHistory, SyncGroup, EventLog
+from model import db, init_db, Photo, PhotoFrame, PlaylistEntry, Playlist, CustomPlaylist, ScheduledGeneration, GenerationHistory, SyncGroup, EventLog, PluginInstance, PluginRunLog
 
 # Integration specific imports
 from integrations.mqtt_integration import MQTTIntegration
 from integrations.google_photos import GooglePhotosIntegration
-from integrations.unsplash_integration import UnsplashIntegration
 from integrations.pixabay_integration import PixabayIntegration
 from integrations.overlays.weather_integration import WeatherIntegration
 from integrations.overlays.metadata_integration import MetadataIntegration
@@ -94,7 +94,6 @@ os.makedirs(OVERLAYS_DIR, exist_ok=True)
 SERVER_SETTINGS_FILE = os.path.join(CONFIG_DIR, "server_settings.json")
 PHOTOGEN_SETTINGS_FILE = os.path.join(CONFIG_DIR, "photogen_settings.json")
 MQTT_CONFIG_PATH = os.path.join(CONFIG_DIR, 'mqtt_config.json')
-UNSPLASH_CONFIG_PATH = os.path.join(CONFIG_DIR, 'unsplash_config.json')
 PIXABAY_CONFIG_PATH = os.path.join(CONFIG_DIR, 'pixabay_config.json')
 WEATHER_CONFIG_PATH = os.path.join(CONFIG_DIR, 'weather_config.json')
 METADATA_CONFIG_PATH = os.path.join(CONFIG_DIR, 'metadata_config.json')
@@ -112,6 +111,7 @@ logger = setup_logger()
 # ------------------------------------------------------------------------------
 init_db(app)
 app.register_blueprint(integration_routes)
+app.register_blueprint(plugin_bp)
 
 # ------------------------------------------------------------------------------
 # Global Variables & Initializations
@@ -130,7 +130,6 @@ metadata_integration = None
 qrcode_integration = None
 overlay_manager = None
 google_photos = None
-unsplash_integration = None
 pixabay_integration = None
 app.mqtt_integration = None # Placeholder, initialized later if enabled
 
@@ -167,6 +166,7 @@ def load_server_settings():
         'log_level': 'INFO',
         'max_upload_size': 10,  # MB
         'discovery_port': ZEROCONF_PORT,
+        'discovery_enabled': True,
         'ai_analysis_enabled': False,
         'dark_mode': False
     }
@@ -174,12 +174,14 @@ def load_server_settings():
         if os.path.exists(SERVER_SETTINGS_FILE):
             with open(SERVER_SETTINGS_FILE, 'r') as f:
                 settings = json.load(f)
-                # Ensure all default keys exist, merging defaults
-                default_settings.update(settings)
-                return default_settings
+                # Ensure all default keys exist
+                for key, value in default_settings.items():
+                    if key not in settings:
+                        settings[key] = value
+                return settings
         return default_settings
     except Exception as e:
-        logger.error(f"Error loading server settings from {SERVER_SETTINGS_FILE}: {e}")
+        logger.error(f"Error loading server settings: {e}")
         return default_settings
 
 def save_server_settings(settings):
@@ -271,9 +273,8 @@ def init_scheduler():
             'GenerationHistory': GenerationHistory, 'PlaylistEntry': PlaylistEntry,
             'CustomPlaylist': CustomPlaylist, 'PhotoFrame': PhotoFrame # Include PhotoFrame
         }
-        # NOTE: Temporarily removed unsplash_integration and pixabay_integration
-        # to match the expected 5 arguments (self + 4) based on the TypeError.
-        # The GenerationScheduler class likely needs to be updated to accept these.
+        # NOTE: Temporarily removed pixabay_integration from scheduler args
+        # to match the expected argument count; update GenerationScheduler if needed.
         scheduler = GenerationScheduler(app, photo_generator, db, models) # Pass integrations
         # Re-add existing jobs from DB on startup
         with app.app_context():
@@ -281,7 +282,7 @@ def init_scheduler():
 
 def init_integrations():
     """Initialize core integrations like overlays."""
-    global weather_integration, metadata_integration, qrcode_integration, overlay_manager, unsplash_integration, pixabay_integration, google_photos
+    global weather_integration, metadata_integration, qrcode_integration, overlay_manager, pixabay_integration, google_photos
     try:
         weather_integration = WeatherIntegration(WEATHER_CONFIG_PATH)
         metadata_integration = MetadataIntegration(METADATA_CONFIG_PATH)
@@ -293,9 +294,8 @@ def init_integrations():
         overlay_manager = OverlayManager(weather_integration, metadata_integration) # Pass QR code integration
         logger.info("Weather, Metadata, QR Code integrations and OverlayManager initialized.")
 
-        unsplash_integration = UnsplashIntegration(UNSPLASH_CONFIG_PATH)
         pixabay_integration = PixabayIntegration(PIXABAY_CONFIG_PATH)
-        logger.info("Unsplash and Pixabay integrations initialized.")
+        logger.info("Pixabay integration initialized.")
 
         google_photos = GooglePhotosIntegration(
              client_secrets_file=GPHOTOS_SECRETS_FILE,
@@ -312,7 +312,7 @@ def start_discovery_service():
     """Start the Zeroconf discovery service."""
     global frame_discovery
     try:
-        if not hasattr(frame_discovery, 'zeroconf') or frame_discovery.zeroconf is None:
+        if not frame_discovery._running:
             logger.info("Starting frame discovery service...")
             frame_discovery.start()
             logger.info("Frame discovery service started.")
@@ -325,7 +325,7 @@ def cleanup_discovery_service():
     """Stop the Zeroconf discovery service."""
     global frame_discovery
     try:
-        if hasattr(frame_discovery, 'zeroconf') and frame_discovery.zeroconf is not None:
+        if frame_discovery._running:
             logger.info("Stopping frame discovery service...")
             frame_discovery.stop()
             logger.info("Frame discovery service stopped.")
@@ -345,8 +345,21 @@ def init_app_services():
         frame_timing_manager.start()
         logger.info("FrameTimingManager initialized and started.")
 
-    # Start discovery last
-    start_discovery_service()
+    # Initialize plugin runner
+    from plugins.plugin_runner import PluginRunner
+    app.plugin_runner = PluginRunner(app, db, app.config['UPLOAD_FOLDER'])
+    app.plugin_runner.discover_and_register()
+    if scheduler:
+        app.plugin_runner.set_scheduler(scheduler.scheduler)
+    app.plugin_runner.load_active_plugin_jobs()
+    logger.info("Plugin runner initialized.")
+
+    # Start discovery last, only if enabled in settings
+    startup_settings = load_server_settings()
+    if startup_settings.get('discovery_enabled', True):
+        start_discovery_service()
+    else:
+        logger.info("Frame discovery is disabled in settings — skipping startup.")
 
 def cleanup_app_services():
     """Cleanup services on application exit."""
@@ -1510,21 +1523,17 @@ def upload_photo():
     if latest_playlist_entry and latest_playlist_entry.playlist_id:
         last_playlist_id = latest_playlist_entry.playlist_id
     
-    # Check if Unsplash and Pixabay API keys are configured
-    unsplash_settings = unsplash_integration.load_settings()
+    # Check if Pixabay API key is configured
     pixabay_settings = pixabay_integration.load_settings()
-    
-    unsplash_api_key = unsplash_settings.get('api_key', '')
     pixabay_api_key = pixabay_settings.get('api_key', '')
-    
-    return render_template('upload.html', 
-                         photos=photos, 
+
+    return render_template('upload.html',
+                         photos=photos,
                          playlists=playlists_with_previews,
                          photo_playlists=photo_playlists,
                          google_photos_connected=is_connected,
                          ai_analysis_enabled=ai_enabled,
                          last_playlist_id=last_playlist_id,
-                         unsplash_api_key=bool(unsplash_api_key),
                          pixabay_api_key=bool(pixabay_api_key))
 
 # Make sure you have these routes
@@ -1537,7 +1546,10 @@ def serve_photo(filename):
 def delete_photo(photo_id):
     try:
         photo = Photo.query.get_or_404(photo_id)
-        
+
+        if photo.source == 'plugin':
+            return jsonify({'error': 'This photo is managed by a plugin. Delete the plugin instance to remove it.'}), 400
+
         # Remove photo from all playlists
         PlaylistEntry.query.filter_by(photo_id=photo_id).delete()
         
@@ -2047,7 +2059,12 @@ def get_settings():
     
     # Get server settings
     server_settings = load_server_settings()
-    
+
+    # Count playlist entries so device knows whether to fetch an image
+    playlist_count = 0
+    if frame.playlist_id:
+        playlist_count = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).count()
+
     # Return settings
     return jsonify({
         'sleep_interval': sleep_interval,
@@ -2062,7 +2079,10 @@ def get_settings():
         "current_photo_id": frame.current_photo_id if frame.current_photo_id else None,
         'deep_sleep_enabled': frame.deep_sleep_enabled,
         'deep_sleep_start': frame.deep_sleep_start,
-        'deep_sleep_end': frame.deep_sleep_end
+        'deep_sleep_end': frame.deep_sleep_end,
+        'playlist_count': playlist_count,
+        'has_photos': playlist_count > 0,
+        'show_welcome': playlist_count == 0,
     })
 
 @app.route('/api/diagnostic', methods=['POST'])
@@ -2234,11 +2254,18 @@ def register_frame():
             except Exception as e:
                 print(f"Error storing capabilities: {str(e)}")
         
-        EventLogger.log_connection(frame.id, source=EventLogger.SOURCE_FRAME, 
+        EventLogger.log_connection(frame.id, source=EventLogger.SOURCE_FRAME,
                               details={'name': frame.name})
-        
+
         db.session.commit()
-        return jsonify({'message': 'Frame registered successfully'})
+
+        playlist_count = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id).count() if frame.playlist_id else 0
+        return jsonify({
+            'message': 'Frame registered successfully',
+            'playlist_count': playlist_count,
+            'has_photos': playlist_count > 0,
+            'show_welcome': playlist_count == 0,
+        })
     except Exception as e:
         print(f"Error in register_frame: {str(e)}")
         db.session.rollback()
@@ -2265,7 +2292,11 @@ def get_current_photo():
             playlist = PlaylistEntry.query.filter_by(playlist_id=frame.playlist_id)\
                                         .order_by(PlaylistEntry.order).all()
         app.logger.info(f"Playlist entries found: {len(playlist)}")
-        
+
+        if not playlist:
+            output_type = request.args.get('type')
+            return handle_empty_playlist(frame, output_type)
+
         if playlist:
             # If shuffle is enabled, pick a random photo from the playlist
             if frame.shuffle_enabled:
@@ -2286,16 +2317,6 @@ def get_current_photo():
             
             db.session.commit()
             
-            # Check if we have a valid photo
-            if not playlist:
-                # Return placeholder image if playlist is empty
-                placeholder_path = os.path.join('static', 'images', 'frame-blank.jpg')
-                return jsonify({
-                    'status': 'success',
-                    'photo_url': url_for('static', filename='images/frame-blank.jpg'),
-                    'media_type': 'photo',
-                    'sleep_interval': calculate_sleep_interval(frame)
-                })
             
             if photo:
                 # Choose the appropriate version based on frame orientation
@@ -2403,15 +2424,10 @@ def get_current_photo():
                 # Return the original image
                 return send_file(photo_path, mimetype=mimetype)
     
-    # Return default image for any failure case
-    default_image_path = os.path.join(os.path.dirname(__file__), 'assets', 'default.jpg')
-    app.logger.info(f"Returning default image from: {default_image_path}")
-    
-    if not os.path.exists(default_image_path):
-        app.logger.error(f"Default image not found at: {default_image_path}")
-        return jsonify({'error': 'Default image not found'}), 404
-        
-    return send_file(default_image_path, mimetype='image/jpeg')
+    # Frame not found or no photo available — return welcome image
+    frame = db.session.get(PhotoFrame, request.args.get('device_id')) if request.args.get('device_id') else None
+    output_type = request.args.get('type')
+    return handle_empty_playlist(frame, output_type)
 
 def cleanup_temp_files(directory, max_age_hours=1):
     """Clean up temporary overlay files older than max_age_hours."""
@@ -2477,16 +2493,97 @@ def get_next_photo():
         logger.error(f"Error in get_next_photo: {e}")
         return jsonify({'error': str(e)}), 500
 
+def generate_welcome_image(frame):
+    """Generate a welcome image showing server name, frame MAC address, and server IP."""
+    orientation = frame.orientation if frame else 'portrait'
+    if orientation == 'landscape':
+        width, height = 1600, 1200
+    else:
+        width, height = 1200, 1600
+
+    img = Image.new('RGB', (width, height), color=(20, 20, 40))
+    draw = ImageDraw.Draw(img)
+
+    # Get server info
+    try:
+        server_name = socket.gethostname()
+    except Exception:
+        server_name = 'Unknown Server'
+    try:
+        server_ip = socket.gethostbyname(socket.gethostname())
+    except Exception:
+        server_ip = 'Unknown IP'
+    mac_address = frame.id if frame else 'Unknown'
+
+    font_path = os.path.join(app.root_path, 'static', 'fonts', 'Roboto-Regular.ttf')
+    bold_font_path = os.path.join(app.root_path, 'static', 'fonts', 'BebasNeue-Regular.ttf')
+
+    from PIL import ImageFont
+    try:
+        title_font = ImageFont.truetype(bold_font_path, size=int(height * 0.07))
+        label_font = ImageFont.truetype(bold_font_path, size=int(height * 0.04))
+        value_font = ImageFont.truetype(font_path, size=int(height * 0.035))
+    except Exception:
+        title_font = label_font = value_font = ImageFont.load_default()
+
+    cx = width // 2
+    accent = (80, 160, 255)
+    white = (240, 240, 240)
+    grey = (160, 160, 180)
+
+    # Title
+    title = "PHOTO FRAME ASSISTANT"
+    draw.text((cx, int(height * 0.12)), title, font=title_font, fill=accent, anchor='mm')
+
+    # Divider line
+    line_y = int(height * 0.20)
+    draw.line([(int(width * 0.1), line_y), (int(width * 0.9), line_y)], fill=accent, width=2)
+
+    # Info rows
+    rows = [
+        ("SERVER", server_name),
+        ("IP ADDRESS", server_ip),
+        ("DEVICE ID", mac_address),
+    ]
+    start_y = int(height * 0.35)
+    row_gap = int(height * 0.13)
+    for i, (label, value) in enumerate(rows):
+        y = start_y + i * row_gap
+        draw.text((cx, y), label, font=label_font, fill=grey, anchor='mm')
+        draw.text((cx, y + int(height * 0.055)), value, font=value_font, fill=white, anchor='mm')
+
+    # Bottom divider
+    line_y2 = int(height * 0.88)
+    draw.line([(int(width * 0.1), line_y2), (int(width * 0.9), line_y2)], fill=accent, width=2)
+
+    hint = "Add photos to this frame's playlist to get started"
+    draw.text((cx, int(height * 0.93)), hint, font=value_font, fill=grey, anchor='mm')
+
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=90)
+    buf.seek(0)
+    return buf
+
+
 def handle_empty_playlist(frame, output_type):
     """Handle case when playlist is empty."""
-    placeholder_path = os.path.join(app.root_path, 'static', 'images', 'frame-blank.jpg')
-    if output_type == 'compressed':
-        return generate_compressed_output(placeholder_path, frame.orientation if frame else 'portrait')
-    elif output_type in ('epaper', 'epd') or (output_type == 'rgb565' and is_epaper_frame(frame)):
-        return generate_epaper_output(placeholder_path, frame.orientation if frame else 'portrait')
-    elif output_type == 'rgb565':
-        return generate_rgb565_output(placeholder_path, frame)
-    return send_file(placeholder_path, mimetype='image/jpeg')
+    welcome_buf = generate_welcome_image(frame)
+    orientation = frame.orientation if frame else 'portrait'
+    device_id = frame.id if frame else 'unknown'
+
+    if output_type in ('compressed', 'epaper', 'epd') or (output_type == 'rgb565'):
+        # These generators require a file path, so write to a per-device temp file
+        tmp_path = os.path.join('/tmp', f'welcome_{device_id}.jpg')
+        welcome_buf.seek(0)
+        with open(tmp_path, 'wb') as f:
+            f.write(welcome_buf.read())
+        if output_type == 'compressed':
+            return generate_compressed_output(tmp_path, orientation)
+        elif output_type in ('epaper', 'epd') or (output_type == 'rgb565' and is_epaper_frame(frame)):
+            return generate_epaper_output(tmp_path, orientation)
+        elif output_type == 'rgb565':
+            return generate_rgb565_output(tmp_path, frame)
+    return send_file(welcome_buf, mimetype='image/jpeg')
 
 def get_next_entry(frame, playlist):
     """Select next playlist entry based on shuffle settings."""
@@ -2869,7 +2966,8 @@ def info():
                          discovery_port=server_settings['discovery_port'],
                          ai_settings=ai_settings,
                          ai_analysis_enabled=server_settings.get('ai_analysis_enabled', False),
-                         dark_mode=server_settings.get('dark_mode', False)  # Add dark_mode setting
+                         dark_mode=server_settings.get('dark_mode', False),
+                         discovery_enabled=server_settings.get('discovery_enabled', True)
                          )
 
 def get_cpu_temperature():
@@ -4078,11 +4176,8 @@ def execute_generation(schedule_id):
                 db.session.rollback()
                 return jsonify({'error': str(e)}), 500
 
-        # For Unsplash schedules, redirect to the specific handler
-        if schedule.service == 'unsplash':
-            return test_unsplash_schedule(schedule_id)
         # For Pixabay schedules, redirect to the specific handler
-        elif schedule.service == 'pixabay':
+        if schedule.service == 'pixabay':
             return test_pixabay_schedule(schedule_id)
         
         # Load API settings from the form data in the session or database
@@ -4322,10 +4417,22 @@ def import_frame_settings(frame_id):
             'error': str(e)
         }), 500
     
+@app.route('/api/discovery/status')
+def discovery_status():
+    """Return current discovery enabled state and running state."""
+    settings = load_server_settings()
+    return jsonify({
+        'discovery_enabled': settings.get('discovery_enabled', True),
+        'running': frame_discovery._running
+    })
+
 @app.route('/api/restart_discovery', methods=['POST'])
 def restart_discovery():
-    """Restart the frame discovery service."""
+    """Restart the frame discovery service (only when discovery is enabled)."""
     try:
+        settings = load_server_settings()
+        if not settings.get('discovery_enabled', True):
+            return jsonify({'success': False, 'error': 'Discovery is disabled'}), 400
         frame_discovery.stop()
         frame_discovery.start()
         return jsonify({'success': True})
@@ -4963,41 +5070,6 @@ def clear_frame_playlist(frame_id):
 # Add this constant with other constants
 SERVER_SETTINGS_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "config", "server_settings.json")
 
-def load_server_settings():
-    """Load server settings from file."""
-    default_settings = {
-        'server_name': socket.gethostname(),
-        'timezone': 'UTC',
-        'cleanup_interval': 24,  # hours
-        'log_level': 'INFO',
-        'max_upload_size': 10,  # MB
-        'discovery_port': ZEROCONF_PORT
-    }
-    
-    try:
-        if os.path.exists(SERVER_SETTINGS_FILE):
-            with open(SERVER_SETTINGS_FILE, 'r') as f:
-                settings = json.load(f)
-                # Ensure all default keys exist
-                for key, value in default_settings.items():
-                    if key not in settings:
-                        settings[key] = value
-                return settings
-        return default_settings
-    except Exception as e:
-        logger.error(f"Error loading server settings: {e}")
-        return default_settings
-
-def save_server_settings(settings):
-    """Save server settings to file."""
-    try:
-        with open(SERVER_SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f, indent=4)
-        return True
-    except Exception as e:
-        logger.error(f"Error saving server settings: {e}")
-        return False
-
 # Add new route to handle settings updates
 @app.route('/api/server/settings', methods=['POST'])
 def update_server_settings():
@@ -5021,6 +5093,8 @@ def update_server_settings():
             current_settings['max_upload_size'] = data['max_upload_size']
         if 'discovery_port' in data and 1024 <= data['discovery_port'] <= 65535:
             current_settings['discovery_port'] = data['discovery_port']
+        if 'discovery_enabled' in data:
+            current_settings['discovery_enabled'] = bool(data['discovery_enabled'])
         if 'ai_analysis_enabled' in data:
             current_settings['ai_analysis_enabled'] = bool(data['ai_analysis_enabled'])
         if 'dark_mode' in data:  # Add dark_mode handling
@@ -5029,7 +5103,18 @@ def update_server_settings():
         if save_server_settings(current_settings):
             # Apply settings that need immediate effect
             app.config['MAX_CONTENT_LENGTH'] = current_settings['max_upload_size'] * 1024 * 1024
-            
+
+            # Start or stop discovery based on the new setting
+            if 'discovery_enabled' in data:
+                if current_settings['discovery_enabled']:
+                    if not frame_discovery._running:
+                        start_discovery_service()
+                        logger.info("Frame discovery enabled via settings.")
+                else:
+                    if frame_discovery._running:
+                        cleanup_discovery_service()
+                        logger.info("Frame discovery disabled via settings.")
+
             return jsonify({'success': True, 'settings': current_settings})
         else:
             return jsonify({'success': False, 'error': 'Failed to save settings'}), 500
@@ -5288,385 +5373,6 @@ def update_qrcode_settings():
 def overlays():
     return render_template('overlays.html')
 
-@app.route('/unsplash')
-def unsplash_page():
-    """Render the Unsplash scheduling page."""
-    frames = PhotoFrame.query.all()
-    return render_template('unsplash.html', frames=frames)
-
-@app.route('/api/unsplash/settings', methods=['GET'])
-def get_unsplash_settings():
-    """Get Unsplash API settings."""
-    try:
-        settings = unsplash_integration.load_settings()
-        # Don't send API key to frontend
-        if 'api_key' in settings:
-            settings['api_key'] = '********' if settings['api_key'] else ''
-        return jsonify(settings)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/unsplash/settings', methods=['POST'])
-def update_unsplash_settings():
-    """Update Unsplash API settings."""
-    try:
-        data = request.get_json()
-        success = unsplash_integration.save_settings({
-            'api_key': data.get('api_key')
-        })
-        if success:
-            return jsonify({'message': 'Settings updated successfully'})
-        return jsonify({'error': 'Failed to save settings'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/unsplash/preview', methods=['POST'])
-def preview_unsplash_search():
-    """Preview random Unsplash photos without adding them to the database."""
-    try:
-        data = request.get_json()
-        # Get count from request, default to 5, ensure it's within 1-30
-        count = data.get('count', 5) 
-        try:
-            count = int(count)
-        except (ValueError, TypeError):
-            count = 5 # Default if conversion fails
-        count = max(1, min(30, count)) # Clamp between 1 and 30
-        
-        results = unsplash_integration.get_random_photos(
-            query=data['query'],
-            orientation=data.get('orientation'),
-            count=count
-        ) 
-
-        if not results:
-            return jsonify({'error': 'No photos found'}), 404
-
-        # Process each photo for preview only
-        processed_results = []
-        for photo_data in results:
-            try:
-                # Add preview URL to results without saving to database
-                # Store the original photo data for later use
-                preview_data = {
-                    'id': photo_data['id'],
-                    'preview_url': photo_data['urls']['regular'],
-                    'user': photo_data['user'],
-                    'description': photo_data.get('description', ''),
-                    'alt_description': photo_data.get('alt_description', ''),
-                    'links': photo_data['links'],
-                    'urls': photo_data['urls'],
-                    'original_data': photo_data  # Store the complete original data
-                }
-                processed_results.append(preview_data)
-
-            except Exception as e:
-                logger.error(f"Error processing photo {photo_data.get('id')}: {e}")
-                continue
-
-        return jsonify({
-            'results': processed_results,
-            'message': f'Successfully processed {len(processed_results)} photos for preview'
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/unsplash/add-to-frame', methods=['POST'])
-def add_unsplash_to_frame():
-    """Add selected Unsplash photos to a frame's playlist."""
-    try:
-        data = request.get_json()
-        frame_id = data.get('frame_id')
-        photos_data = data.get('photos_data', [])
-
-        if not frame_id:
-            return jsonify({'error': 'Frame ID is required'}), 400
-        if not photos_data:
-            return jsonify({'error': 'No photos selected'}), 400
-
-        frame = db.session.get(PhotoFrame, frame_id)
-        if not frame:
-            return jsonify({'error': 'Frame not found'}), 404
-        
-        if not frame.playlist_id:
-            return jsonify({'error': 'Frame does not have a playlist'}), 400
-
-        # Get current max order from frame's playlist
-        max_order = db.session.query(db.func.max(PlaylistEntry.order))\
-                      .filter_by(playlist_id=frame.playlist_id)\
-                      .scalar() or -1
-
-        # Add each photo to the database and playlist
-        added_count = 0
-        for i, photo_data in enumerate(photos_data):
-            try:
-                # Download and save the photo
-                download_result = unsplash_integration.download_photo(photo_data['original_data'], app.config['UPLOAD_FOLDER'])
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], download_result['filename'])
-
-                # Set current time for the photo's date & time
-                current_time = datetime.utcnow()
-                
-                # Create exif_metadata with the current time
-                exif_metadata = {
-                    "DateTimeOriginal": current_time.strftime("%Y:%m:%d %H:%M:%S"),
-                    "CreateDate": current_time.strftime("%Y:%m:%d %H:%M:%S"),
-                    "ModifyDate": current_time.strftime("%Y:%m:%d %H:%M:%S"),
-                    "Source": "Unsplash"
-                }
-
-                # Generate thumbnail
-                thumbnails_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'thumbnails')
-                os.makedirs(thumbnails_dir, exist_ok=True)
-                thumb_filename = None
-                
-                try:
-                    with Image.open(filepath) as img:
-                        img = ImageOps.exif_transpose(img)
-                        img.thumbnail((400, 400))
-                        thumb_filename = f"thumb_{download_result['filename']}"
-                        thumb_path = os.path.join(thumbnails_dir, thumb_filename)
-                        img.save(thumb_path, "JPEG")
-                except Exception as e:
-                    app.logger.error(f"Error generating thumbnail for Unsplash photo: {e}")
-                
-                # Process for both orientations
-                portrait_path = None
-                landscape_path = None
-                try:
-                    portrait_path = photo_processor.process_for_orientation(filepath, 'portrait')
-                    landscape_path = photo_processor.process_for_orientation(filepath, 'landscape')
-                    app.logger.info(f"Created orientation versions for Unsplash photo: portrait={portrait_path}, landscape={landscape_path}")
-                except Exception as e:
-                    app.logger.error(f"Error creating orientation versions for Unsplash photo: {e}")
-
-                # Create photo record
-                photo = Photo(
-                    filename=download_result['filename'],
-                    heading=download_result['heading'],
-                    exif_metadata=exif_metadata,
-                    uploaded_at=current_time,
-                    portrait_version=os.path.basename(portrait_path) if portrait_path else None,
-                    landscape_version=os.path.basename(landscape_path) if landscape_path else None,
-                    thumbnail=thumb_filename
-                )
-                db.session.add(photo)
-                db.session.flush()  # Get photo.id without committing
-
-                # Create playlist entry in frame's playlist
-                entry = PlaylistEntry(
-                    playlist_id=frame.playlist_id,
-                    photo_id=photo.id,
-                    order=max_order + 1 + i
-                )
-                db.session.add(entry)
-                added_count += 1
-
-            except Exception as e:
-                logger.error(f"Error adding photo {photo_data.get('id')} to frame: {e}")
-                continue
-
-        db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'message': f'Added {added_count} photos to frame'
-        })
-
-    except Exception as e:
-        logger.error(f"Error in add_unsplash_to_frame: {e}")
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/unsplash/schedules/<int:schedule_id>/test', methods=['POST'])
-def test_unsplash_schedule(schedule_id):
-    """Test an Unsplash schedule by running it once."""
-    try:
-        schedule = ScheduledGeneration.query.get_or_404(schedule_id)
-        if schedule.service != 'unsplash':
-            return jsonify({'error': 'Not an Unsplash schedule'}), 400
-
-        # Validate orientation parameter
-        orientation = schedule.orientation
-        if orientation and orientation not in ['landscape', 'portrait', 'squarish']:
-            logger.warning(f"Invalid orientation value: {orientation}, setting to None")
-            orientation = None
-        
-        # Log all parameters being used
-        logger.info(f"Using query: '{schedule.prompt}', orientation: '{orientation}'")
-        
-        # Get a random photo
-        try:
-            results = unsplash_integration.get_random_photos(
-                query=schedule.prompt,
-                orientation=orientation,
-                count=1
-            )
-        except Exception as e:
-            logger.error(f"Error getting photos from Unsplash: {e}")
-            raise Exception(f"Error getting photos from Unsplash: {e}")
-
-        if not results:
-            raise Exception('No photos found')
-
-        # Download the photo
-        photo_data = results[0]
-        download_result = unsplash_integration.download_photo(photo_data, app.config['UPLOAD_FOLDER'])
-
-        # Create photo record
-        photo = Photo(
-            filename=download_result['filename'],
-            heading=download_result['heading']
-        )
-        db.session.add(photo)
-        # Flush the session to get the photo ID
-        db.session.flush()
-        
-        # Now photo.id should be available
-        if not photo.id:
-            raise Exception("Failed to create photo record")
-
-        # Add to frame's playlist
-        frame = PhotoFrame.query.get(schedule.frame_id)
-        if frame and frame.playlist_id:
-            playlist_entry = PlaylistEntry(
-                playlist_id=frame.playlist_id,
-                photo_id=photo.id,
-                order=db.session.query(db.func.max(PlaylistEntry.order))
-                          .filter_by(playlist_id=frame.playlist_id)
-                          .scalar() or 0 + 1
-            )
-            db.session.add(playlist_entry)
-
-        # Record in generation history
-        history = GenerationHistory(
-            schedule_id=schedule.id,
-            success=True,
-            photo_id=photo.id,
-            name=schedule.name
-        )
-        db.session.add(history)
-        db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'message': 'Test completed successfully'
-        })
-
-    except Exception as e:
-        logger.error(f"Error in test Unsplash schedule: {e}")
-        db.session.rollback()
-
-        # Record failed attempt in history
-        try:
-            history = GenerationHistory(
-                schedule_id=schedule.id,
-                success=False,
-                error_message=str(e),
-                name=schedule.name
-            )
-            db.session.add(history)
-            db.session.commit()
-        except Exception as history_error:
-            logger.error(f"Error recording failure history: {history_error}")
-
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# Modify the scheduler's execute_generation function to handle Unsplash schedules
-def execute_generation(schedule_id):
-    """Execute a scheduled generation."""
-    with app.app_context():
-        try:
-            schedule = ScheduledGeneration.query.get(schedule_id)
-            if not schedule:
-                logger.error(f"Schedule {schedule_id} not found")
-                return
-
-            if schedule.service == 'unsplash':
-                # Validate orientation parameter
-                orientation = schedule.orientation
-                if orientation and orientation not in ['landscape', 'portrait', 'squarish']:
-                    logger.warning(f"Invalid orientation value: {orientation}, setting to None")
-                    orientation = None
-                
-                # Log all parameters being used
-                logger.info(f"Using query: '{schedule.prompt}', orientation: '{orientation}'")
-                
-                # Get a random photo
-                try:
-                    results = unsplash_integration.get_random_photos(
-                        query=schedule.prompt,
-                        orientation=orientation,
-                        count=1
-                    )
-                except Exception as e:
-                    logger.error(f"Error getting photos from Unsplash: {e}")
-                    raise Exception(f"Error getting photos from Unsplash: {e}")
-
-                if not results:
-                    raise Exception('No photos found')
-
-                # Download the photo
-                photo_data = results[0]
-                download_result = unsplash_integration.download_photo(photo_data, app.config['UPLOAD_FOLDER'])
-
-                # Create photo record
-                photo = Photo(
-                    filename=download_result['filename'],
-                    heading=download_result['heading']
-                )
-                db.session.add(photo)
-                # Flush the session to get the photo ID
-                db.session.flush()
-                
-                # Now photo.id should be available
-                if not photo.id:
-                    raise Exception("Failed to create photo record")
-
-                # Add to frame's playlist
-                frame = PhotoFrame.query.get(schedule.frame_id)
-                if frame and frame.playlist_id:
-                    playlist_entry = PlaylistEntry(
-                        playlist_id=frame.playlist_id,
-                        photo_id=photo.id,
-                        order=db.session.query(db.func.max(PlaylistEntry.order))
-                                  .filter_by(playlist_id=frame.playlist_id)
-                                  .scalar() or 0 + 1
-                    )
-                    db.session.add(playlist_entry)
-
-                # Record success in history
-                history = GenerationHistory(
-                    schedule_id=schedule.id,
-                    success=True,
-                    photo_id=photo.id,
-                    name=schedule.name
-                )
-                db.session.add(history)
-                db.session.commit()
-
-            else:
-                # Handle other services (DALL-E, Stability AI, Pixabay)
-                # ... existing code ...
-                pass
-
-        except Exception as e:
-            logger.error(f"Error executing schedule {schedule_id}: {e}")
-            # Record failure in history
-            try:
-                history = GenerationHistory(
-                    schedule_id=schedule_id,
-                    success=False,
-                    error_message=str(e),
-                    name=schedule.name if schedule else "Unknown"
-                )
-                db.session.add(history)
-                db.session.commit()
-            except Exception as history_error:
-                logger.error(f"Error recording failure history: {history_error}")
 
 @app.route('/pixabay')
 def pixabay_page():
@@ -6441,7 +6147,10 @@ def api_delete_photo(photo_id):
     """Delete a photo and all its file versions (original, portrait, landscape, thumbnail)."""
     try:
         photo = Photo.query.get_or_404(photo_id)
-        
+
+        if photo.source == 'plugin':
+            return jsonify({'error': 'This photo is managed by a plugin. Delete the plugin instance to remove it.'}), 400
+
         # Remove photo from all playlists
         PlaylistEntry.query.filter_by(photo_id=photo_id).delete()
         

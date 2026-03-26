@@ -1075,11 +1075,6 @@
         <div class="controls">
             <h4>Upload Photo:</h4>
             <input type="file" id="uploadInput" accept=".bmp,.jpg,.jpeg,.png">
-            {% if unsplash_api_key %}
-            <button type="button" class="action-button" onclick="showUnsplashModal()">
-                Add from Unsplash
-            </button>
-            {% endif %}
             {% if pixabay_api_key %}
             <button type="button" class="action-button" onclick="showPixabayModal()">
                 Add from Pixabay
@@ -2362,18 +2357,10 @@ Here's what to create: ${prompt}`;
             }
         });
 
-        // Stock photo integration (Unsplash and Pixabay)
+        // Stock photo integration (Pixabay)
         let currentStockService = null;
         let selectedStockPhotos = new Set();
-        
-        function showUnsplashModal() {
-            currentStockService = 'unsplash';
-            document.getElementById('stockModalTitle').textContent = 'Search Unsplash Photos';
-            document.getElementById('stockSearchInput').value = '';
-            document.getElementById('stockPhotoResults').innerHTML = '';
-            document.getElementById('stockPhotoModal').style.display = 'block';
-        }
-        
+
         function showPixabayModal() {
             currentStockService = 'pixabay';
             document.getElementById('stockModalTitle').textContent = 'Search Pixabay Photos';
@@ -2405,9 +2392,7 @@ Here's what to create: ${prompt}`;
                 let endpoint = '';
                 let requestData = { query: query, count: 10 };
                 
-                if (currentStockService === 'unsplash') {
-                    endpoint = '/api/unsplash/preview';
-                } else if (currentStockService === 'pixabay') {
+                if (currentStockService === 'pixabay') {
                     endpoint = '/api/pixabay/preview';
                 }
                 
@@ -2512,9 +2497,7 @@ Here's what to create: ${prompt}`;
             try {
                 let endpoint = '';
                 
-                if (currentStockService === 'unsplash') {
-                    endpoint = '/api/unsplash/add-to-frame';
-                } else if (currentStockService === 'pixabay') {
+                if (currentStockService === 'pixabay') {
                     endpoint = '/api/pixabay/add-to-frame';
                 }
                 

@@ -41,6 +41,7 @@ class Photo(db.Model):
     media_type = db.Column(db.String(10), default='photo')  # 'photo' or 'video'
     duration = db.Column(db.Float)
     exif_metadata = db.Column(JSON)
+    source = db.Column(db.String(50), nullable=True, default=None)  # None=normal, 'plugin'=owned by plugin
 
     playlist_entries = db.relationship('PlaylistEntry', backref='photo', lazy='dynamic')
 
@@ -273,4 +274,43 @@ class EventLog(db.Model):
     frame = db.relationship('PhotoFrame', backref=db.backref('events', lazy='dynamic'))
     
     def __repr__(self):
-        return f"<EventLog {self.id}: {self.event_type} for {self.frame_id}>" 
+        return f"<EventLog {self.id}: {self.event_type} for {self.frame_id}>"
+
+
+class PluginInstance(db.Model):
+    """A configured instance of a developer plugin."""
+    __tablename__ = 'plugin_instance'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    plugin_id   = db.Column(db.String(100), nullable=False)   # matches plugins/ directory name
+    name        = db.Column(db.String(256), nullable=False)   # user-chosen label
+    config      = db.Column(JSON, nullable=False, default=dict)  # credentials, settings
+    cron        = db.Column(db.String(100), nullable=False, default='0 * * * *')
+    enabled     = db.Column(db.Boolean, default=True, nullable=False)
+    photo_id    = db.Column(db.Integer, db.ForeignKey('photo.id'), nullable=True, unique=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    last_run_at = db.Column(db.DateTime)
+    last_run_ok = db.Column(db.Boolean)   # None = never run
+    last_error  = db.Column(db.Text)
+
+    photo    = db.relationship('Photo', foreign_keys=[photo_id], backref=db.backref('plugin_instance', uselist=False))
+    run_logs = db.relationship('PluginRunLog', backref='instance', cascade='all, delete-orphan',
+                               order_by='PluginRunLog.ran_at.desc()')
+
+    def __repr__(self):
+        return f"<PluginInstance {self.id}: {self.plugin_id} '{self.name}'>"
+
+
+class PluginRunLog(db.Model):
+    """Execution history for a plugin instance."""
+    __tablename__ = 'plugin_run_log'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    instance_id = db.Column(db.Integer, db.ForeignKey('plugin_instance.id', ondelete='CASCADE'), nullable=False)
+    ran_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    success     = db.Column(db.Boolean, nullable=False)
+    error       = db.Column(db.Text)
+    duration_ms = db.Column(db.Integer)
+
+    def __repr__(self):
+        return f"<PluginRunLog {self.id}: instance={self.instance_id} ok={self.success}>" 

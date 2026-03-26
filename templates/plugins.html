@@ -1,0 +1,710 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+  /* ── Page layout ── */
+  .plugins-container { max-width: 1200px; margin: 0 auto; padding-bottom: 60px; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .page-title  { font-size: 1.8rem; font-weight: 700; margin: 0; }
+
+  /* ── Section headings ── */
+  .section-title {
+    font-size: 1.1rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--bs-secondary); margin-bottom: 16px;
+  }
+
+  /* ── Available plugins catalog ── */
+  .plugin-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 40px; }
+  .plugin-card {
+    border: 1px solid #dee2e6; border-radius: 12px; padding: 20px;
+    background: #fff; transition: box-shadow .2s;
+  }
+  .plugin-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+  .plugin-card-icon { font-size: 2rem; margin-bottom: 10px; }
+  .plugin-card-name { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+  .plugin-card-desc { font-size: .85rem; color: #6c757d; margin-bottom: 16px; min-height: 48px; }
+  .plugin-card-cron { font-size: .78rem; color: #adb5bd; margin-bottom: 14px; font-family: monospace; }
+
+  /* ── Instances table ── */
+  .instances-table { width: 100%; border-collapse: collapse; }
+  .instances-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .5px;
+                        color: #6c757d; border-bottom: 2px solid #dee2e6; padding: 8px 12px; }
+  .instances-table td { padding: 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .instances-table tr:hover td { background: #fafafa; }
+
+  .thumb-cell img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px;
+                    border: 1px solid #dee2e6; cursor: pointer; transition: opacity .15s; }
+  .thumb-cell img:hover { opacity: .8; }
+  .thumb-cell .no-thumb { width: 56px; height: 56px; background: #e9ecef; border-radius: 6px;
+                           display: flex; align-items: center; justify-content: center;
+                           color: #adb5bd; font-size: 1.4rem; }
+  /* Lightbox */
+  #photoLightbox .modal-dialog { max-width: 90vw; }
+  #lightboxImg { max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; display: block; margin: 0 auto; }
+
+  .status-badge { font-size: .75rem; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+  .status-enabled  { background: #d1fae5; color: #065f46; }
+  .status-disabled { background: #fee2e2; color: #991b1b; }
+  .run-ok   { color: #16a34a; }
+  .run-fail { color: #dc2626; }
+  .run-never{ color: #9ca3af; font-style: italic; }
+
+  /* ── History panel ── */
+  .history-panel { background: #f8f9fa; border-radius: 8px; padding: 12px 16px; margin-top: 6px; }
+  .history-row { display: flex; gap: 12px; align-items: center; font-size: .8rem;
+                 padding: 4px 0; border-bottom: 1px solid #e9ecef; }
+  .history-row:last-child { border-bottom: none; }
+  .history-error { font-size: .75rem; color: #dc2626; margin-top: 2px; word-break: break-all; }
+
+  /* ── System requirements card ── */
+  .req-card { border: 1px solid #dee2e6; border-radius: 12px; padding: 20px; background: #fff; margin-bottom: 32px; }
+  .req-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: .9rem; }
+  .req-ok   { color: #16a34a; font-size: 1.2rem; }
+  .req-fail { color: #dc2626; font-size: 1.2rem; }
+
+  /* ── Empty state ── */
+  .empty-state { text-align: center; padding: 60px 20px; color: #6c757d; }
+  .empty-state i { font-size: 3rem; display: block; margin-bottom: 16px; opacity: .4; }
+
+  /* ── Config form inside modal ── */
+  .config-field { margin-bottom: 14px; }
+  .secret-toggle { cursor: pointer; }
+
+  /* dark mode compat */
+  body.dark-mode .plugin-card  { background: #1e1e2e; border-color: #333; color: #e0e0f0; }
+  body.dark-mode .instances-table th { border-color: #333; }
+  body.dark-mode .instances-table td { border-color: #2a2a3a; }
+  body.dark-mode .instances-table tr:hover td { background: #1a1a2a; }
+  body.dark-mode .req-card { background: #1e1e2e; border-color: #333; color: #e0e0f0; }
+  body.dark-mode .history-panel { background: #1a1a2a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="plugins-container">
+
+  <!-- ── Page header ── -->
+  <div class="page-header">
+    <h1 class="page-title"><i class="bi bi-puzzle me-2"></i>Plugins</h1>
+    <button class="btn btn-outline-secondary btn-sm" onclick="reloadPlugins()" title="Re-scan plugins directory">
+      <i class="bi bi-arrow-clockwise me-1"></i>Reload Plugins
+    </button>
+  </div>
+
+  <!-- ── System requirements ── -->
+  <div class="req-card" id="reqCard">
+    <div class="section-title">System Requirements</div>
+    <div class="req-row" id="playwrightRow">
+      <span class="req-fail"><i class="bi bi-x-circle-fill"></i></span>
+      <span>Playwright Chromium — <em>checking…</em></span>
+    </div>
+    <div id="playwrightInstallArea" style="display:none;" class="mt-2">
+      <div id="playwrightInstallHint"><p class="text-muted small mb-2">Chromium is required for HTML-to-image rendering. Install it once:</p></div>
+      <button class="btn btn-sm btn-warning" onclick="installPlaywright()">
+        <i class="bi bi-download me-1"></i>Install Chromium
+      </button>
+      <span id="installSpinner" class="ms-2" style="display:none;">
+        <span class="spinner-border spinner-border-sm"></span> Installing…
+      </span>
+    </div>
+  </div>
+
+  <!-- ── Available plugins ── -->
+  <div class="section-title">Available Plugins</div>
+  <div class="plugin-catalog" id="pluginCatalog">
+    <div class="text-muted small">Loading…</div>
+  </div>
+
+  <!-- ── My plugin instances ── -->
+  <div class="section-title">My Plugin Instances</div>
+  <div id="instancesArea">
+    <div class="text-muted small">Loading…</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════
+     Create / Edit Instance Modal
+══════════════════════════════════════════ -->
+<div class="modal fade" id="instanceModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="instanceModalTitle">Create Plugin Instance</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modalMode" value="create">
+        <input type="hidden" id="editInstanceId" value="">
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Instance Name</label>
+          <input type="text" class="form-control" id="instanceName" placeholder="e.g. My Clock">
+          <div class="form-text">A label to identify this plugin instance.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Schedule (cron)</label>
+          <input type="text" class="form-control font-monospace" id="instanceCron" placeholder="0 * * * *">
+          <div class="form-text" id="cronDesc">e.g. <code>* * * * *</code> = every minute &nbsp;|&nbsp; <code>0 * * * *</code> = every hour &nbsp;|&nbsp; <code>0 9 * * *</code> = daily at 09:00</div>
+        </div>
+
+        <div id="configFieldsContainer"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" id="saveInstanceBtn" onclick="saveInstance()">
+          <i class="bi bi-check-lg me-1"></i><span id="saveBtnLabel">Create</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Add to Playlist Modal
+══════════════════════════════════════════ -->
+<div class="modal fade" id="playlistModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add to Playlist</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Select a playlist to add this plugin's image to:</p>
+        <div id="playlistList" class="d-flex flex-column gap-2">Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Photo Lightbox Modal
+══════════════════════════════════════════ -->
+<div class="modal fade" id="photoLightbox" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content bg-dark border-0">
+      <div class="modal-header border-0 pb-1">
+        <h6 class="modal-title text-white" id="lightboxTitle"></h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-1 pb-3">
+        <img id="lightboxImg" src="" alt="Plugin image">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+  <div id="toastEl" class="toast align-items-center text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let availablePlugins = [];   // plugin classes from /api/plugins/available
+let instances = [];          // current instances
+let addToPlaylistPhotoId = null;
+
+// ── Bootstrap helpers ──────────────────────────────────────────────────────
+const instanceModalEl = document.getElementById('instanceModal');
+const instanceModal   = new bootstrap.Modal(instanceModalEl);
+const playlistModalEl = document.getElementById('playlistModal');
+const playlistModal   = new bootstrap.Modal(playlistModalEl);
+const lightboxEl      = document.getElementById('photoLightbox');
+const lightbox        = new bootstrap.Modal(lightboxEl);
+const toastEl         = document.getElementById('toastEl');
+const bsToast         = new bootstrap.Toast(toastEl, {delay: 3500});
+
+function showToast(msg, type = 'success') {
+  toastEl.className = `toast align-items-center text-white border-0 bg-${type === 'error' ? 'danger' : 'success'}`;
+  document.getElementById('toastMsg').textContent = msg;
+  bsToast.show();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  checkPlaywright();
+  loadCatalog();
+  loadInstances();
+});
+
+// ── Playwright status ──────────────────────────────────────────────────────
+function checkPlaywright() {
+  fetch('/api/plugins/playwright-status')
+    .then(r => r.json())
+    .then(data => {
+      const row  = document.getElementById('playwrightRow');
+      const area = document.getElementById('playwrightInstallArea');
+      const hint = document.getElementById('playwrightInstallHint');
+
+      if (data.ok) {
+        row.innerHTML = `<span class="req-ok"><i class="bi bi-check-circle-fill"></i></span>
+                         <span>Playwright Chromium — <strong>installed</strong></span>`;
+        area.style.display = 'none';
+      } else if (data.detail === 'missing_system_libs') {
+        row.innerHTML = `<span class="req-fail"><i class="bi bi-x-circle-fill"></i></span>
+                         <span>Playwright Chromium — <strong>browser downloaded but missing system libraries</strong></span>`;
+        hint.innerHTML = `<div class="alert alert-warning mt-2 p-2 small">
+          Chromium is downloaded but requires system libraries that need <strong>root/sudo</strong> to install.<br>
+          Run this on the server as root:
+          <pre class="mt-1 mb-0 p-2 bg-dark text-white rounded">apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 libasound2</pre>
+          Or try the button below (works if this server has passwordless sudo):
+        </div>`;
+        area.style.display = 'block';
+      } else {
+        row.innerHTML = `<span class="req-fail"><i class="bi bi-x-circle-fill"></i></span>
+                         <span>Playwright Chromium — <strong>not installed</strong></span>`;
+        hint.innerHTML = `<p class="text-muted small mb-2">Chromium browser needs to be downloaded once:</p>`;
+        area.style.display = 'block';
+      }
+    })
+    .catch(() => {});
+}
+
+function installPlaywright() {
+  document.getElementById('playwrightInstallArea').querySelector('button').disabled = true;
+  document.getElementById('installSpinner').style.display = 'inline';
+  fetch('/api/plugins/install-playwright', {method:'POST'})
+    .then(r => r.json())
+    .then(() => {
+      pollInstall();
+    });
+}
+
+function pollInstall() {
+  fetch('/api/plugins/install-playwright/status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.running) {
+        setTimeout(pollInstall, 2000);
+      } else {
+        document.getElementById('installSpinner').style.display = 'none';
+        if (data.success) {
+          showToast('Chromium installed successfully!');
+          checkPlaywright();
+        } else {
+          showToast('Chromium install failed. Check server logs.', 'error');
+          document.getElementById('playwrightInstallArea').querySelector('button').disabled = false;
+        }
+      }
+    });
+}
+
+// ── Catalog ────────────────────────────────────────────────────────────────
+function loadCatalog() {
+  fetch('/api/plugins/available')
+    .then(r => r.json())
+    .then(plugins => {
+      availablePlugins = plugins;
+      const el = document.getElementById('pluginCatalog');
+      if (!plugins.length) {
+        el.innerHTML = '<p class="text-muted">No plugins found in the plugins/ directory.</p>';
+        return;
+      }
+      el.innerHTML = plugins.map(p => `
+        <div class="plugin-card">
+          <div class="plugin-card-icon"><i class="bi bi-puzzle-fill text-primary"></i></div>
+          <div class="plugin-card-name">${escHtml(p.display_name)}</div>
+          <div class="plugin-card-desc">${escHtml(p.description)}</div>
+          <div class="plugin-card-cron">Default schedule: ${escHtml(p.default_cron)}</div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateModal('${escHtml(p.plugin_id)}')">
+            <i class="bi bi-plus-lg me-1"></i>Create Instance
+          </button>
+        </div>`).join('');
+    })
+    .catch(() => {
+      document.getElementById('pluginCatalog').innerHTML = '<p class="text-danger">Failed to load plugins.</p>';
+    });
+}
+
+// ── Instances ──────────────────────────────────────────────────────────────
+function loadInstances() {
+  fetch('/api/plugins/instances')
+    .then(r => r.json())
+    .then(data => {
+      instances = data;
+      renderInstances(data);
+    })
+    .catch(() => {
+      document.getElementById('instancesArea').innerHTML = '<p class="text-danger">Failed to load instances.</p>';
+    });
+}
+
+function renderInstances(list) {
+  const area = document.getElementById('instancesArea');
+  if (!list.length) {
+    area.innerHTML = `
+      <div class="empty-state">
+        <i class="bi bi-puzzle"></i>
+        <p>No plugin instances yet.<br>Choose a plugin from the catalog above and click <strong>Create Instance</strong>.</p>
+      </div>`;
+    return;
+  }
+
+  area.innerHTML = `
+    <table class="instances-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Name</th>
+          <th>Plugin</th>
+          <th>Schedule</th>
+          <th>Status</th>
+          <th>Last Run</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="instancesTbody"></tbody>
+    </table>`;
+
+  const tbody = document.getElementById('instancesTbody');
+  list.forEach(inst => {
+    const pluginMeta = availablePlugins.find(p => p.plugin_id === inst.plugin_id) || {};
+    const thumbHtml = inst.thumbnail_url
+      ? `<img src="${inst.thumbnail_url}" alt="thumb" onclick="openLightbox(${inst.id})" title="View full image">`
+      : `<div class="no-thumb"><i class="bi bi-image"></i></div>`;
+
+    const statusHtml = inst.enabled
+      ? `<span class="status-badge status-enabled">Enabled</span>`
+      : `<span class="status-badge status-disabled">Disabled</span>`;
+
+    let lastRunHtml;
+    if (inst.last_run_at === null) {
+      lastRunHtml = `<span class="run-never">Never run</span>`;
+    } else if (inst.last_run_ok) {
+      lastRunHtml = `<span class="run-ok"><i class="bi bi-check-circle"></i></span> <small>${fmtDate(inst.last_run_at)}</small>`;
+    } else {
+      lastRunHtml = `<span class="run-fail"><i class="bi bi-x-circle"></i></span> <small>${fmtDate(inst.last_run_at)}</small>`;
+    }
+
+    const row = document.createElement('tr');
+    row.id = `inst-row-${inst.id}`;
+    row.innerHTML = `
+      <td class="thumb-cell">${thumbHtml}</td>
+      <td><strong>${escHtml(inst.name)}</strong></td>
+      <td><span class="badge bg-secondary">${escHtml(pluginMeta.display_name || inst.plugin_id)}</span></td>
+      <td><code class="small">${escHtml(inst.cron)}</code></td>
+      <td>${statusHtml}</td>
+      <td>${lastRunHtml}</td>
+      <td>
+        <div class="d-flex gap-1 flex-wrap">
+          <button class="btn btn-sm btn-outline-primary" title="Run Now"
+                  onclick="runNow(${inst.id})">
+            <i class="bi bi-play-fill"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" title="Edit"
+                  onclick="openEditModal(${inst.id})">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-success" title="Add to Playlist"
+                  onclick="openPlaylistModal(${inst.photo_id})">
+            <i class="bi bi-collection-play"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-${inst.enabled ? 'warning' : 'success'}" title="${inst.enabled ? 'Disable' : 'Enable'}"
+                  onclick="toggleEnable(${inst.id}, ${inst.enabled})">
+            <i class="bi bi-${inst.enabled ? 'pause-fill' : 'play-fill'}"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-info" title="Run History"
+                  onclick="toggleHistory(${inst.id})">
+            <i class="bi bi-clock-history"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" title="Delete"
+                  onclick="deleteInstance(${inst.id})">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </td>`;
+    tbody.appendChild(row);
+
+    // History sub-row (hidden)
+    const histRow = document.createElement('tr');
+    histRow.id = `hist-row-${inst.id}`;
+    histRow.style.display = 'none';
+    histRow.innerHTML = `<td colspan="7"><div class="history-panel" id="hist-panel-${inst.id}">Loading history…</div></td>`;
+    tbody.appendChild(histRow);
+  });
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+function runNow(id) {
+  fetch(`/api/plugins/instances/${id}/run`, {method:'POST'})
+    .then(r => r.json())
+    .then(data => {
+      showToast(data.message || 'Plugin triggered.');
+      // Refresh after a moment so the thumbnail updates
+      setTimeout(loadInstances, 4000);
+    })
+    .catch(() => showToast('Failed to trigger plugin.', 'error'));
+}
+
+function toggleEnable(id, currentlyEnabled) {
+  const action = currentlyEnabled ? 'disable' : 'enable';
+  fetch(`/api/plugins/instances/${id}/${action}`, {method:'POST'})
+    .then(r => r.json())
+    .then(() => { showToast(`Plugin ${action}d.`); loadInstances(); })
+    .catch(() => showToast('Failed to update plugin status.', 'error'));
+}
+
+function deleteInstance(id) {
+  const inst = instances.find(i => i.id === id);
+  const name = inst ? inst.name : `#${id}`;
+  if (!confirm(`Delete plugin instance "${name}"?\n\nThis will remove its image from all playlists and cannot be undone.`)) return;
+  fetch(`/api/plugins/instances/${id}`, {method:'DELETE'})
+    .then(r => r.json())
+    .then(() => { showToast('Plugin instance deleted.'); loadInstances(); })
+    .catch(() => showToast('Failed to delete.', 'error'));
+}
+
+function toggleHistory(id) {
+  const row = document.getElementById(`hist-row-${id}`);
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    loadHistory(id);
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function loadHistory(id) {
+  fetch(`/api/plugins/instances/${id}/history`)
+    .then(r => r.json())
+    .then(logs => {
+      const panel = document.getElementById(`hist-panel-${id}`);
+      if (!logs.length) {
+        panel.innerHTML = '<em class="text-muted small">No run history yet.</em>';
+        return;
+      }
+      panel.innerHTML = logs.map(l => `
+        <div class="history-row">
+          <span class="${l.success ? 'run-ok' : 'run-fail'}">
+            <i class="bi bi-${l.success ? 'check-circle' : 'x-circle'}"></i>
+          </span>
+          <span>${fmtDate(l.ran_at)}</span>
+          <span class="text-muted">${l.duration_ms != null ? l.duration_ms + ' ms' : ''}</span>
+          ${l.error ? `<span class="history-error">${escHtml(l.error)}</span>` : ''}
+        </div>`).join('');
+    });
+}
+
+// ── Create / Edit modal ────────────────────────────────────────────────────
+function openCreateModal(pluginId) {
+  const plugin = availablePlugins.find(p => p.plugin_id === pluginId);
+  if (!plugin) return;
+
+  document.getElementById('instanceModalTitle').textContent = `Create: ${plugin.display_name}`;
+  document.getElementById('modalMode').value = 'create';
+  document.getElementById('editInstanceId').value = pluginId; // reuse field for plugin_id
+  document.getElementById('instanceName').value = plugin.display_name;
+  document.getElementById('instanceCron').value = plugin.default_cron;
+  document.getElementById('saveBtnLabel').textContent = 'Create';
+
+  renderConfigFields(plugin.config_schema, {});
+  instanceModal.show();
+}
+
+function openEditModal(instanceId) {
+  const inst = instances.find(i => i.id === instanceId);
+  if (!inst) return;
+  const plugin = availablePlugins.find(p => p.plugin_id === inst.plugin_id);
+
+  document.getElementById('instanceModalTitle').textContent = `Edit: ${escHtml(inst.name)}`;
+  document.getElementById('modalMode').value = 'edit';
+  document.getElementById('editInstanceId').value = instanceId;
+  document.getElementById('instanceName').value = inst.name;
+  document.getElementById('instanceCron').value = inst.cron;
+  document.getElementById('saveBtnLabel').textContent = 'Save';
+
+  // Pass masked config (secret fields have value "__set__") to the renderer
+  renderConfigFields(plugin ? plugin.config_schema : {}, inst.config || {});
+  instanceModal.show();
+}
+
+function renderConfigFields(schema, values) {
+  const container = document.getElementById('configFieldsContainer');
+  if (!schema || !Object.keys(schema).length) {
+    container.innerHTML = '<p class="text-muted small">This plugin has no configuration options.</p>';
+    return;
+  }
+  container.innerHTML = Object.entries(schema).map(([key, field]) => {
+    const val = values[key] !== undefined ? values[key] : (field.default !== undefined ? field.default : '');
+    const label = field.label || key;
+    const required = field.required ? ' <span class="text-danger">*</span>' : '';
+
+    if (field.type === 'select') {
+      const opts = (field.options || []).map(o =>
+        `<option value="${escHtml(o)}" ${String(val) === String(o) ? 'selected' : ''}>${escHtml(o)}</option>`
+      ).join('');
+      return `<div class="config-field">
+        <label class="form-label">${label}${required}</label>
+        <select class="form-select" data-config-key="${key}">${opts}</select>
+      </div>`;
+    }
+
+    if (field.type === 'integer') {
+      return `<div class="config-field">
+        <label class="form-label">${label}${required}</label>
+        <input type="number" class="form-control" data-config-key="${key}" value="${escHtml(String(val))}">
+      </div>`;
+    }
+
+    // string (default)
+    const isSecret = !!field.secret;
+    const secretIsSaved = isSecret && val === '__set__';
+    const eyeBtn = isSecret ? `<button type="button" class="btn btn-outline-secondary secret-toggle"
+      onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'">
+      <i class="bi bi-eye"></i></button>` : '';
+    const savedBadge = secretIsSaved
+      ? `<div class="form-text text-success"><i class="bi bi-shield-lock-fill me-1"></i>Key saved — leave blank to keep, or type a new value to replace.</div>`
+      : '';
+    return `<div class="config-field">
+      <label class="form-label">${label}${required}</label>
+      <div class="${isSecret ? 'input-group' : ''}">
+        <input type="${isSecret ? 'password' : 'text'}" class="form-control"
+               data-config-key="${key}" data-is-secret="${isSecret}" data-secret-saved="${secretIsSaved}"
+               value="${isSecret ? '' : escHtml(String(val))}"
+               placeholder="${secretIsSaved ? 'Leave blank to keep existing key' : (isSecret ? 'Enter key' : (field.default !== undefined ? escHtml(String(field.default)) : ''))}">
+        ${eyeBtn}
+      </div>
+      ${savedBadge}
+    </div>`;
+  }).join('');
+}
+
+function gatherConfig(existingConfig) {
+  const config = Object.assign({}, existingConfig || {});
+  document.querySelectorAll('#configFieldsContainer [data-config-key]').forEach(el => {
+    const key    = el.dataset.configKey;
+    const val    = el.value.trim();
+    const saved  = el.dataset.secretSaved === 'true';
+
+    if (val !== '') {
+      config[key] = el.type === 'number' ? Number(val) : val;
+    } else if (saved) {
+      // User left the secret field blank — preserve the stored key by sending the sentinel
+      config[key] = '__set__';
+    }
+  });
+  return config;
+}
+
+function saveInstance() {
+  const mode = document.getElementById('modalMode').value;
+  const name = document.getElementById('instanceName').value.trim();
+  const cron = document.getElementById('instanceCron').value.trim();
+
+  if (!name) { showToast('Instance name is required.', 'error'); return; }
+
+  if (mode === 'create') {
+    const pluginId = document.getElementById('editInstanceId').value;
+    const config   = gatherConfig({});
+    fetch('/api/plugins/instances', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plugin_id: pluginId, name, cron, config}),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { showToast(data.error, 'error'); return; }
+        instanceModal.hide();
+        showToast(`Plugin instance "${name}" created!`);
+        loadInstances();
+      })
+      .catch(() => showToast('Failed to create instance.', 'error'));
+
+  } else {
+    const instanceId = parseInt(document.getElementById('editInstanceId').value);
+    const inst = instances.find(i => i.id === instanceId);
+    const config = gatherConfig(inst ? inst.config : {});
+    fetch(`/api/plugins/instances/${instanceId}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, cron, config}),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { showToast(data.error, 'error'); return; }
+        instanceModal.hide();
+        showToast('Instance updated.');
+        loadInstances();
+      })
+      .catch(() => showToast('Failed to update instance.', 'error'));
+  }
+}
+
+// ── Add to playlist ────────────────────────────────────────────────────────
+function openPlaylistModal(photoId) {
+  addToPlaylistPhotoId = photoId;
+  const el = document.getElementById('playlistList');
+  el.innerHTML = 'Loading…';
+  playlistModal.show();
+
+  fetch('/api/custom-playlists')
+    .then(r => r.json())
+    .then(playlists => {
+      if (!playlists.length) {
+        el.innerHTML = '<p class="text-muted">No playlists found. Create one first.</p>';
+        return;
+      }
+      el.innerHTML = playlists.map(p => `
+        <button class="btn btn-outline-secondary text-start" onclick="addToPlaylist(${p.id}, '${escHtml(p.name)}')">
+          <i class="bi bi-collection-play me-2"></i>${escHtml(p.name)}
+        </button>`).join('');
+    });
+}
+
+function addToPlaylist(playlistId, playlistName) {
+  fetch(`/api/custom-playlists/${playlistId}/entries`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({photo_ids: [addToPlaylistPhotoId], position: 'end'}),
+  })
+    .then(r => r.json())
+    .then(data => {
+      playlistModal.hide();
+      if (data.error) { showToast(data.error, 'error'); return; }
+      showToast(`Added to "${playlistName}"`);
+    })
+    .catch(() => showToast('Failed to add to playlist.', 'error'));
+}
+
+// ── Reload plugins ─────────────────────────────────────────────────────────
+function reloadPlugins() {
+  fetch('/api/plugins/reload', {method: 'POST'})
+    .then(r => r.json())
+    .then(d => {
+      showToast(`Plugins reloaded — ${d.count} available.`);
+      loadCatalog();
+    })
+    .catch(() => showToast('Reload failed.', 'error'));
+}
+
+// ── Lightbox ───────────────────────────────────────────────────────────────
+function openLightbox(instanceId) {
+  const inst = instances.find(i => i.id === instanceId);
+  if (!inst || !inst.photo_url) return;
+  document.getElementById('lightboxImg').src = inst.photo_url;
+  document.getElementById('lightboxTitle').textContent = inst.name;
+  lightbox.show();
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+  return d.toLocaleString();
+}
+</script>
+{% endblock %}

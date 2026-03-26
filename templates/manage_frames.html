@@ -629,23 +629,32 @@
     <div class="page-header">
         <h1 class="page-title"><i class="bi bi-display me-2"></i>Frames</h1>
         <div class="header-actions">
-            <button type="button" class="btn btn-outline-secondary" id="discoverFramesBtn">
-                <i class="bi bi-broadcast"></i> Discover
+            {% if server_settings.get('discovery_enabled', True) %}
+            <button type="button" class="btn btn-outline-secondary" id="rediscoverBtn" onclick="restartDiscovery()">
+                <i class="bi bi-broadcast"></i> Force Rediscover
             </button>
+            {% endif %}
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFrameModal">
                 <i class="bi bi-plus-lg"></i> Add Frame
             </button>
         </div>
     </div>
 
-    <!-- Discovery Banner -->
-    <div class="discovery-banner" id="discoveryBanner">
-        <div class="discovery-content">
-            <div class="discovery-spinner"></div>
-            <span>Searching for frames on your network...</span>
-        </div>
-        <div id="discoveredFramesList" class="mt-2"></div>
+    <!-- Discovery status banner (shown briefly after force rediscover) -->
+    <div id="discoveryStatusBanner" class="alert d-flex align-items-center gap-2 mb-3 d-none" role="alert">
+        <span id="discoveryStatusIcon"></span>
+        <span id="discoveryStatusMsg"></span>
     </div>
+
+    <!-- Discovery Disabled Notice -->
+    {% if not server_settings.get('discovery_enabled', True) %}
+    <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert" id="discoveryDisabledNotice">
+        <i class="bi bi-broadcast-pin"></i>
+        <span>Frame discovery (mDNS) is <strong>disabled</strong>. Frames must register manually or via direct IP.
+        <a href="/info#server-settings" class="alert-link ms-1">Enable in Settings</a></span>
+    </div>
+    {% endif %}
+
 
     <!-- Frames Grid -->
     <div class="frames-grid" id="framesContainer">
@@ -803,11 +812,8 @@
                 <h3>No Frames Yet</h3>
                 <p>Add your first photo frame to get started displaying your photos and art.</p>
                 <div class="d-flex gap-2 justify-content-center">
-                    <button type="button" class="btn btn-outline-secondary" id="emptyStateDiscoverBtn">
-                        <i class="bi bi-broadcast"></i> Discover Frames
-                    </button>
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFrameModal">
-                        <i class="bi bi-plus-lg"></i> Add Manually
+                        <i class="bi bi-plus-lg"></i> Add Frame
                     </button>
                 </div>
             </div>
@@ -1083,59 +1089,44 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Discovery functionality
-    const discoverBtn = document.getElementById('discoverFramesBtn');
-    const emptyDiscoverBtn = document.getElementById('emptyStateDiscoverBtn');
-    const discoveryBanner = document.getElementById('discoveryBanner');
-    const discoveredList = document.getElementById('discoveredFramesList');
-    let discoveryInterval;
-    
-    function startDiscovery() {
-        discoveredList.innerHTML = '';
-        discoveryBanner.classList.add('active');
-        
+    // Force rediscover
+    window.restartDiscovery = function() {
+        const btn = document.getElementById('rediscoverBtn');
+        const banner = document.getElementById('discoveryStatusBanner');
+        const icon = document.getElementById('discoveryStatusIcon');
+        const msg = document.getElementById('discoveryStatusMsg');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Restarting…';
+
         fetch('/api/restart_discovery', { method: 'POST' })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
+                banner.classList.remove('d-none', 'alert-success', 'alert-danger');
                 if (data.success) {
-                    clearInterval(discoveryInterval);
-                    discoveryInterval = setInterval(checkForNewFrames, 2000);
-                    setTimeout(() => {
-                        clearInterval(discoveryInterval);
-                        discoveryBanner.classList.remove('active');
-                    }, 30000);
+                    banner.classList.add('alert-success');
+                    icon.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                    msg.textContent = 'Discovery restarted — frames scanning the network should now find this server.';
+                } else {
+                    banner.classList.add('alert-danger');
+                    icon.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+                    msg.textContent = data.error || 'Failed to restart discovery.';
                 }
+                setTimeout(() => banner.classList.add('d-none'), 6000);
+            })
+            .catch(() => {
+                banner.classList.remove('d-none', 'alert-success', 'alert-danger');
+                banner.classList.add('alert-danger');
+                icon.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+                msg.textContent = 'Request failed — check server logs.';
+                setTimeout(() => banner.classList.add('d-none'), 6000);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-broadcast"></i> Force Rediscover';
             });
-    }
-    
-    function checkForNewFrames() {
-        fetch('/api/discovered_frames')
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(frame => {
-                    const frameId = frame.device_id;
-                    const existingFrame = document.querySelector(`[data-frame-id="${frameId}"]`);
-                    
-                    if (!existingFrame && !document.querySelector(`[data-discovered="${frameId}"]`)) {
-                        const frameItem = document.createElement('div');
-                        frameItem.className = 'mt-2 d-flex align-items-center gap-2';
-                        frameItem.dataset.discovered = frameId;
-                        frameItem.innerHTML = `
-                            <i class="bi bi-check-circle-fill"></i>
-                            <span>Found: ${frameId}</span>
-                            <button class="btn btn-sm btn-light ms-auto" onclick="addDiscoveredFrame('${frameId}')">
-                                Add Frame
-                            </button>
-                        `;
-                        discoveredList.appendChild(frameItem);
-                    }
-                });
-            });
-    }
-    
-    if (discoverBtn) discoverBtn.addEventListener('click', startDiscovery);
-    if (emptyDiscoverBtn) emptyDiscoverBtn.addEventListener('click', startDiscovery);
-    
+    };
+
     // Drag and drop reordering
     const framesContainer = document.getElementById('framesContainer');
     if (framesContainer && framesContainer.children.length > 1) {
