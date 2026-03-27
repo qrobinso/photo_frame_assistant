@@ -24,46 +24,6 @@
         margin: 0;
     }
     
-    /* Section Tabs */
-    .section-tabs {
-        display: flex;
-        gap: 0.25rem;
-        background: #f1f3f5;
-        padding: 0.25rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .section-tab {
-        padding: 0.5rem 1rem;
-        border: none;
-        background: transparent;
-        border-radius: 0.375rem;
-        font-weight: 500;
-        color: #6c757d;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    
-    .section-tab.active {
-        background: white;
-        color: #212529;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    
-    .section-tab:hover:not(.active) {
-        color: #212529;
-    }
-    
-    /* Section content */
-    .section-content {
-        display: none;
-    }
-    
-    .section-content.active {
-        display: block;
-    }
-    
     /* Playlist Grid */
     .playlist-grid {
         display: grid;
@@ -168,61 +128,6 @@
         font-size: 0.85rem;
     }
     
-    /* Schedule Card */
-    .schedule-card {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-    }
-    
-    .schedule-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 0.75rem;
-        gap: 1rem;
-    }
-    
-    .schedule-title {
-        flex: 1;
-        min-width: 0;
-    }
-    
-    .schedule-name {
-        font-weight: 600;
-        color: #212529;
-        display: block;
-    }
-    
-    .schedule-summary {
-        display: block;
-    }
-    
-    .schedule-summary:not(.schedule-name) {
-        margin-top: 0.125rem;
-    }
-    
-    .schedule-details {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem 1.5rem;
-        font-size: 0.85rem;
-        color: #6c757d;
-    }
-    
-    .schedule-detail {
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-    }
-    
-    .schedule-detail i {
-        width: 16px;
-        text-align: center;
-    }
-    
     /* Empty States */
     .empty-section {
         text-align: center;
@@ -269,15 +174,6 @@
         padding: 1.5rem;
     }
     
-    .time-select-row {
-        display: flex;
-        gap: 0.5rem;
-    }
-    
-    .time-select-row select {
-        flex: 1;
-    }
-    
     @media (max-width: 768px) {
         .playlist-grid {
             grid-template-columns: 1fr;
@@ -305,38 +201,23 @@
                         <i class="bi bi-collection me-2"></i>New Playlist
                     </a>
                 </li>
-                <li>
-                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#scheduleModal">
-                        <i class="bi bi-calendar-plus me-2"></i>New Schedule
-                    </a>
-                </li>
             </ul>
         </div>
     </div>
     
-    <!-- Section Tabs -->
-    <div class="section-tabs">
-        <button class="section-tab active" data-section="playlists">
-            <i class="bi bi-collection me-1"></i> Playlists
-        </button>
-        <button class="section-tab" data-section="schedules">
-            <i class="bi bi-calendar-event me-1"></i> Schedules
-        </button>
-    </div>
-    
     <!-- Playlists Section -->
-    <div class="section-content active" id="playlists-section">
+    <div id="playlists-section">
         {% if playlists %}
         <div class="playlist-grid">
             {% for playlist in playlists %}
             <div class="playlist-card">
-                <a href="{{ url_for('edit_custom_playlist', playlist_id=playlist.id) }}" class="playlist-photos-link">
+                <a href="{{ url_for('playlists.edit_custom_playlist', playlist_id=playlist.id) }}" class="playlist-photos-link">
                     <div class="playlist-photos">
                         {% set entries = playlist.entries.limit(3).all() %}
                         {% for entry in entries %}
                             <div class="playlist-photo">
                                 {% if entry.photo and entry.photo.thumbnail %}
-                                    <img src="{{ url_for('serve_thumbnail', filename=entry.photo.thumbnail) }}" 
+                                    <img src="{{ url_for('photos.serve_thumbnail', filename=entry.photo.thumbnail) }}" 
                                          alt="Photo" loading="lazy">
                                 {% else %}
                                     <div class="playlist-photo-placeholder">
@@ -358,7 +239,7 @@
                     </div>
                 </a>
                 <div class="playlist-info">
-                    <a href="{{ url_for('edit_custom_playlist', playlist_id=playlist.id) }}" class="playlist-name-link">{{ playlist.name }}</a>
+                    <a href="{{ url_for('playlists.edit_custom_playlist', playlist_id=playlist.id) }}" class="playlist-name-link">{{ playlist.name }}</a>
                     <div class="playlist-meta">
                         <span><i class="bi bi-images"></i> {{ playlist.entries.count() }} photos</span>
                         <span><i class="bi bi-display"></i> {{ playlist.frames|length }} frame{{ 's' if playlist.frames|length != 1 else '' }}</span>
@@ -369,7 +250,7 @@
                         <small class="text-muted">
                             Used by: 
                             {% for frame in playlist.frames[:3] %}
-                                <a href="{{ url_for('edit_frame_settings', frame_id=frame.id) }}" class="text-decoration-none">{{ frame.name or frame.id }}</a>{% if not loop.last %}, {% endif %}
+                                <a href="{{ url_for('frames.edit_frame_settings', frame_id=frame.id) }}" class="text-decoration-none">{{ frame.name or frame.id }}</a>{% if not loop.last %}, {% endif %}
                             {% endfor %}
                             {% if playlist.frames|length > 3 %}
                                 <span class="text-muted">+{{ playlist.frames|length - 3 }} more</span>
@@ -378,12 +259,9 @@
                     </div>
                     {% endif %}
                     <div class="playlist-actions">
-                        <a href="{{ url_for('edit_custom_playlist', playlist_id=playlist.id) }}" class="btn btn-primary btn-sm">
+                        <a href="{{ url_for('playlists.edit_custom_playlist', playlist_id=playlist.id) }}" class="btn btn-primary btn-sm">
                             <i class="bi bi-pencil"></i> Edit
                         </a>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="schedulePlaylist({{ playlist.id }}, '{{ playlist.name }}')">
-                            <i class="bi bi-calendar-plus"></i> Schedule
-                        </button>
                     </div>
                 </div>
             </div>
@@ -401,13 +279,6 @@
             </button>
         </div>
         {% endif %}
-    </div>
-    
-    <!-- Schedules Section -->
-    <div class="section-content" id="schedules-section">
-        <div id="scheduledPlaylistsList">
-            <!-- Schedules loaded via JavaScript -->
-        </div>
     </div>
 </div>
 
@@ -435,98 +306,11 @@
     </div>
 </div>
 
-<!-- Schedule Modal -->
-<div class="modal fade" id="scheduleModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Schedule Playlist</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="scheduleForm">
-                    <input type="hidden" id="scheduleId">
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Schedule Name <span class="text-muted fw-normal">(optional)</span></label>
-                        <input type="text" class="form-control" id="scheduleName" placeholder="e.g., Morning Photos">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Playlist</label>
-                        <select class="form-select" id="schedulePlaylist" required>
-                            {% for playlist in playlists %}
-                            <option value="{{ playlist.id }}">{{ playlist.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Target Frame</label>
-                        <select class="form-select" id="scheduleFrame" required>
-                            {% for frame in frames %}
-                            <option value="{{ frame.id }}">{{ frame.name or frame.id }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Time</label>
-                        <div class="time-select-row">
-                            <select class="form-select" id="scheduleHour"></select>
-                            <select class="form-select" id="scheduleMinute"></select>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Days</label>
-                        <select class="form-select" id="scheduleDays" multiple size="4">
-                            <option value="*" selected>Every day</option>
-                            <option value="1,2,3,4,5">Weekdays</option>
-                            <option value="0,6">Weekends</option>
-                        </select>
-                    </div>
-                    
-                    <div class="d-flex gap-2 justify-content-end">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save Schedule</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Tab switching
-    const tabs = document.querySelectorAll('.section-tab');
-    const sections = document.querySelectorAll('.section-content');
-    
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function() {
-            tabs.forEach(t => t.classList.remove('active'));
-            sections.forEach(s => s.classList.remove('active'));
-            this.classList.add('active');
-            document.getElementById(`${this.dataset.section}-section`).classList.add('active');
-        });
-    });
-    
-    // Initialize time selectors
-    const hourSelect = document.getElementById('scheduleHour');
-    const minuteSelect = document.getElementById('scheduleMinute');
-    
-    for (let i = 0; i < 24; i++) {
-        hourSelect.innerHTML += `<option value="${i}">${i.toString().padStart(2, '0')}</option>`;
-    }
-    for (let i = 0; i < 60; i += 5) {
-        minuteSelect.innerHTML += `<option value="${i}">${i.toString().padStart(2, '0')}</option>`;
-    }
-    
-    loadScheduledPlaylists();
-    
     // Create playlist form (kept for modal if needed)
     document.getElementById('createPlaylistForm').addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -548,177 +332,7 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Error creating playlist: ' + error.message);
         }
     });
-    
-    // Schedule form
-    document.getElementById('scheduleForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const scheduleId = document.getElementById('scheduleId').value;
-        const scheduleData = {
-            name: document.getElementById('scheduleName').value,
-            service: 'custom_playlist',
-            model: document.getElementById('schedulePlaylist').value,
-            frame_id: document.getElementById('scheduleFrame').value,
-            cron_expression: buildCronExpression(),
-            prompt: 'Playlist Schedule',
-            orientation: 'landscape'
-        };
-        
-        try {
-            const url = scheduleId 
-                ? `/api/scheduled-generations/${scheduleId}`
-                : '/api/scheduled-generations';
-            
-            const response = await fetch(url, {
-                method: scheduleId ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(scheduleData)
-            });
-            
-            if (!response.ok) throw new Error('Failed to save schedule');
-            
-            bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
-            document.getElementById('scheduleForm').reset();
-            document.getElementById('scheduleId').value = '';
-            loadScheduledPlaylists();
-        } catch (error) {
-            alert('Error saving schedule: ' + error.message);
-        }
-    });
 });
-
-function buildCronExpression() {
-    const minute = document.getElementById('scheduleMinute').value;
-    const hour = document.getElementById('scheduleHour').value;
-    const days = Array.from(document.getElementById('scheduleDays').selectedOptions)
-        .map(o => o.value).join(',');
-    return `${minute} ${hour} * * ${days}`;
-}
-
-async function loadScheduledPlaylists() {
-    try {
-        const response = await fetch('/api/scheduled-generations');
-        const data = await response.json();
-        const schedules = data.schedules.filter(s => s.service === 'custom_playlist');
-        
-        const container = document.getElementById('scheduledPlaylistsList');
-        
-        if (!schedules.length) {
-            container.innerHTML = `
-                <div class="empty-section">
-                    <div class="empty-icon"><i class="bi bi-calendar-event"></i></div>
-                    <h4>No Scheduled Playlists</h4>
-                    <p>Schedule playlists to automatically update your frames at specific times.</p>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#scheduleModal">
-                        <i class="bi bi-plus-lg"></i> Add Schedule
-                    </button>
-                </div>
-            `;
-            return;
-        }
-        
-        container.innerHTML = schedules.map(schedule => {
-            const playlistName = getPlaylistName(schedule.model);
-            const cronTime = humanizeCron(schedule.cron_expression);
-            const displayName = schedule.name || `${playlistName} → ${schedule.frame_name}`;
-            
-            return `
-            <div class="schedule-card">
-                <div class="schedule-header">
-                    <div class="schedule-title">
-                        ${schedule.name ? `<span class="schedule-name">${schedule.name}</span>` : ''}
-                        <span class="schedule-summary ${schedule.name ? 'text-muted small' : 'schedule-name'}">
-                            ${schedule.name ? `${playlistName} → ${schedule.frame_name}` : displayName}
-                        </span>
-                    </div>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editSchedule(${schedule.id})">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-outline-success" onclick="testSchedule(${schedule.id})">
-                            <i class="bi bi-play-fill"></i>
-                        </button>
-                        <button class="btn btn-outline-danger" onclick="deleteSchedule(${schedule.id})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="schedule-details">
-                    <span class="schedule-detail">
-                        <i class="bi bi-clock"></i> ${cronTime}
-                    </span>
-                </div>
-            </div>
-        `}).join('');
-    } catch (error) {
-        console.error('Error loading schedules:', error);
-    }
-}
-
-function schedulePlaylist(playlistId, playlistName) {
-    document.getElementById('schedulePlaylist').value = playlistId;
-    document.getElementById('scheduleName').value = '';
-    new bootstrap.Modal(document.getElementById('scheduleModal')).show();
-}
-
-async function editSchedule(scheduleId) {
-    try {
-        const response = await fetch(`/api/scheduled-generations/${scheduleId}`);
-        const schedule = await response.json();
-        
-        document.getElementById('scheduleId').value = scheduleId;
-        document.getElementById('scheduleName').value = schedule.name;
-        document.getElementById('schedulePlaylist').value = schedule.model;
-        document.getElementById('scheduleFrame').value = schedule.frame_id;
-        
-        const cronParts = schedule.cron_expression.split(' ');
-        document.getElementById('scheduleMinute').value = cronParts[0];
-        document.getElementById('scheduleHour').value = cronParts[1];
-        
-        new bootstrap.Modal(document.getElementById('scheduleModal')).show();
-    } catch (error) {
-        alert('Error loading schedule');
-    }
-}
-
-async function testSchedule(scheduleId) {
-    if (!confirm('Apply this playlist now?')) return;
-    
-    try {
-        const response = await fetch(`/api/custom-playlists/schedules/${scheduleId}/test`, {
-            method: 'POST'
-        });
-        if (response.ok) {
-            alert('Playlist applied successfully!');
-        } else {
-            throw new Error('Failed to apply playlist');
-        }
-    } catch (error) {
-        alert('Error: ' + error.message);
-    }
-}
-
-async function deleteSchedule(scheduleId) {
-    if (!confirm('Delete this schedule?')) return;
-    
-    try {
-        await fetch(`/api/scheduled-generations/${scheduleId}`, { method: 'DELETE' });
-        loadScheduledPlaylists();
-    } catch (error) {
-        alert('Error deleting schedule');
-    }
-}
-
-function getPlaylistName(playlistId) {
-    const option = document.querySelector(`#schedulePlaylist option[value="${playlistId}"]`);
-    return option ? option.textContent : 'Unknown';
-}
-
-function humanizeCron(cronExp) {
-    const parts = cronExp.split(' ');
-    const time = `${parts[1].padStart(2, '0')}:${parts[0].padStart(2, '0')}`;
-    const days = parts[4] === '*' ? 'daily' : 'selected days';
-    return `${time} ${days}`;
-}
 
 // Create playlist with default name and redirect to edit page
 async function createPlaylistAndEdit() {

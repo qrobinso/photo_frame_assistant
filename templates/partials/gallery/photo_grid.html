@@ -1,0 +1,50 @@
+    <!-- Photo Grid -->
+    {% if photos %}
+    <div class="photo-grid" id="photoGrid">
+        {% for photo in photos %}
+        <div class="photo-item" 
+             data-photo-id="{{ photo.id }}"
+             data-filename="{{ photo.filename }}"
+             data-uploaded="{{ photo.uploaded_at.isoformat() if photo.uploaded_at else '' }}"
+             data-media-type="{{ photo.media_type or 'photo' }}"
+             data-playlists="{{ photo_playlists.get(photo.id, [])|join(',') }}"
+             onclick="handlePhotoClick(event, {{ photo.id }})">
+            <img src="{{ url_for('photos.serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('photos.serve_photo', filename=photo.filename) }}" 
+                 alt="{{ photo.filename }}" loading="lazy">
+            {% if photo.media_type == 'video' %}
+            <div class="video-badge">
+                <i class="bi bi-play-fill"></i>
+                {% if photo.duration %}{{ '%0.1f'|format(photo.duration|float) }}s{% endif %}
+            </div>
+            {% endif %}
+            <div class="photo-checkbox">
+                <i class="bi bi-check"></i>
+            </div>
+            <div class="photo-actions-overlay">
+                <button class="photo-action-btn" onclick="event.stopPropagation(); addToPlaylist({{ photo.id }})" title="Add to Playlist">
+                    <i class="bi bi-collection-play"></i>
+                </button>
+                <button class="photo-action-btn" onclick="event.stopPropagation(); editPhoto({{ photo.id }})" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="photo-action-btn delete" onclick="event.stopPropagation(); deletePhoto({{ photo.id }})" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-gallery">
+        <div class="empty-icon">
+            <i class="bi bi-images"></i>
+        </div>
+        <h3>No Photos Yet</h3>
+        <p class="text-muted">Upload your first photo to get started.</p>
+        <label class="btn btn-primary">
+            <i class="bi bi-upload"></i> Upload Photos
+            <input type="file" accept="image/*,video/*" multiple style="display: none;" 
+                   onchange="handleFileUpload(this.files)">
+        </label>
+    </div>
+    {% endif %}

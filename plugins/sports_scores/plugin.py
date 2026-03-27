@@ -7,7 +7,7 @@ Uses ESPN's free public API (no key required).
 import requests
 from datetime import datetime, timezone
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 
 _LEAGUE_MAP = {

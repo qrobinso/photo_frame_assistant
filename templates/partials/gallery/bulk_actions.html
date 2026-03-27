@@ -1,0 +1,44 @@
+    <!-- Bulk Actions Bar -->
+    <div class="bulk-bar" id="bulkBar">
+        <!-- Desktop layout -->
+        <span class="bulk-count"><span id="selectedCount">0</span> selected</span>
+        <button class="btn btn-sm btn-outline-light" onclick="selectAllPhotos()">Select All</button>
+        <button class="btn btn-sm btn-outline-light" onclick="deselectAllPhotos()">Deselect</button>
+        <div class="ms-auto d-flex gap-2">
+            <button class="btn btn-sm btn-outline-light" onclick="addSelectedToPlaylist()">
+                <i class="bi bi-collection-play"></i> Add to Playlist
+            </button>
+            <button class="btn btn-sm btn-outline-light" onclick="deleteSelectedPhotos()">
+                <i class="bi bi-trash"></i> Delete
+            </button>
+        </div>
+        <button class="btn btn-sm btn-light" onclick="exitBulkMode()">
+            <i class="bi bi-x"></i>
+        </button>
+        
+        <!-- Mobile layout -->
+        <div class="bulk-bar-header">
+            <span class="bulk-count"><span id="selectedCountMobile">0</span> selected</span>
+            <button class="bulk-close-btn" onclick="exitBulkMode()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="bulk-bar-actions">
+            <button class="bulk-action-btn" onclick="selectAllPhotos()">
+                <i class="bi bi-check-all"></i>
+                <span>Select All</span>
+            </button>
+            <button class="bulk-action-btn" onclick="deselectAllPhotos()">
+                <i class="bi bi-x-circle"></i>
+                <span>Deselect</span>
+            </button>
+            <button class="bulk-action-btn primary" onclick="addSelectedToPlaylist()">
+                <i class="bi bi-collection-play"></i>
+                <span>Playlist</span>
+            </button>
+            <button class="bulk-action-btn danger" onclick="deleteSelectedPhotos()">
+                <i class="bi bi-trash"></i>
+                <span>Delete</span>
+            </button>
+        </div>
+    </div>

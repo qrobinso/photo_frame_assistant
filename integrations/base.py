@@ -84,20 +84,6 @@ class Integration(ABC):
             return False
 
 
-class PhotoSourceIntegration(Integration):
-    """Base class for integrations that provide photos."""
-    
-    @abstractmethod
-    def search_photos(self, query=None, **kwargs):
-        """Search for photos based on criteria."""
-        pass
-        
-    @abstractmethod
-    def download_photo(self, photo_data, upload_folder):
-        """Download a photo and save it to the upload folder."""
-        pass
-
-
 class SmartHomeIntegration(Integration):
     """Base class for smart home integrations."""
     

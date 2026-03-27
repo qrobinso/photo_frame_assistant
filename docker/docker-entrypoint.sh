@@ -91,10 +91,10 @@ if [ -f "$DB_FILE" ]; then
     DB_SIZE=$(stat -c%s "$DB_FILE" 2>/dev/null || echo "unknown")
     echo "  SUCCESS: Existing database found ($DB_SIZE bytes) - will NOT recreate"
     echo "  Running migration check only..."
-    python db_manager.py --migrate || echo "  Migration check completed (or no changes needed)"
+    python scripts/db_manager.py --migrate || echo "  Migration check completed (or no changes needed)"
 else
     echo "  No database found at $DB_FILE - creating new database..."
-    python db_manager.py
+    python scripts/db_manager.py
 fi
 
 # Check exit status
@@ -115,7 +115,6 @@ if [ ! -f config/server_settings.json ]; then
     "log_level": "INFO",
     "max_upload_size": 10,
     "discovery_port": 5000,
-    "ai_analysis_enabled": false,
     "dark_mode": false
 }' > config/server_settings.json
 fi
@@ -155,41 +154,6 @@ if [ ! -f config/mqtt_config.json ]; then
 }' > config/mqtt_config.json
 fi
 
-# Network locations
-if [ ! -f config/network_locations.json ]; then
-    echo '{
-    "locations": []
-}' > config/network_locations.json
-fi
-
-# Photogen settings
-if [ ! -f config/photogen_settings.json ]; then
-    echo '{
-    "dalle_api_key": "",
-    "stability_api_key": "",
-    "custom_server_api_key": "",
-    "dalle_base_url": "",
-    "stability_base_url": "",
-    "custom_server_base_url": "",
-    "default_service": "stability",
-    "default_models": {
-        "dalle": "dall-e-3",
-        "stability": "ultra",
-        "custom": ""
-    },
-    "interval": 0,
-    "rotation": "normal",
-    "flip": "normal"
-}' > config/photogen_settings.json
-fi
-
-# Pixabay config
-if [ ! -f config/pixabay_config.json ]; then
-    echo '{
-    "api_key": ""
-}' > config/pixabay_config.json
-fi
-
 # QR Code config
 if [ ! -f config/qrcode_config.json ]; then
     echo '{
@@ -205,28 +169,6 @@ if [ ! -f config/qrcode_config.json ]; then
         "y": 0.001
     }
 }' > config/qrcode_config.json
-fi
-
-# Spotify config
-if [ ! -f config/spotify_config.json ]; then
-    echo '{
-    "client_id": "",
-    "client_secret": "",
-    "access_token": "",
-    "refresh_token": "",
-    "token_expiry": "",
-    "enabled": false,
-    "auto_refresh": true,
-    "refresh_interval": 30,
-    "frame_mappings": []
-}' > config/spotify_config.json
-fi
-
-# Unsplash config
-if [ ! -f config/unsplash_config.json ]; then
-    echo '{
-    "api_key": ""
-}' > config/unsplash_config.json
 fi
 
 # Weather config

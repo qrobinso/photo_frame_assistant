@@ -12,7 +12,7 @@ import random
 import requests
 from datetime import datetime, timezone
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 
 class ThisDayInHistoryPlugin(PluginBase):

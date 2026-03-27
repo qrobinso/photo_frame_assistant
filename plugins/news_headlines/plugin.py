@@ -7,7 +7,7 @@ Requires a free API key from https://newsapi.org/
 import requests
 from datetime import datetime
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 
 class NewsHeadlinesPlugin(PluginBase):

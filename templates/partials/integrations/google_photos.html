@@ -1,0 +1,50 @@
+    <!-- Google Photos Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-camera"></i> Google Photos Integration
+            </h5>
+            <button class="btn btn-sm btn-outline-info" onclick="showGooglePhotosHelp()">
+                <i class="bi bi-question-circle"></i> Setup Help
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="googlePhotosStatus">
+                <!-- Status will be populated by JavaScript -->
+            </div>
+            <div id="googlePhotosActions" class="mt-3">
+                <!-- Actions will be populated by JavaScript -->
+            </div>
+            <!-- Auth Code Input Section (initially hidden) -->
+            <div id="authCodeSection" class="mt-3" style="display: none;">
+                <div class="alert alert-info">
+                    <p>Please enter the authorization code from Google:</p>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="authCodeInput" 
+                           placeholder="Enter authorization code">
+                    <button class="btn btn-primary" type="button" onclick="submitAuthCode()">
+                        Submit Code
+                    </button>
+                    <button class="btn btn-secondary" type="button" onclick="cancelAuth()">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Add this modal for the setup instructions -->
+<div class="modal fade" id="googlePhotosHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Google Photos Setup Instructions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="googlePhotosHelpContent">
+                Loading instructions...
+            </div>
+        </div>
+    </div>
+</div>

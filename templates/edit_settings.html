@@ -596,7 +596,7 @@
     <!-- Page Header -->
     <div class="page-header">
         <div class="page-header-left">
-            <a href="{{ url_for('manage_frames') }}" class="back-btn">
+            <a href="{{ url_for('frames.manage_frames') }}" class="back-btn">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <div class="page-title-group">
@@ -635,12 +635,6 @@
             Last seen <strong>{{ ((now - frame.last_wake_time).total_seconds() / 60)|round|int }}m</strong> ago
         </div>
         {% endif %}
-        {% if frame.sync_group %}
-        <div class="stat-pill">
-            <i class="bi bi-people-fill"></i>
-            <strong>{{ frame.sync_group.name }}</strong>
-        </div>
-        {% endif %}
     </div>
     
     <form method="POST" id="settingsForm">
@@ -665,7 +659,7 @@
                             {% endfor %}
                         </select>
                         {% if frame.playlist %}
-                        <a href="{{ url_for('edit_custom_playlist', playlist_id=frame.playlist.id) }}" class="btn btn-outline-secondary" title="Edit playlist">
+                        <a href="{{ url_for('playlists.edit_custom_playlist', playlist_id=frame.playlist.id) }}" class="btn btn-outline-secondary" title="Edit playlist">
                             <i class="bi bi-pencil"></i>
                         </a>
                         {% endif %}
@@ -679,212 +673,13 @@
         </div>
         
         <!-- Display Settings -->
-        <div class="settings-card" id="displayCard">
-            <div class="settings-card-header" onclick="toggleCard('displayCard')">
-                <h2 class="settings-card-title">
-                    <i class="bi bi-display icon-display"></i>
-                    Display Settings
-                </h2>
-                <i class="bi bi-chevron-down settings-card-toggle"></i>
-            </div>
-            <div class="settings-card-body">
-                <div class="form-group">
-                    <label for="name" class="form-label">Frame Name</label>
-                    <input type="text" class="form-control" id="name" name="name" 
-                           value="{{ frame.name }}" required placeholder="Living Room Frame">
-                </div>
-                
-                <div class="form-group">
-                    <label for="orientation" class="form-label">Display Orientation</label>
-                    <select class="form-select" id="orientation" name="orientation">
-                        <option value="landscape" {% if frame.orientation == 'landscape' %}selected{% endif %}>
-                            <i class="bi bi-phone-landscape"></i> Landscape (Horizontal)
-                        </option>
-                        <option value="portrait" {% if frame.orientation == 'portrait' %}selected{% endif %}>
-                            <i class="bi bi-phone"></i> Portrait (Vertical)
-                        </option>
-                    </select>
-                </div>
-                
-                <div class="toggle-group" style="margin: 1rem 0;">
-                    <div class="toggle-info">
-                        <div class="toggle-label"><i class="bi bi-shuffle me-2"></i>Shuffle Photos</div>
-                        <div class="toggle-description">Randomize the order of photos instead of playing in sequence</div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="shuffle_enabled" name="shuffle_enabled"
-                               {% if frame.shuffle_enabled %}checked{% endif %}>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="sleep_interval" class="form-label">
-                        Photo Change Interval
-                        {% if frame.sync_group %}
-                        <span class="badge bg-secondary">Controlled by group</span>
-                        {% endif %}
-                    </label>
-                    {% if frame.sync_group %}
-                        <input type="number" class="form-control" id="sleep_interval" 
-                               value="{{ frame.sync_group.sleep_interval }}" disabled>
-                        <div class="form-text">
-                            <i class="bi bi-info-circle"></i> This setting is controlled by sync group: <strong>{{ frame.sync_group.name }}</strong>
-                        </div>
-                    {% else %}
-                        <input type="number" class="form-control" id="sleep_interval" 
-                               name="sleep_interval" value="{{ frame.sleep_interval }}" 
-                               min="0.5" step="0.5" required>
-                        <div class="quick-buttons">
-                            <button type="button" class="quick-btn" onclick="setSleepInterval(5)">5 min</button>
-                            <button type="button" class="quick-btn" onclick="setSleepInterval(15)">15 min</button>
-                            <button type="button" class="quick-btn" onclick="setSleepInterval(30)">30 min</button>
-                            <button type="button" class="quick-btn" onclick="setSleepInterval(60)">1 hour</button>
-                            <button type="button" class="quick-btn" onclick="setSleepInterval(180)">3 hours</button>
-                            <button type="button" class="quick-btn" onclick="setSleepInterval(1440)">1 day</button>
-                        </div>
-                        
-                        <div class="toggle-group" id="snapToHourGroup" style="margin-top: 1rem; {% if frame.sleep_interval < 60 %}display: none;{% endif %}">
-                            <div class="toggle-info">
-                                <div class="toggle-label"><i class="bi bi-clock me-2"></i>Snap to Top of Hour</div>
-                                <div class="toggle-description">Change photos at clock hours (e.g., 1:00, 2:00) instead of relative intervals</div>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="snap_to_hour" name="snap_to_hour"
-                                       {% if frame.snap_to_hour %}checked{% endif %}>
-                            </div>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+        {% include 'partials/settings/frame_general.html' %}
         
         <!-- Sleep Schedule -->
-        <div class="settings-card" id="sleepCard">
-            <div class="settings-card-header" onclick="toggleCard('sleepCard')">
-                <h2 class="settings-card-title">
-                    <i class="bi bi-moon-stars icon-moon"></i>
-                    Sleep Schedule
-                </h2>
-                <i class="bi bi-chevron-down settings-card-toggle"></i>
-            </div>
-            <div class="settings-card-body">
-                <div class="toggle-group">
-                    <div class="toggle-info">
-                        <div class="toggle-label">Enable Deep Sleep</div>
-                        <div class="toggle-description">Frame won't wake up or change photos during sleep hours</div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="deepSleepEnabled" name="deep_sleep_enabled"
-                               {% if frame.deep_sleep_enabled %}checked{% endif %}>
-                    </div>
-                </div>
-                
-                <div class="deep-sleep-controls" {% if not frame.deep_sleep_enabled %}style="display: none;"{% endif %}>
-                    <div class="form-section" style="margin-top: 1rem;">
-                        <div class="time-grid">
-                            <div class="form-group">
-                                <label for="deepSleepStart" class="form-label">Sleep Starts</label>
-                                <select class="form-select" id="deepSleepStart" name="deep_sleep_start">
-                                    {% for hour in range(24) %}
-                                        <option value="{{ hour }}" {% if frame.deep_sleep_start == hour %}selected{% endif %}>
-                                            {{ '%02d:00'|format(hour) }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="deepSleepEnd" class="form-label">Sleep Ends</label>
-                                <select class="form-select" id="deepSleepEnd" name="deep_sleep_end">
-                                    {% for hour in range(24) %}
-                                        <option value="{{ hour }}" {% if frame.deep_sleep_end == hour %}selected{% endif %}>
-                                            {{ '%02d:00'|format(hour) }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-text">
-                            <i class="bi bi-clock"></i> Times are in {{ server_settings.timezone }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% include 'partials/settings/frame_sleep.html' %}
         
         <!-- Image Adjustments -->
-        <div class="settings-card" id="imageCard">
-            <div class="settings-card-header" onclick="toggleCard('imageCard')">
-                <h2 class="settings-card-title">
-                    <i class="bi bi-sliders2 icon-image"></i>
-                    Image Adjustments
-                </h2>
-                <i class="bi bi-chevron-down settings-card-toggle"></i>
-            </div>
-            <div class="settings-card-body">
-                <div class="slider-group">
-                    <div class="slider-header">
-                        <span class="slider-label">Contrast</span>
-                        <span class="slider-value" id="contrastValue">{{ frame.contrast_factor }}</span>
-                    </div>
-                    <input type="range" class="form-range" id="contrastFactor" name="contrast_factor" 
-                           value="{{ frame.contrast_factor }}" step="0.1" min="0.5" max="2.0"
-                           oninput="updateSliderValue('contrastValue', this.value)">
-                    <div class="form-text">Adjust image contrast. Default: 1.0</div>
-                </div>
-                
-                <div class="slider-group">
-                    <div class="slider-header">
-                        <span class="slider-label">Saturation</span>
-                        <span class="slider-value" id="saturationValue">{{ frame.saturation }}%</span>
-                    </div>
-                    <input type="range" class="form-range" id="saturation" name="saturation" 
-                           value="{{ frame.saturation }}" step="10" min="0" max="300"
-                           oninput="updateSliderValue('saturationValue', this.value + '%')">
-                    <div class="form-text">Adjust color intensity. Default: 100%</div>
-                </div>
-                
-                <div class="slider-group">
-                    <div class="slider-header">
-                        <span class="slider-label">Hue Shift</span>
-                        <span class="slider-value" id="blueValue">{{ frame.blue_adjustment }}</span>
-                    </div>
-                    <input type="range" class="form-range" id="blueAdjustment" name="blue_adjustment" 
-                           value="{{ frame.blue_adjustment }}" step="1" min="0" max="20"
-                           oninput="updateSliderValue('blueValue', this.value)">
-                    <div class="form-text">Shift hue towards blue. Default: 0</div>
-                </div>
-                
-                <div class="slider-group">
-                    <div class="slider-header">
-                        <span class="slider-label">Padding</span>
-                        <span class="slider-value" id="paddingValue">{{ frame.padding }}px</span>
-                    </div>
-                    <input type="range" class="form-range" id="padding" name="padding" 
-                           value="{{ frame.padding }}" step="1" min="0" max="50"
-                           oninput="updateSliderValue('paddingValue', this.value + 'px')">
-                    <div class="form-text">Add border padding around images. Default: 0px</div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 1.5rem;">
-                    <label for="colorMap" class="form-label">
-                        Color Palette
-                        <span class="badge bg-secondary" id="colorCount">{{ frame.color_map|length if frame.color_map else 0 }} colors</span>
-                    </label>
-                    <textarea class="form-control" id="colorMap" name="color_map" rows="3" 
-                              placeholder="Enter hex colors (one per line)&#10;Example: #FF5733&#10;#3498DB"
-                              oninput="updateColorCount()">{% if frame.color_map %}{{ frame.color_map|join('\n') }}{% endif %}</textarea>
-                    <div class="form-text">Custom color palette for e-ink displays. Leave empty for automatic.</div>
-                    <div class="color-map-preview" id="colorPreview"></div>
-                </div>
-                
-                <div class="preview-section">
-                    <button type="button" class="btn btn-outline-primary preview-btn" onclick="previewFinalImage()">
-                        <i class="bi bi-eye"></i> Preview with Settings
-                    </button>
-                    <span class="text-muted small">See how photos will look on this frame</span>
-                </div>
-            </div>
-        </div>
+        {% include 'partials/settings/frame_display.html' %}
         
         <!-- Overlays -->
         <div class="settings-card" id="overlaysCard">
@@ -1046,7 +841,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-lg"></i> Save Changes
                 </button>
-                <a href="{{ url_for('edit_playlist', frame_id=frame.id) }}" class="btn btn-outline-secondary">
+                <a href="{{ url_for('frames.edit_playlist', frame_id=frame.id) }}" class="btn btn-outline-secondary">
                     <i class="bi bi-collection-play"></i> Edit Playlist
                 </a>
             </div>
@@ -1276,7 +1071,7 @@ function deleteFrame() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            window.location.href = "{{ url_for('manage_frames') }}";
+            window.location.href = "{{ url_for('frames.manage_frames') }}";
         } else {
             showToast('Error: ' + data.error, 'error');
         }

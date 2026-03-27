@@ -14,7 +14,7 @@ import requests
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 
 class NasaApodPlugin(PluginBase):

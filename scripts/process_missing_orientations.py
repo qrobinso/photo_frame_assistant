@@ -8,8 +8,8 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from server import app, db, Photo
-from photo_processing import PhotoProcessor
-from logger_config import setup_logger
+from services.photo_processor import PhotoProcessor
+from core.logging import setup_logger
 
 # Set up logging
 logger = setup_logger()

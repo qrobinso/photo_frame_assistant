@@ -7,7 +7,7 @@ No external API required. Good for testing the plugin system end-to-end.
 from datetime import datetime
 import zoneinfo
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 
 class ClockPlugin(PluginBase):

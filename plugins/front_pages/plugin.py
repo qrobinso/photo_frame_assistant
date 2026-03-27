@@ -15,7 +15,7 @@ from datetime import datetime
 import requests
 from PIL import Image
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 # (code, label) — code is the Freedom Forum CDN identifier
 # All codes verified against cdn.freedomforum.org/dfp/jpg{day}/lg/{CODE}.jpg

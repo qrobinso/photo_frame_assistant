@@ -1,0 +1,52 @@
+<!-- Sleep Schedule Card: deep sleep toggle and time range -->
+<div class="settings-card" id="sleepCard">
+    <div class="settings-card-header" onclick="toggleCard('sleepCard')">
+        <h2 class="settings-card-title">
+            <i class="bi bi-moon-stars icon-moon"></i>
+            Sleep Schedule
+        </h2>
+        <i class="bi bi-chevron-down settings-card-toggle"></i>
+    </div>
+    <div class="settings-card-body">
+        <div class="toggle-group">
+            <div class="toggle-info">
+                <div class="toggle-label">Enable Deep Sleep</div>
+                <div class="toggle-description">Frame won't wake up or change photos during sleep hours</div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="deepSleepEnabled" name="deep_sleep_enabled"
+                       {% if frame.deep_sleep_enabled %}checked{% endif %}>
+            </div>
+        </div>
+
+        <div class="deep-sleep-controls" {% if not frame.deep_sleep_enabled %}style="display: none;"{% endif %}>
+            <div class="form-section" style="margin-top: 1rem;">
+                <div class="time-grid">
+                    <div class="form-group">
+                        <label for="deepSleepStart" class="form-label">Sleep Starts</label>
+                        <select class="form-select" id="deepSleepStart" name="deep_sleep_start">
+                            {% for hour in range(24) %}
+                                <option value="{{ hour }}" {% if frame.deep_sleep_start == hour %}selected{% endif %}>
+                                    {{ '%02d:00'|format(hour) }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="deepSleepEnd" class="form-label">Sleep Ends</label>
+                        <select class="form-select" id="deepSleepEnd" name="deep_sleep_end">
+                            {% for hour in range(24) %}
+                                <option value="{{ hour }}" {% if frame.deep_sleep_end == hour %}selected{% endif %}>
+                                    {{ '%02d:00'|format(hour) }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-text">
+                    <i class="bi bi-clock"></i> Times are in {{ server_settings.timezone }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import pytz
 from zoneinfo import ZoneInfo
-import math
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import JSON
 import logging
@@ -36,8 +35,6 @@ class Photo(db.Model):
     thumbnail = db.Column(db.String(256))
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     heading = db.Column(db.Text)
-    ai_description = db.Column(JSON)
-    ai_analyzed_at = db.Column(db.DateTime)
     media_type = db.Column(db.String(10), default='photo')  # 'photo' or 'video'
     duration = db.Column(db.Float)
     exif_metadata = db.Column(JSON)
@@ -59,7 +56,6 @@ class PhotoFrame(db.Model):
     next_wake_time = db.Column(db.DateTime)
     last_diagnostic = db.Column(db.DateTime)
     current_photo_id = db.Column(db.Integer, db.ForeignKey('photo.id'))
-    sync_group_id = db.Column(db.Integer, db.ForeignKey('sync_group.id'))
     shuffle_enabled = db.Column(db.Boolean, default=False)
     snap_to_hour = db.Column(db.Boolean, default=False)  # Align photo changes to clock hours when interval >= 60 min
     deep_sleep_enabled = db.Column(db.Boolean, default=False)
@@ -84,12 +80,6 @@ class PhotoFrame(db.Model):
     os = db.Column(db.String(256))
     capabilities = db.Column(JSON)
 
-    # Dynamic playlist fields
-    dynamic_playlist_prompt = db.Column(db.Text)
-    dynamic_playlist_active = db.Column(db.Boolean, default=False)
-    dynamic_playlist_model = db.Column(db.String(100))
-    dynamic_playlist_updated_at = db.Column(db.DateTime)
-
     # Overlay preferences
     overlay_preferences = db.Column(db.Text, default='{"weather": false, "metadata": false, "qrcode": false}')
 
@@ -99,10 +89,6 @@ class PhotoFrame(db.Model):
     # Relationships
     current_photo = db.relationship('Photo', foreign_keys=[current_photo_id])
     playlist = db.relationship('Playlist', back_populates='frames')
-    scheduled_generations = db.relationship('ScheduledGeneration', backref='frame', lazy='dynamic')
-
-    # Timestamps
-    last_sync_time = db.Column(db.DateTime) # For sync group tracking
     diagnostics = db.Column(JSON)  # Add this line to store diagnostic data
 
     @property
@@ -205,62 +191,6 @@ class Playlist(db.Model):
 
 # Alias for backward compatibility with existing code
 CustomPlaylist = Playlist
-
-class ScheduledGeneration(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(256), nullable=False)
-    prompt = db.Column(db.Text, nullable=False) # Query for Unsplash/Pixabay, Prompt for AI
-    frame_id = db.Column(db.String(50), db.ForeignKey('photo_frame.id'), nullable=False)
-    service = db.Column(db.String(50), nullable=False) # 'dalle', 'stability', 'unsplash', 'pixabay', 'custom_playlist'
-    model = db.Column(db.String(100), nullable=False) # AI Model name, 'unsplash', 'pixabay', or CustomPlaylist ID
-    orientation = db.Column(db.String(20), default='portrait') # 'portrait', 'landscape', 'square', etc.
-    style_preset = db.Column(db.Text) # JSON for AI style, Unsplash/Pixabay params
-    cron_expression = db.Column(db.String(100), nullable=False)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationship defined via backref in PhotoFrame
-
-class GenerationHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    schedule_id = db.Column(db.Integer, db.ForeignKey('scheduled_generation.id'))
-    generated_at = db.Column(db.DateTime, default=datetime.utcnow)
-    success = db.Column(db.Boolean, default=True)
-    error_message = db.Column(db.Text)
-    photo_id = db.Column(db.Integer, db.ForeignKey('photo.id')) # ID of the generated/added photo
-    name = db.Column(db.String(256)) # Name of the schedule at time of generation
-
-    schedule = db.relationship('ScheduledGeneration')
-    photo = db.relationship('Photo')
-
-class SyncGroup(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(256), nullable=False, unique=True)
-    sleep_interval = db.Column(db.Float, default=5.0) # Default interval for the group
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    frames = db.relationship('PhotoFrame', backref='sync_group', lazy=True)
-
-    def get_next_sync_time(self, after=None):
-        """Calculate the next sync point based on the group interval (UTC)."""
-        now_utc = datetime.now(timezone.utc)
-        base_time = after if after else now_utc
-        if base_time.tzinfo is None: # Ensure base_time is timezone-aware UTC
-             base_time = pytz.UTC.localize(base_time)
-        else:
-             base_time = base_time.astimezone(pytz.UTC)
-
-        interval_seconds = self.sleep_interval * 60
-        epoch_seconds = base_time.timestamp()
-
-        # Find the next interval boundary from UTC epoch
-        next_boundary_seconds = math.ceil(epoch_seconds / interval_seconds) * interval_seconds
-
-        # Convert back to naive UTC datetime for database/comparison consistency
-        next_sync_naive_utc = datetime.fromtimestamp(next_boundary_seconds, tz=timezone.utc).replace(tzinfo=None)
-
-        logger.debug(f"Group {self.id} sync calc: Base={base_time.isoformat()}, Interval={self.sleep_interval}m, NextSync={next_sync_naive_utc.isoformat()}Z")
-        return next_sync_naive_utc 
 
 class EventLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)

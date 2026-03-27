@@ -1,0 +1,23 @@
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <button class="btn btn-sm btn-outline-secondary" id="bulkModeBtn">
+            <i class="bi bi-check2-square"></i> Select
+        </button>
+        <select class="form-select form-select-sm" id="playlistFilter">
+            <option value="all">All Photos</option>
+            <option value="none">Not in any playlist</option>
+            {% for item in playlists %}
+            <option value="{{ item.playlist.id }}">In: {{ item.playlist.name }}</option>
+            {% endfor %}
+        </select>
+        <select class="form-select form-select-sm" id="mediaTypeFilter">
+            <option value="all">All Media</option>
+            <option value="photo">Photos Only</option>
+            <option value="video">Videos Only</option>
+        </select>
+        <select class="form-select form-select-sm" id="sortSelect">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+        </select>
+        <span class="photo-count"><span id="photoCount">{{ photos|length }}</span> photos</span>
+    </div>

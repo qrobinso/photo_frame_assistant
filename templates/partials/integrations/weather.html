@@ -1,0 +1,154 @@
+    <!-- Weather Integration Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-cloud-sun"></i> Weather Overlay
+            </h5>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="weatherToggle">
+            </div>
+        </div>
+        <div class="card-body">
+            <form id="weatherForm">
+                <div class="mb-3">
+                    <label for="zipcode" class="form-label">Zipcode</label>
+                    <input type="text" class="form-control" id="zipcode" name="zipcode" required>
+                </div>
+                <div class="mb-3">
+                    <label for="apiKey" class="form-label">OpenWeather API Key</label>
+                    <input type="password" class="form-control" id="apiKey" name="apiKey" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Temperature Units</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="units" id="unitsF" value="F" checked>
+                        <label class="form-check-label" for="unitsF">Fahrenheit</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="units" id="unitsC" value="C">
+                        <label class="form-check-label" for="unitsC">Celsius</label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="updateInterval" class="form-label">Update Interval (hours)</label>
+                    <input type="number" class="form-control" id="updateInterval" name="updateInterval" 
+                           value="6" min="1" max="24">
+                </div>
+
+                <!-- Add Style Settings Section -->
+                <h6 class="mt-4 mb-3">Style Settings</h6>
+                
+                <!-- Add Format Field -->
+                <div class="mb-3">
+                    <label for="weatherFormat" class="form-label">Format</label>
+                    <input type="text" class="form-control" id="weatherFormat" name="format">
+                    <small class="form-text text-muted">
+                        Available variables:
+                        <ul class="mt-2">
+                            <li><code>{temp}</code> - Current temperature</li>
+                            <li><code>{temp_min}</code> - Minimum temperature</li>
+                            <li><code>{temp_max}</code> - Maximum temperature</li>
+                            <li><code>{feels_like}</code> - Feels like temperature</li>
+                            <li><code>{humidity}</code> - Humidity percentage</li>
+                            <li><code>{pressure}</code> - Pressure</li>
+                            <li><code>{description}</code> - Weather description</li>
+                            <li><code>{wind_speed}</code> - Wind speed</li>
+                            <li><code>{wind_deg}</code> - Wind direction</li>
+                            <li><code>{clouds}</code> - Cloud coverage</li>
+                            <li><code>{visibility}</code> - Visibility</li>
+                            <li><code>{sunrise}</code> - Sunrise time</li>
+                            <li><code>{sunset}</code> - Sunset time</li>
+                            <li><code>{city}</code> - City name</li>
+                        </ul>
+                    </small>
+                            </div>
+
+                <!-- Position Setting -->
+                                <div class="mb-3">
+                    <label for="weatherPosition" class="form-label">Position</label>
+                    <select class="form-select" id="weatherPosition" name="position">
+                        <option value="top-left">Top Left</option>
+                        <option value="top-right">Top Right</option>
+                        <option value="top-center">Top Center</option>
+                        <option value="bottom-left">Bottom Left</option>
+                        <option value="bottom-right">Bottom Right</option>
+                        <option value="bottom-center">Bottom Center</option>
+                        <option value="center">Center</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="weatherFontSize" class="form-label">Font Size</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="weatherFontSize" name="fontSize" min="1" max="100" value="5">
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="weatherMargin" class="form-label">Margin</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="weatherMargin" name="margin" min="0" max="100" value="5">
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="weatherColor" class="form-label">Text Color</label>
+                    <input type="color" class="form-control form-control-color" id="weatherColor" name="color" value="#ffffff">
+                </div>
+
+                <!-- Background Settings -->
+                <div class="mb-3">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="weatherBackgroundEnabled" name="backgroundEnabled">
+                        <label class="form-check-label" for="weatherBackgroundEnabled">
+                            Enable Background
+                        </label>
+                    </div>
+                    <div id="weatherBackgroundSettings" style="display: none;">
+                        <div class="mb-2">
+                            <label for="weatherBackgroundColor" class="form-label">Background Color</label>
+                            <input type="color" class="form-control form-control-color" id="weatherBackgroundColor" name="backgroundColor" value="#ffffff">
+                        </div>
+                        <div class="mb-2">
+                            <label for="weatherBackgroundOpacity" class="form-label">Background Opacity</label>
+                            <div class="input-group">
+                                <input type="range" class="form-range" id="weatherBackgroundOpacity" name="backgroundOpacity" min="0" max="100" value="30">
+                                <span id="weatherBackgroundOpacityValue" class="ms-2">30%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add this after the Format Field in the Weather Integration Card -->
+                <div class="mb-3">
+                    <label for="weatherFontFamily" class="form-label">Font Family</label>
+                    <select class="form-select" id="weatherFontFamily" name="fontFamily">
+                        <option value="BebasNeue-Regular.ttf">Bebas Neue Regular</option>
+                        <!-- Additional fonts will be populated by JavaScript -->
+                    </select>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <button type="button" class="btn btn-secondary" id="testWeather">Test Connection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<!-- Update the Weather Help Modal -->
+<div class="modal fade" id="weatherHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">OpenWeather API Setup Instructions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="weatherHelpContent">
+                Loading instructions...
+            </div>
+        </div>
+    </div>
+</div>

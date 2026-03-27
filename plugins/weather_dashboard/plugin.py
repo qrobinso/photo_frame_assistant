@@ -11,7 +11,7 @@ import requests
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 
 # OWM condition code → emoji + short label

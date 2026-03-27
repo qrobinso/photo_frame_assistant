@@ -232,11 +232,11 @@
         {% if current_photo %}
             {% if current_photo.media_type == 'video' %}
                 <video class="photo" id="currentPhoto" autoplay loop muted>
-                    <source src="{{ url_for('serve_photo', filename=current_photo.filename) }}" type="video/mp4">
+                    <source src="{{ url_for('photos.serve_photo', filename=current_photo.filename) }}" type="video/mp4">
                     Your browser does not support the video tag.
                 </video>
             {% else %}
-                <img class="photo" id="currentPhoto" src="{{ url_for('serve_photo', filename=current_photo.filename) }}" alt="{{ frame.name }} - Current Photo">
+                <img class="photo" id="currentPhoto" src="{{ url_for('photos.serve_photo', filename=current_photo.filename) }}" alt="{{ frame.name }} - Current Photo">
             {% endif %}
         {% else %}
             <div class="loading">No photos available in playlist</div>

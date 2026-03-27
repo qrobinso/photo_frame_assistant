@@ -406,7 +406,7 @@
 <div class="editor-container">
     <!-- Header -->
     <div class="editor-header">
-        <a href="{{ url_for('manage_frames') }}" class="back-btn">
+        <a href="{{ url_for('frames.manage_frames') }}" class="back-btn">
             <i class="bi bi-arrow-left"></i>
         </a>
         <div class="frame-info">
@@ -434,11 +434,11 @@
                 <i class="bi bi-shuffle"></i> Shuffle
             </button>
             {% if frame.frame_type == 'virtual' %}
-            <a href="{{ url_for('view_frame', frame_id=frame.id) }}" target="_blank" class="btn btn-outline-secondary">
+            <a href="{{ url_for('frames.view_frame', frame_id=frame.id) }}" target="_blank" class="btn btn-outline-secondary">
                 <i class="bi bi-box-arrow-up-right"></i>
             </a>
             {% endif %}
-            <a href="{{ url_for('edit_frame_settings', frame_id=frame.id) }}" class="btn btn-outline-secondary">
+            <a href="{{ url_for('frames.edit_frame_settings', frame_id=frame.id) }}" class="btn btn-outline-secondary">
                 <i class="bi bi-gear"></i>
             </a>
         </div>
@@ -501,7 +501,7 @@
                              data-date-added="{{ photo.playlist_entries[0].date_added.isoformat() if photo.playlist_entries else '' }}">
                             <div class="queue-drag"><i class="bi bi-grip-vertical"></i></div>
                             <div class="queue-thumb">
-                                <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
+                                <img src="{{ url_for('photos.serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('photos.serve_photo', filename=photo.filename) }}" 
                                      alt="" loading="lazy">
                             </div>
                             <div class="queue-info">
@@ -547,7 +547,7 @@
                          data-photo-id="{{ photo.id }}"
                          data-upload-date="{{ photo.uploaded_at.isoformat() if photo.uploaded_at else '' }}"
                          onclick="togglePhoto({{ photo.id }})">
-                        <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
+                        <img src="{{ url_for('photos.serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('photos.serve_photo', filename=photo.filename) }}" 
                              alt="" loading="lazy">
                         {% if photo.media_type == 'video' %}
                         <div class="video-indicator"><i class="bi bi-play-fill"></i></div>

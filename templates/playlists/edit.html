@@ -550,7 +550,7 @@
                 {% for photo in playlist_photos %}
                 <div class="queue-item" data-photo-id="{{ photo.id }}">
                     <div class="queue-handle"><i class="bi bi-grip-vertical"></i></div>
-                    <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" class="queue-thumb" alt="">
+                    <img src="{{ url_for('photos.serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('photos.serve_photo', filename=photo.filename) }}" class="queue-thumb" alt="">
                     <div class="queue-info">
                         <div class="queue-index">#{{ loop.index }} {{ ' - NEXT' if loop.first else '' }}</div>
                     </div>
@@ -603,7 +603,7 @@
                      data-photo-id="{{ photo.id }}"
                      data-upload-date="{{ photo.uploaded_at.isoformat() if photo.uploaded_at else '' }}"
                      onclick="toggleSelection(this)">
-                    <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
+                    <img src="{{ url_for('photos.serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('photos.serve_photo', filename=photo.filename) }}" 
                          alt="" loading="lazy">
                     <div class="photo-overlay">
                         {% if photo.media_type == 'video' %}
@@ -932,7 +932,7 @@ document.getElementById('deletePlaylistBtn').addEventListener('click', () => {
 document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
     try {
         const res = await fetch(`/api/custom-playlists/${playlistId}?force=true`, { method: 'DELETE' });
-        if (res.ok) window.location.href = '{{ url_for("manage_playlists") }}';
+        if (res.ok) window.location.href = '{{ url_for("playlists.manage_playlists") }}';
     } catch (e) { showToast('Delete failed', 'error'); }
 });
 

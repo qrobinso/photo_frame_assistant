@@ -309,44 +309,6 @@
         font-size: 0.8rem;
     }
     
-    /* AI Section */
-    .ai-section {
-        background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%);
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-    }
-    
-    .ai-section-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.75rem;
-    }
-    
-    .badge-experimental {
-        background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
-        color: white;
-        font-size: 0.65rem;
-        padding: 0.2rem 0.5rem;
-        border-radius: 0.25rem;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-    
-    /* Progress Section */
-    .analysis-progress {
-        background: #e7f3ff;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
-    }
-    
-    .analysis-progress .progress {
-        height: 24px;
-        border-radius: 12px;
-    }
-    
     /* Card Footer */
     .info-card-footer {
         padding: 1rem 1.25rem;
@@ -423,7 +385,7 @@
 {% block content %}
 <div class="info-container">
     <div class="page-header">
-        <h1 class="page-title"><i class="bi bi-sliders me-2"></i>System Settings & Info</h1>
+        <h1 class="page-title"><i class="bi bi-gear me-2"></i>Settings</h1>
     </div>
 
     <!-- Server Settings Card -->
@@ -503,74 +465,6 @@
         <div class="info-card-footer">
             <button class="btn btn-primary" onclick="saveServerSettings()">
                 <i class="bi bi-check-lg me-1"></i>Save Settings
-            </button>
-        </div>
-    </div>
-
-    <!-- AI Photo Analysis Card -->
-    <div class="info-card">
-        <div class="info-card-header">
-            <h2 class="info-card-title">
-                <i class="bi bi-stars"></i> AI Photo Analysis
-                <span class="badge-experimental">Experimental</span>
-            </h2>
-        </div>
-        <div class="info-card-body">
-            <p class="text-muted mb-3">Use your local AI server to analyze photos and generate descriptions automatically.</p>
-            
-            <div class="settings-grid">
-                <div class="setting-item">
-                    <label class="setting-label">Enable Analysis</label>
-                    <div class="form-check mt-1">
-                        <input type="checkbox" class="form-check-input" id="aiAnalysisEnabled" 
-                               {% if ai_analysis_enabled %}checked{% endif %}>
-                        <label class="form-check-label" for="aiAnalysisEnabled">
-                            Automatically analyze new photos
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label" for="aiServerUrl">Server URL</label>
-                    <input type="text" class="form-control" id="aiServerUrl" 
-                           value="{{ ai_settings.custom_server_base_url }}" placeholder="http://localhost:11434">
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label" for="aiApiKey">API Key</label>
-                    <input type="password" class="form-control" id="aiApiKey" 
-                           value="{{ ai_settings.custom_server_api_key }}" placeholder="Optional">
-                </div>
-                
-                <div class="setting-item">
-                    <label class="setting-label" for="aiModel">Model</label>
-                    <input type="text" class="form-control" id="aiModel" 
-                           value="{{ ai_settings.default_models.custom }}" placeholder="e.g., llava">
-                </div>
-            </div>
-            
-            <div id="analysisProgress" class="analysis-progress" style="display: none;">
-                <p class="mb-2"><i class="bi bi-hourglass-split me-2"></i>Processing photos... Please do not leave this page.</p>
-                <div class="progress">
-                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
-                         role="progressbar" style="width: 0%">
-                        <span id="progressText">0/0 photos</span>
-                    </div>
-                </div>
-                <button class="btn btn-warning btn-sm mt-2" onclick="cancelAnalysis()">
-                    <i class="bi bi-x-lg me-1"></i>Cancel
-                </button>
-            </div>
-        </div>
-        <div class="info-card-footer">
-            <button class="btn btn-outline-secondary" id="testConnection" onclick="testAIConnection()" disabled>
-                <i class="bi bi-plug me-1"></i>Test Connection
-            </button>
-            <button class="btn btn-outline-secondary" id="runAnalysis" onclick="startPhotoAnalysis()" disabled>
-                <i class="bi bi-play-fill me-1"></i>Run on Existing
-            </button>
-            <button class="btn btn-primary" onclick="saveAISettings()">
-                <i class="bi bi-check-lg me-1"></i>Save AI Settings
             </button>
         </div>
     </div>
@@ -898,145 +792,7 @@ function applyTheme(isDark) {
 document.addEventListener('DOMContentLoaded', function() {
     const darkMode = document.getElementById('darkMode').checked;
     applyTheme(darkMode);
-    
-    // Initialize AI button states
-    const checkbox = document.getElementById('aiAnalysisEnabled');
-    const testBtn = document.getElementById('testConnection');
-    const runBtn = document.getElementById('runAnalysis');
-    
-    testBtn.disabled = !checkbox.checked;
-    runBtn.disabled = !checkbox.checked;
-    
-    checkbox.addEventListener('change', function(e) {
-        testBtn.disabled = !e.target.checked;
-        runBtn.disabled = !e.target.checked;
-    });
 });
-
-function saveAISettings() {
-    const serverSettings = {
-        ai_analysis_enabled: document.getElementById('aiAnalysisEnabled').checked
-    };
-
-    const aiSettings = {
-        custom_server_base_url: document.getElementById('aiServerUrl').value,
-        custom_server_api_key: document.getElementById('aiApiKey').value,
-        default_models: {
-            custom: document.getElementById('aiModel').value
-        }
-    };
-
-    fetch('/api/server/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(serverSettings)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (!data.success) throw new Error(data.error || 'Failed to save server settings');
-        return fetch('/api/server/ai-settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(aiSettings)
-        });
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast('AI settings saved successfully');
-            location.reload();
-        } else {
-            throw new Error(data.error || 'Failed to save AI settings');
-        }
-    })
-    .catch(error => showToast('Error saving settings: ' + error, 'error'));
-}
-
-async function testAIConnection() {
-    const serverUrl = document.getElementById('aiServerUrl').value;
-    const apiKey = document.getElementById('aiApiKey').value;
-
-    try {
-        const response = await fetch('/api/server/test-ai-connection', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ server_url: serverUrl, api_key: apiKey })
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-            showToast('Connection successful!');
-        } else {
-            showToast('Connection failed: ' + data.error, 'error');
-        }
-    } catch (error) {
-        showToast('Connection failed: ' + error, 'error');
-    }
-}
-
-let analysisInProgress = false;
-
-async function startPhotoAnalysis() {
-    if (analysisInProgress) return;
-    
-    const progressSection = document.getElementById('analysisProgress');
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-    
-    progressSection.style.display = 'block';
-    analysisInProgress = true;
-
-    try {
-        const response = await fetch('/api/photos/start-analysis', { method: 'POST' });
-        if (!response.ok) throw new Error('Failed to start analysis');
-        pollProgress();
-    } catch (error) {
-        showToast('Failed to start analysis: ' + error, 'error');
-        progressSection.style.display = 'none';
-        analysisInProgress = false;
-    }
-}
-
-async function pollProgress() {
-    if (!analysisInProgress) return;
-
-    try {
-        const response = await fetch('/api/photos/analysis-progress');
-        const data = await response.json();
-        
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
-        
-        if (data.completed) {
-            progressBar.style.width = '100%';
-            progressText.textContent = `Complete! Processed ${data.total} photos`;
-            document.getElementById('analysisProgress').style.display = 'none';
-            analysisInProgress = false;
-            showToast('Analysis complete!');
-            return;
-        }
-
-        const percentage = (data.current / data.total) * 100;
-        progressBar.style.width = percentage + '%';
-        progressText.textContent = `${data.current}/${data.total} photos`;
-
-        setTimeout(pollProgress, 1000);
-    } catch (error) {
-        console.error('Error polling progress:', error);
-        setTimeout(pollProgress, 1000);
-    }
-}
-
-async function cancelAnalysis() {
-    try {
-        await fetch('/api/photos/cancel-analysis', { method: 'POST' });
-        analysisInProgress = false;
-        document.getElementById('analysisProgress').style.display = 'none';
-        showToast('Analysis cancelled');
-    } catch (error) {
-        showToast('Error canceling analysis: ' + error, 'error');
-    }
-}
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');

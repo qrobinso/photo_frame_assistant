@@ -729,7 +729,7 @@
                         {% if item.recent_photos %}
                         <div class="upload-playlist-thumb">
                             {% for photo in item.recent_photos[:4] %}
-                            <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" alt="">
+                            <img src="{{ url_for('photos.serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('photos.serve_photo', filename=photo.filename) }}" alt="">
                             {% endfor %}
                             {% for i in range(4 - item.recent_photos|length) %}
                             <div style="background: #e9ecef;"></div>
@@ -765,138 +765,14 @@
                     </label>
                 </div>
             </div>
-            {% if google_photos_connected %}
-            <button class="btn btn-outline-secondary upload-btn" onclick="showGooglePhotosModal()">
-                <i class="bi bi-google"></i> Google Photos
-            </button>
-            {% endif %}
-            {% if pixabay_api_key %}
-            <button class="btn btn-outline-secondary upload-btn" onclick="showPixabayModal()">
-                <i class="bi bi-palette"></i> Pixabay
-            </button>
-            {% endif %}
         </div>
     </div>
     
-    <!-- Filter Bar -->
-    <div class="filter-bar">
-        <button class="btn btn-sm btn-outline-secondary" id="bulkModeBtn">
-            <i class="bi bi-check2-square"></i> Select
-        </button>
-        <select class="form-select form-select-sm" id="playlistFilter">
-            <option value="all">All Photos</option>
-            <option value="none">Not in any playlist</option>
-            {% for item in playlists %}
-            <option value="{{ item.playlist.id }}">In: {{ item.playlist.name }}</option>
-            {% endfor %}
-        </select>
-        <select class="form-select form-select-sm" id="mediaTypeFilter">
-            <option value="all">All Media</option>
-            <option value="photo">Photos Only</option>
-            <option value="video">Videos Only</option>
-        </select>
-        <select class="form-select form-select-sm" id="sortSelect">
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-        </select>
-        <span class="photo-count"><span id="photoCount">{{ photos|length }}</span> photos</span>
-    </div>
+    {% include 'partials/gallery/filter_bar.html' %}
     
-    <!-- Bulk Actions Bar -->
-    <div class="bulk-bar" id="bulkBar">
-        <!-- Desktop layout -->
-        <span class="bulk-count"><span id="selectedCount">0</span> selected</span>
-        <button class="btn btn-sm btn-outline-light" onclick="selectAllPhotos()">Select All</button>
-        <button class="btn btn-sm btn-outline-light" onclick="deselectAllPhotos()">Deselect</button>
-        <div class="ms-auto d-flex gap-2">
-            <button class="btn btn-sm btn-outline-light" onclick="addSelectedToPlaylist()">
-                <i class="bi bi-collection-play"></i> Add to Playlist
-            </button>
-            <button class="btn btn-sm btn-outline-light" onclick="deleteSelectedPhotos()">
-                <i class="bi bi-trash"></i> Delete
-            </button>
-        </div>
-        <button class="btn btn-sm btn-light" onclick="exitBulkMode()">
-            <i class="bi bi-x"></i>
-        </button>
-        
-        <!-- Mobile layout -->
-        <div class="bulk-bar-header">
-            <span class="bulk-count"><span id="selectedCountMobile">0</span> selected</span>
-            <button class="bulk-close-btn" onclick="exitBulkMode()">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
-        <div class="bulk-bar-actions">
-            <button class="bulk-action-btn" onclick="selectAllPhotos()">
-                <i class="bi bi-check-all"></i>
-                <span>Select All</span>
-            </button>
-            <button class="bulk-action-btn" onclick="deselectAllPhotos()">
-                <i class="bi bi-x-circle"></i>
-                <span>Deselect</span>
-            </button>
-            <button class="bulk-action-btn primary" onclick="addSelectedToPlaylist()">
-                <i class="bi bi-collection-play"></i>
-                <span>Playlist</span>
-            </button>
-            <button class="bulk-action-btn danger" onclick="deleteSelectedPhotos()">
-                <i class="bi bi-trash"></i>
-                <span>Delete</span>
-            </button>
-        </div>
-    </div>
+    {% include 'partials/gallery/bulk_actions.html' %}
     
-    <!-- Photo Grid -->
-    {% if photos %}
-    <div class="photo-grid" id="photoGrid">
-        {% for photo in photos %}
-        <div class="photo-item" 
-             data-photo-id="{{ photo.id }}"
-             data-filename="{{ photo.filename }}"
-             data-uploaded="{{ photo.uploaded_at.isoformat() if photo.uploaded_at else '' }}"
-             data-media-type="{{ photo.media_type or 'photo' }}"
-             data-playlists="{{ photo_playlists.get(photo.id, [])|join(',') }}"
-             onclick="handlePhotoClick(event, {{ photo.id }})">
-            <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" 
-                 alt="{{ photo.filename }}" loading="lazy">
-            {% if photo.media_type == 'video' %}
-            <div class="video-badge">
-                <i class="bi bi-play-fill"></i>
-                {% if photo.duration %}{{ '%0.1f'|format(photo.duration|float) }}s{% endif %}
-            </div>
-            {% endif %}
-            <div class="photo-checkbox">
-                <i class="bi bi-check"></i>
-            </div>
-            <div class="photo-actions-overlay">
-                <button class="photo-action-btn" onclick="event.stopPropagation(); addToPlaylist({{ photo.id }})" title="Add to Playlist">
-                    <i class="bi bi-collection-play"></i>
-                </button>
-                <button class="photo-action-btn" onclick="event.stopPropagation(); editPhoto({{ photo.id }})" title="Edit">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="photo-action-btn delete" onclick="event.stopPropagation(); deletePhoto({{ photo.id }})" title="Delete">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-gallery">
-        <div class="empty-icon">
-            <i class="bi bi-images"></i>
-        </div>
-        <h3>No Photos Yet</h3>
-        <p class="text-muted">Upload your first photo to get started.</p>
-        <label class="btn btn-primary">
-            <i class="bi bi-upload"></i> Upload Photos
-            <input type="file" accept="image/*,video/*" multiple style="display: none;" 
-                   onchange="handleFileUpload(this.files)">
-        </label>
-    </div>
-    {% endif %}
+    {% include 'partials/gallery/photo_grid.html' %}
 </div>
 
 <!-- Playlist Selection Modal -->
@@ -915,7 +791,7 @@
                         {% if item.recent_photos %}
                         <div class="playlist-preview">
                             {% for photo in item.recent_photos[:4] %}
-                            <img src="{{ url_for('serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('serve_photo', filename=photo.filename) }}" alt="">
+                            <img src="{{ url_for('photos.serve_thumbnail', filename=photo.thumbnail) if photo.thumbnail else url_for('photos.serve_photo', filename=photo.filename) }}" alt="">
                             {% endfor %}
                             {% for i in range(4 - item.recent_photos|length) %}
                             <div style="background: #dee2e6;"></div>

@@ -9,7 +9,7 @@ import io
 import requests
 from PIL import Image, ImageOps
 
-from plugins.base_plugin import PluginBase
+from plugins.base import PluginBase
 
 
 class UnsplashPlugin(PluginBase):
