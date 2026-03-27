@@ -60,6 +60,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip wheel \
     && pip install --no-cache-dir -r requirements.txt
 
+# Install Playwright Chromium browser at build time
+RUN pip install --no-cache-dir playwright \
+    && playwright install chromium \
+    && playwright install-deps chromium
+
 # Copy the rest of the application
 COPY . .
 

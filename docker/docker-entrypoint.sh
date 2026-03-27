@@ -208,12 +208,12 @@ echo "  Symlink check:"
 ls -la /app/uploads 2>/dev/null | head -1 || echo "    /app/uploads not found"
 ls -la /app/logs 2>/dev/null | head -1 || echo "    /app/logs not found"
 
-echo "=== Playwright Chromium Setup ==="
+echo "=== Playwright Chromium Check ==="
 if python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(headless=True); b.close(); p.stop()" 2>/dev/null; then
-    echo "  Chromium already installed and working."
+    echo "  Chromium is installed and working."
 else
-    echo "  Installing Playwright Chromium browser binary..."
-    python -m playwright install chromium && echo "  Chromium installed successfully." || echo "  WARNING: Chromium install failed (plugins using HTML rendering will not work)."
+    echo "  WARNING: Chromium is not available. Plugins using HTML rendering will not work."
+    echo "  Rebuild the Docker image to include Chromium."
 fi
 
 echo "Initialization complete. Starting Photo Server..."
