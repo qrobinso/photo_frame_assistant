@@ -1,0 +1,8 @@
+{
+  "plugin_id": "clock",
+  "display_name": "Clock",
+  "description": "Displays the current time and date as a styled image. No API key required — great for testing.",
+  "version": "1.0.0",
+  "class": "ClockPlugin",
+  "module": "plugin"
+}

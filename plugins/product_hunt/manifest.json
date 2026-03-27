@@ -1,0 +1,8 @@
+{
+    "plugin_id": "product_hunt",
+    "display_name": "Product Hunt",
+    "description": "Shows today's featured products from Product Hunt — name, tagline, vote count, and topics.",
+    "version": "1.0.0",
+    "class": "ProductHuntPlugin",
+    "module": "plugin"
+}

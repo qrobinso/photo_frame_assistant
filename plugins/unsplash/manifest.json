@@ -1,0 +1,8 @@
+{
+    "plugin_id": "unsplash",
+    "display_name": "Unsplash Photos",
+    "description": "Fetches a fresh random photo from Unsplash matching your search query and displays it full-screen.",
+    "version": "1.0.0",
+    "class": "UnsplashPlugin",
+    "module": "plugin"
+}

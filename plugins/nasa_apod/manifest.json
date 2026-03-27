@@ -1,0 +1,8 @@
+{
+    "plugin_id": "nasa_apod",
+    "display_name": "NASA Astronomy Picture of the Day",
+    "description": "Displays NASA's Astronomy Picture of the Day — a stunning space image with title and description. Updates daily.",
+    "version": "1.0.0",
+    "class": "NasaApodPlugin",
+    "module": "plugin"
+}

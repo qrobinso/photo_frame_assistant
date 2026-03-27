@@ -1,0 +1,8 @@
+{
+    "plugin_id": "weather_dashboard",
+    "display_name": "Weather Dashboard",
+    "description": "Shows current conditions and a 5-day forecast for any city using OpenWeatherMap. Updates hourly.",
+    "version": "1.0.0",
+    "class": "WeatherDashboardPlugin",
+    "module": "plugin"
+}

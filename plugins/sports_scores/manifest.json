@@ -1,0 +1,8 @@
+{
+  "plugin_id": "sports_scores",
+  "display_name": "Sports Scores",
+  "description": "Shows live and recent game scores from ESPN for NFL, NBA, MLB, NHL, and soccer leagues. No API key required.",
+  "version": "1.0.0",
+  "class": "SportsScoresPlugin",
+  "module": "plugin"
+}

@@ -1,0 +1,8 @@
+{
+  "plugin_id": "front_pages",
+  "display_name": "Newspaper Front Pages",
+  "description": "Displays today's front page from a major newspaper via frontpages.com.",
+  "version": "1.0.0",
+  "class": "FrontPagesPlugin",
+  "module": "plugin"
+}

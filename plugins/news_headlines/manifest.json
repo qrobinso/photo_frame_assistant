@@ -1,0 +1,8 @@
+{
+  "plugin_id": "news_headlines",
+  "display_name": "News Headlines",
+  "description": "Fetches top headlines from NewsAPI.org and renders them as a clean, readable image.",
+  "version": "1.0.0",
+  "class": "NewsHeadlinesPlugin",
+  "module": "plugin"
+}

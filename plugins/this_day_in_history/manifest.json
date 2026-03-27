@@ -1,0 +1,8 @@
+{
+    "plugin_id": "this_day_in_history",
+    "display_name": "This Day in History",
+    "description": "Shows notable historical events that happened on today's date, sourced from Wikipedia. No API key required. Updates daily.",
+    "version": "1.0.0",
+    "class": "ThisDayInHistoryPlugin",
+    "module": "plugin"
+}

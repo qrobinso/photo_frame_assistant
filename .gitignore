@@ -5,6 +5,7 @@ credentials/
 !package-lock.json
 !tsconfig.json
 !*.config.json
+!plugins/*/manifest.json
 
 # Config files (contain API keys and sensitive data)
 config/

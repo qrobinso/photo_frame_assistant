@@ -1,0 +1,8 @@
+{
+    "plugin_id": "immich",
+    "display_name": "Immich Photos",
+    "description": "Displays a random photo from your Immich server, filtered by album or person.",
+    "version": "1.0.0",
+    "class": "ImmichPlugin",
+    "module": "plugin"
+}
