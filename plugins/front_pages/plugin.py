@@ -10,7 +10,7 @@ newspaper's uppercase identifier (e.g. NY_NYT, DC_WP, WSJ).
 """
 
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from PIL import Image
@@ -109,36 +109,48 @@ class FrontPagesPlugin(PluginBase):
     def _fetch_front_page(self, code: str) -> bytes:
         """
         Download today's front page JPG from the Freedom Forum CDN.
+        Falls back to yesterday if today's edition isn't available yet.
         URL pattern: https://cdn.freedomforum.org/dfp/jpg{day}/lg/{CODE}.jpg
         """
-        day = datetime.now().day  # day of month, no zero-padding
-        url = f'https://cdn.freedomforum.org/dfp/jpg{day}/lg/{code}.jpg'
-
-        self.log_info(f'Fetching front page: {url}')
-
-        resp = requests.get(url, timeout=30, headers={
+        headers = {
             'User-Agent': 'Mozilla/5.0 (compatible; PhotoFrameAssistant/1.0)',
             'Referer':    'https://frontpages.freedomforum.org/',
-        })
+        }
 
-        if resp.status_code == 404:
-            raise ValueError(
-                f"No front page found for '{code}' today (day {day}). "
-                "The code may be incorrect or today's edition isn't available yet. "
-                "Browse frontpages.freedomforum.org to find the correct code."
-            )
-        if resp.status_code != 200:
-            raise ValueError(
-                f"CDN returned HTTP {resp.status_code} for {url}"
-            )
+        today = datetime.now()
+        for days_ago in range(2):  # try today, then yesterday
+            dt = today - timedelta(days=days_ago)
+            day = dt.day
+            url = f'https://cdn.freedomforum.org/dfp/jpg{day}/lg/{code}.jpg'
 
-        content_type = resp.headers.get('Content-Type', '')
-        if 'image' not in content_type:
-            raise ValueError(
-                f"Unexpected content type '{content_type}' — expected an image."
-            )
+            self.log_info(f'Fetching front page: {url}')
+            resp = requests.get(url, timeout=30, headers=headers)
 
-        return resp.content
+            if resp.status_code == 404:
+                if days_ago == 0:
+                    self.log_info(f"Today's edition not available yet for '{code}', trying yesterday.")
+                    continue
+                raise ValueError(
+                    f"No front page found for '{code}' (tried today and yesterday). "
+                    "The code may be incorrect or recent editions aren't available. "
+                    "Browse frontpages.freedomforum.org to find the correct code."
+                )
+            if resp.status_code != 200:
+                raise ValueError(
+                    f"CDN returned HTTP {resp.status_code} for {url}"
+                )
+
+            content_type = resp.headers.get('Content-Type', '')
+            if 'image' not in content_type:
+                raise ValueError(
+                    f"Unexpected content type '{content_type}' — expected an image."
+                )
+
+            if days_ago > 0:
+                self.log_info(f"Using yesterday's front page for '{code}'.")
+            return resp.content
+
+        raise ValueError(f"No front page found for '{code}'.")
 
     # ------------------------------------------------------------------
 

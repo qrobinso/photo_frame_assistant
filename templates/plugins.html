@@ -38,6 +38,9 @@
   .thumb-cell .no-thumb { width: 56px; height: 56px; background: #e9ecef; border-radius: 6px;
                            display: flex; align-items: center; justify-content: center;
                            color: #adb5bd; font-size: 1.4rem; }
+  .thumb-cell { position: relative; }
+  .thumb-loading-overlay { position: absolute; inset: 0; display: flex; align-items: center;
+                           justify-content: center; background: rgba(255,255,255,.7); border-radius: 6px; }
   /* Lightbox */
   #photoLightbox .modal-dialog { max-width: 90vw; }
   #lightboxImg { max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; display: block; margin: 0 auto; }
@@ -436,14 +439,65 @@ function renderInstances(list) {
 
 // ── Actions ────────────────────────────────────────────────────────────────
 function runNow(id) {
+  const btn = document.querySelector(`#inst-row-${id} .btn-outline-primary[title="Run Now"]`);
+  const thumbCell = document.querySelector(`#inst-row-${id} .thumb-cell`);
+  const prevRunAt = (instances.find(i => i.id === id) || {}).last_run_at;
+
+  // Show loading state on button
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  }
+  // Show loading overlay on thumbnail
+  if (thumbCell) {
+    thumbCell.style.position = 'relative';
+    const overlay = document.createElement('div');
+    overlay.className = 'thumb-loading-overlay';
+    overlay.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span>';
+    thumbCell.appendChild(overlay);
+  }
+
   fetch(`/api/plugins/instances/${id}/run`, {method:'POST'})
     .then(r => r.json())
     .then(data => {
       showToast(data.message || 'Plugin triggered.');
-      // Refresh after a moment so the thumbnail updates
-      setTimeout(loadInstances, 4000);
+      pollForCompletion(id, prevRunAt);
     })
-    .catch(() => showToast('Failed to trigger plugin.', 'error'));
+    .catch(() => {
+      showToast('Failed to trigger plugin.', 'error');
+      restoreRunButton(id);
+    });
+}
+
+function pollForCompletion(id, prevRunAt, attempt) {
+  attempt = attempt || 0;
+  if (attempt > 30) {  // give up after ~30s
+    restoreRunButton(id);
+    loadInstances();
+    return;
+  }
+  setTimeout(() => {
+    fetch(`/api/plugins/instances/${id}`)
+      .then(r => r.json())
+      .then(inst => {
+        if (inst.last_run_at && inst.last_run_at !== prevRunAt) {
+          loadInstances();  // run finished — refresh everything
+        } else {
+          pollForCompletion(id, prevRunAt, attempt + 1);
+        }
+      })
+      .catch(() => { restoreRunButton(id); loadInstances(); });
+  }, 1000);
+}
+
+function restoreRunButton(id) {
+  const btn = document.querySelector(`#inst-row-${id} .btn-outline-primary[title="Run Now"]`);
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-fill"></i>';
+  }
+  const overlay = document.querySelector(`#inst-row-${id} .thumb-loading-overlay`);
+  if (overlay) overlay.remove();
 }
 
 function toggleEnable(id, currentlyEnabled) {
