@@ -14,7 +14,6 @@ from routes.plugins import plugin_bp
 from routes.integrations import integrations_bp
 from routes.system import system_bp
 from routes.playlists import playlists_bp
-from routes.overlays import overlays_bp
 from routes.photos import photos_bp
 from routes.frames import frames_bp
 from routes.frame_client import frame_client_bp
@@ -25,8 +24,13 @@ from settings.persistence import (
 logger = setup_logger()
 
 
-def create_app():
-    """Create and configure the Flask application."""
+def create_app(skip_services: bool = False):
+    """Create and configure the Flask application.
+
+    Pass skip_services=True to build the Flask app without starting background
+    services (scheduler, Zeroconf, MQTT). Used by the Werkzeug reloader
+    supervisor so only the worker child runs them.
+    """
     app = Flask(__name__)
 
     # ------------------------------------------------------------------
@@ -49,12 +53,9 @@ def create_app():
     # Bootstrap directories
     # ------------------------------------------------------------------
     CREDENTIALS_DIR = os.path.join(CONFIG_DIR, 'credentials')
-    INTEGRATIONS_DIR = os.path.join(basedir, 'integrations')
-    OVERLAYS_DIR = os.path.join(INTEGRATIONS_DIR, 'overlays')
 
     os.makedirs(CONFIG_DIR, exist_ok=True)
     os.makedirs(CREDENTIALS_DIR, exist_ok=True)
-    os.makedirs(OVERLAYS_DIR, exist_ok=True)
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     os.makedirs(os.path.join(UPLOAD_FOLDER, 'thumbnails'), exist_ok=True)
 
@@ -111,7 +112,6 @@ def create_app():
     app.register_blueprint(integrations_bp)
     app.register_blueprint(system_bp)
     app.register_blueprint(playlists_bp)
-    app.register_blueprint(overlays_bp)
     app.register_blueprint(photos_bp)
     app.register_blueprint(frames_bp)
     app.register_blueprint(frame_client_bp)
@@ -119,13 +119,10 @@ def create_app():
     # ------------------------------------------------------------------
     # Services (requires app context)
     # ------------------------------------------------------------------
-    with app.app_context():
-        _init_services(app)
-
-    # ------------------------------------------------------------------
-    # Cleanup on exit
-    # ------------------------------------------------------------------
-    atexit.register(_cleanup_services, app)
+    if not skip_services:
+        with app.app_context():
+            _init_services(app)
+        atexit.register(_cleanup_services, app)
 
     return app
 
@@ -133,38 +130,17 @@ def create_app():
 def _init_services(app):
     """Instantiate and attach all application services to the app object."""
     cfg = app.config
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    CONFIG_DIR = cfg.get('CONFIG_DIR', os.path.join(basedir, 'config'))
-
-    # Config file paths
-    WEATHER_CONFIG_PATH = os.path.join(CONFIG_DIR, 'weather_config.json')
-    METADATA_CONFIG_PATH = os.path.join(CONFIG_DIR, 'metadata_config.json')
-    QRCODE_CONFIG_PATH = os.path.join(CONFIG_DIR, 'qrcode_config.json')
 
     # Lazy-import services here to avoid circular imports
     from services.photo_processor import PhotoProcessor
     from services.discovery import FrameDiscovery
     from services.frame_timing import FrameTimingManager
-    from integrations.overlays.weather import WeatherIntegration
-    from integrations.overlays.metadata import MetadataIntegration
-    from integrations.overlays.qrcode import QRCodeIntegration
-    from integrations.overlays.manager import OverlayManager
     from integrations.mqtt import MQTTIntegration
     from plugins.runner import PluginRunner
 
     # Core services
     app.photo_processor = PhotoProcessor()
     app.frame_discovery = FrameDiscovery(port=ZEROCONF_PORT)
-
-    # Integrations (overlays)
-    try:
-        app.weather_integration = WeatherIntegration(WEATHER_CONFIG_PATH)
-        app.metadata_integration = MetadataIntegration(METADATA_CONFIG_PATH)
-        app.qrcode_integration = QRCodeIntegration(QRCODE_CONFIG_PATH)
-        app.overlay_manager = OverlayManager(app.weather_integration, app.metadata_integration)
-        logger.debug("Weather, Metadata, QR Code integrations and OverlayManager initialized.")
-    except Exception as e:
-        logger.error(f"Error initializing integrations: {e}", exc_info=True)
 
     # Frame timing manager
     ftm_models = {'PhotoFrame': PhotoFrame, 'Photo': Photo, 'PlaylistEntry': PlaylistEntry}

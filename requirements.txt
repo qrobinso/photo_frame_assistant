@@ -17,3 +17,4 @@ pillow-avif-plugin
 pillow-heif
 numpy
 cryptography
+opencv-python-headless>=4.9

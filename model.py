@@ -69,6 +69,7 @@ class PhotoFrame(db.Model):
     blue_adjustment = db.Column(db.Integer, default=0)
     padding = db.Column(db.Integer, default=0)
     color_map = db.Column(JSON)
+    overshoot_guard_enabled = db.Column(db.Boolean, default=True)
 
     # Device properties
     manufacturer = db.Column(db.String(256))
@@ -79,9 +80,6 @@ class PhotoFrame(db.Model):
     aspect_ratio = db.Column(db.String(256))
     os = db.Column(db.String(256))
     capabilities = db.Column(JSON)
-
-    # Overlay preferences
-    overlay_preferences = db.Column(db.Text, default='{"weather": false, "metadata": false, "qrcode": false}')
 
     # Playlist assignment - frames reference a playlist (N:1)
     playlist_id = db.Column(db.Integer, db.ForeignKey('playlist.id'), nullable=True)

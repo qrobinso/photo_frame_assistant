@@ -101,17 +101,3 @@ class SmartHomeIntegration(Integration):
     def handle_command(self, command, payload):
         """Handle a command from the smart home platform."""
         pass
-
-
-class OverlayIntegration(Integration):
-    """Base class for integrations that provide overlays for photos."""
-    
-    @abstractmethod
-    def get_overlay(self, frame_id, photo_path):
-        """Get an overlay for a photo."""
-        pass
-        
-    @abstractmethod
-    def get_available_overlays(self):
-        """Get a list of available overlays."""
-        pass 

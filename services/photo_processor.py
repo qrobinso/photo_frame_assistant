@@ -31,31 +31,42 @@ except ImportError:
     logger.warning("You will also need to install ImageMagick: https://imagemagick.org/script/download.php")
 
 class PhotoProcessor:
-    def ensure_orientation(self, img, desired_orientation='portrait', crop_anchor='center'):
+    def ensure_orientation(self, img, desired_orientation='portrait', crop_anchor='smart'):
         """
         Ensure image is in the desired orientation by cropping.
         Args:
             img: PIL Image object
             desired_orientation: 'portrait' or 'landscape'
-            crop_anchor: 'center' (default) or 'top' — controls vertical anchor when
-                         cropping portrait→landscape. 'top' preserves the top of the image.
+            crop_anchor: 'smart' (default) — face-aware crop, falls back to center when no
+                         faces are detected; 'center' — geometric center crop; 'top' — anchor
+                         the crop at the top of the image (used by plugins like front_pages).
         Returns:
             PIL Image object in the correct orientation
         """
         logger.debug("Starting orientation adjustment.")
-        
+
         # Get current dimensions
         width, height = img.size
         current_orientation = 'portrait' if height > width else 'landscape'
         logger.debug(f"Current dimensions: {width}x{height} ({current_orientation})")
-        
+
         # If orientations don't match, crop the image
         if current_orientation != desired_orientation:
             logger.debug(f"Cropping image from {current_orientation} to {desired_orientation}")
-            
-            if desired_orientation == 'landscape':
-                # For landscape, crop the center portion of the portrait image
-                target_ratio = 4/3  # Standard landscape ratio
+            target_ratio = 4/3 if desired_orientation == 'landscape' else 3/4
+
+            smart_box = None
+            if crop_anchor == 'smart':
+                try:
+                    from helpers.smart_crop import find_face_crop_box
+                    smart_box = find_face_crop_box(img, target_ratio)
+                except Exception as e:
+                    logger.warning(f"Smart crop failed, falling back to center crop: {e}")
+
+            if smart_box is not None:
+                left, top, right, bottom = smart_box
+            elif desired_orientation == 'landscape':
+                # Fallback: center (or top-anchored) crop of a portrait image.
                 new_height = int(width / target_ratio)
                 if new_height > height:
                     # If height would be too large, adjust width instead
@@ -71,8 +82,7 @@ class PhotoProcessor:
                     bottom = top + new_height
                     right = width
             else:  # desired_orientation == 'portrait'
-                # For portrait, crop the center portion of the landscape image
-                target_ratio = 3/4  # Standard portrait ratio
+                # Fallback: center crop of a landscape image.
                 new_width = int(height * target_ratio)
                 if new_width > width:
                     # If width would be too large, adjust height instead
@@ -87,7 +97,7 @@ class PhotoProcessor:
                     top = 0
                     right = left + new_width
                     bottom = height
-            
+
             # Crop the image
             img = img.crop((left, top, right, bottom))
             logger.debug(f"Cropped to: {img.width}x{img.height}")
@@ -98,14 +108,14 @@ class PhotoProcessor:
         logger.debug(f"Final image dimensions: {img.width}x{img.height}")
         return img
 
-    def process_for_orientation(self, image_path, orientation='portrait', frame=None, crop_anchor='center'):
+    def process_for_orientation(self, image_path, orientation='portrait', frame=None, crop_anchor='smart'):
         """
         Process image for target dimensions and ensure correct orientation.
         Args:
             image_path: Path to the image file
             orientation: 'portrait' or 'landscape'
             frame: PhotoFrame object with image settings
-            crop_anchor: 'center' (default) or 'top' — passed to ensure_orientation
+            crop_anchor: 'smart' (default), 'center', or 'top' — passed to ensure_orientation
         Returns:
             Path to the processed image
         """
@@ -247,19 +257,62 @@ class PhotoProcessor:
                 img = ImageEnhance.Contrast(img).enhance(contrast_factor)
             if saturation != 100:
                 img = ImageEnhance.Color(img).enhance(saturation / 100.0)
-            # blue_adjustment and padding are not supported without Wand; skip silently
+            if blue_adjustment:
+                # Match Wand's modulate(hue=100 - blue_adjustment): each unit ≈ 1.8°
+                # of hue rotation. PIL's HSV hue channel is 0-255 over 360°, so scale
+                # by 256/360 ≈ 0.711 → ~1.28 PIL units per slider step.
+                shift = -int(round(blue_adjustment * 1.28))
+                h, s, v = img.convert('HSV').split()
+                h = h.point(lambda p: (p + shift) % 256)
+                img = Image.merge('HSV', (h, s, v)).convert('RGB')
+            if padding and padding > 0:
+                img = ImageOps.expand(img, border=int(padding), fill=(0, 0, 0))
             return img
         
+        enhanced = self._apply_wand_pipeline(
+            img, contrast_factor, saturation, blue_adjustment,
+            padding, color_map, frame,
+        )
+
+        guard_on = getattr(frame, 'overshoot_guard_enabled', True) if frame else False
+        boosting = contrast_factor > 1.0 or saturation > 100
+        if guard_on and boosting:
+            try:
+                from helpers.overshoot_guard import (
+                    clipped_fraction, scale_boosts,
+                    CLIPPED_FRACTION_THRESHOLD, OVERSHOOT_SCALE,
+                )
+                cf = clipped_fraction(enhanced)
+                if cf > CLIPPED_FRACTION_THRESHOLD:
+                    cf2, sat2 = scale_boosts(contrast_factor, saturation, OVERSHOOT_SCALE)
+                    logger.info(
+                        f"Overshoot: clipped {cf*100:.1f}% > "
+                        f"{CLIPPED_FRACTION_THRESHOLD*100:.0f}%, re-rendering "
+                        f"(contrast {contrast_factor:.2f}→{cf2:.2f}, "
+                        f"saturation {saturation}→{sat2})"
+                    )
+                    enhanced = self._apply_wand_pipeline(
+                        img, cf2, sat2, blue_adjustment,
+                        padding, color_map, frame,
+                    )
+            except Exception as e:
+                logger.warning(f"Overshoot guard failed, keeping first render: {e}")
+
+        return enhanced
+
+    def _apply_wand_pipeline(self, img, contrast_factor, saturation,
+                             blue_adjustment, padding, color_map, frame):
+        """Run the Wand enhancement pass once. Safe to call twice on the same
+        source image — it operates on a local copy after resize."""
         try:
             # Get original dimensions
             orig_width, orig_height = img.size
-            
+
             # Get frame dimensions if available
             frame_width = None
             frame_height = None
             if frame and hasattr(frame, 'screen_resolution') and frame.screen_resolution:
                 try:
-                    # Parse resolution string (e.g., "800x600")
                     resolution_parts = frame.screen_resolution.split('x')
                     if len(resolution_parts) == 2:
                         frame_width = int(resolution_parts[0])
@@ -267,87 +320,53 @@ class PhotoProcessor:
                         logger.info(f"Using frame dimensions: {frame_width}x{frame_height}")
                 except (ValueError, AttributeError) as e:
                     logger.warning(f"Could not parse frame resolution: {e}")
-            
-            # If we don't have frame dimensions, use default dimensions
+
             if not frame_width or not frame_height:
-                # Use orientation to determine default dimensions
                 if frame and hasattr(frame, 'orientation') and frame.orientation == 'portrait':
                     frame_width = 1200
                     frame_height = 1600
-                else:  # landscape or default
+                else:
                     frame_width = 1600
                     frame_height = 1200
                 logger.info(f"Using default dimensions based on orientation: {frame_width}x{frame_height}")
-            
-            # First resize the image to fit the frame dimensions (without padding)
-            # This saves resources for subsequent processing
+
+            # Resize to fit the frame dimensions before Wand processing.
             img_aspect = orig_width / orig_height
             frame_aspect = frame_width / frame_height
-            
             if img_aspect > frame_aspect:
-                # Image is wider than frame, fit to width
                 resize_width = frame_width
                 resize_height = int(resize_width / img_aspect)
             else:
-                # Image is taller than frame, fit to height
                 resize_height = frame_height
                 resize_width = int(resize_height * img_aspect)
-            
-            # Ensure resize dimensions are at least 1px
             resize_width = max(1, resize_width)
             resize_height = max(1, resize_height)
-            
-            # Resize original image
-            img = img.resize((resize_width, resize_height), Image.LANCZOS)
-            
-            # Convert to RGB if necessary and save as JPEG
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            
-            # Convert PIL image to bytes for Wand processing using JPEG
+
+            working = img.resize((resize_width, resize_height), Image.LANCZOS)
+            if working.mode != 'RGB':
+                working = working.convert('RGB')
+
             img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format='JPEG', quality=95, subsampling=0)  # Highest quality JPEG
+            working.save(img_byte_arr, format='JPEG', quality=95, subsampling=0)
             img_byte_arr.seek(0)
-            
-            # Process with ImageMagick via Wand using JPEG format
+
             with WandImage(blob=img_byte_arr.getvalue(), format='jpeg') as wand_img:
-                # Apply padding if needed using ImageMagick's border functionality
                 if padding > 0:
                     logger.info(f"Applying padding of {padding}px to image using ImageMagick border")
                     wand_img.border(Color('black'), width=padding, height=padding)
                     logger.info(f"Padding applied. New dimensions: {wand_img.width}x{wand_img.height}")
-                
-                # Apply auto gamma correction for better tonal balance
-                #logger.info("Applying auto gamma correction")
-                #wand_img.auto_gamma()
-                
-                # Apply light noise reduction (0.5 is a conservative value that reduces noise while preserving detail)
-                #logger.info("Applying noise reduction")
-                #wand_img.noise('gaussian', attenuate=0.0)
-                
-                # Calculate black and white points based on contrast factor
+
                 black_point = 0.10 * contrast_factor
                 white_point = 1.0 - (0.10 * contrast_factor)
-                # Ensure values stay in valid range
                 black_point = min(0.3, max(0.0, black_point))
                 white_point = max(0.7, min(1.0, white_point))
-                
                 wand_img.contrast_stretch(black_point=black_point, white_point=white_point)
-                
-                # Apply saturation and hue adjustment
+
                 wand_img.modulate(brightness=103, saturation=saturation, hue=100 - blue_adjustment)
-                
-                # Apply color quantization if color map is provided and not empty
+
                 if color_map and len(color_map) > 0:
-                    # Create color map for quantization
-                    color_map_wand = []
-                    for color in color_map:
-                        color_map_wand.append(Color(color))
-                    
-                    # Log color map information
                     logger.info(f"Using color map with {len(color_map)} colors for image enhancement")
                     logger.info(f"First few colors in map: {color_map[:5] if len(color_map) > 5 else color_map}")
-                    
                     try:
                         logger.info(f"Applying color quantization with {len(color_map)} colors")
                         wand_img.quantize(number_colors=len(color_map), dither=True)
@@ -359,14 +378,11 @@ class PhotoProcessor:
                             logger.info("Color quantization without dithering applied as fallback")
                         except Exception as e2:
                             logger.error(f"Color quantization failed completely: {e2}")
-                
-                # Convert back to PIL image as JPEG
+
                 img_data = wand_img.make_blob(format='jpeg')
-                enhanced_img = Image.open(io.BytesIO(img_data))
-                
-                return enhanced_img
-                
+                return Image.open(io.BytesIO(img_data))
+
         except Exception as e:
             logger.error(f"Error enhancing image: {str(e)}")
             logger.exception("Full traceback:")
-            return img  # Return original image if enhancement fails
+            return img

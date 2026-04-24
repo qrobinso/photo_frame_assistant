@@ -57,13 +57,6 @@ def get_settings():
         sleep_interval = MIN_SLEEP_INTERVAL
         sleep_reason += " (adjusted to minimum)"
 
-    overlay_prefs = {}
-    if frame.overlay_preferences:
-        try:
-            overlay_prefs = json.loads(frame.overlay_preferences)
-        except Exception:
-            overlay_prefs = {}
-
     image_settings = {
         'contrast_factor': frame.contrast_factor if hasattr(frame, 'contrast_factor') and frame.contrast_factor is not None else 1.0,
         'saturation': frame.saturation if hasattr(frame, 'saturation') and frame.saturation is not None else 100,
@@ -86,7 +79,6 @@ def get_settings():
         'sleep_reason': sleep_reason,
         'next_sync': next_sync_str,
         'orientation': frame.orientation,
-        'overlay_preferences': overlay_prefs,
         'image_settings': image_settings,
         'server_time': now.strftime('%Y-%m-%d %H:%M:%S UTC'),
         'timezone': server_settings.get('timezone', 'UTC'),
@@ -279,7 +271,6 @@ def get_current_photo():
     frame = db.session.get(PhotoFrame, device_id)
     if frame:
         logger.debug(f"Found frame: {frame.id}")
-        logger.debug(f"Frame overlay preferences: {frame.overlay_preferences}")
 
         playlist = []
         if frame.playlist_id:
@@ -330,33 +321,6 @@ def get_current_photo():
                 except Exception as e:
                     logger.error(f"Error processing image with frame settings: {e}")
                     processed_image = None
-
-            if frame.overlay_preferences:
-                try:
-                    logger.debug("Attempting to apply overlays...")
-                    if processed_image:
-                        temp_name = f"temp_{uuid.uuid4().hex}_{os.path.basename(photo_path)}"
-                        source_image = os.path.join(upload_folder, temp_name)
-                        if processed_image.mode == 'P':
-                            processed_image = processed_image.convert('RGB')
-                        processed_image.save(source_image, quality=95)
-                    else:
-                        source_image = photo_path
-                    modified_image = current_app.overlay_manager.apply_overlays(
-                        source_image, frame.overlay_preferences, frame, photo)
-                    if modified_image:
-                        logger.debug("Successfully applied overlays")
-                        temp_filename = f"temp_{int(datetime.now().timestamp())}_{photo.filename}"
-                        temp_path = os.path.join(upload_folder, temp_filename)
-                        if modified_image.mode == 'P':
-                            modified_image = modified_image.convert('RGB')
-                        modified_image.save(temp_path)
-                        cleanup_temp_files(upload_folder)
-                        return send_file(temp_path, mimetype='image/jpeg')
-                    else:
-                        logger.error("Overlay manager returned None")
-                except Exception as e:
-                    logger.error(f"Error applying overlays: {e}", exc_info=True)
 
             if processed_image:
                 temp_dir = os.path.join(upload_folder, 'temp')

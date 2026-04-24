@@ -171,11 +171,6 @@ def process_image_pipeline(frame, photo):
     # Create temp file for remaining processing
     temp_path = create_temp_image(img)
 
-    # Apply overlays
-    if frame.overlay_preferences:
-        overlay_img = apply_overlays(temp_path, frame, photo)
-        overlay_img.save(temp_path)  # Overwrite temp file with overlay
-
     return temp_path
 
 
@@ -207,12 +202,6 @@ def apply_enhancements(img, frame):
     from services.photo_processor import PhotoProcessor
     processor = PhotoProcessor()
     return processor.enhance_image(img, frame)
-
-
-def apply_overlays(temp_path, frame, photo):
-    """Apply configured overlays to image."""
-    overlay_prefs = json.loads(frame.overlay_preferences) if frame.overlay_preferences else {}
-    return current_app.overlay_manager.apply_overlays(temp_path, overlay_prefs, frame, photo)
 
 
 def generate_final_output(image_path, frame, output_type):

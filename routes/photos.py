@@ -210,30 +210,32 @@ def upload_photo():
 
                         thumb_img = normalized_img.copy()
                         thumb_img.thumbnail((400, 400))
+                        # JPEG can't encode alpha/palette — flatten to RGB.
+                        if thumb_img.mode != 'RGB':
+                            thumb_img = thumb_img.convert('RGB')
                         thumb_filename = f"thumb_{filename}"
                         thumb_path = os.path.join(thumbnails_dir, thumb_filename)
                         thumb_img.save(thumb_path, "JPEG")
-
-                        try:
-                            portrait_path = current_app.photo_processor.process_for_orientation(filepath, 'portrait')
-                            if portrait_path:
-                                current_app.logger.info(f"Successfully created portrait version: {portrait_path}")
-                            else:
-                                current_app.logger.error(f"Failed to create portrait version for {filename}")
-
-                            landscape_path = current_app.photo_processor.process_for_orientation(filepath, 'landscape')
-                            if landscape_path:
-                                current_app.logger.info(f"Successfully created landscape version: {landscape_path}")
-                            else:
-                                current_app.logger.error(f"Failed to create landscape version for {filename}")
-                        except Exception as e:
-                            current_app.logger.error(f"Error processing image orientations: {e}")
-                            portrait_path = None
-                            landscape_path = None
-
                 except Exception as e:
                     current_app.logger.error(f"Error generating thumbnail: {e}")
                     thumb_filename = None
+
+                try:
+                    portrait_path = current_app.photo_processor.process_for_orientation(filepath, 'portrait')
+                    if portrait_path:
+                        current_app.logger.info(f"Successfully created portrait version: {portrait_path}")
+                    else:
+                        current_app.logger.error(f"Failed to create portrait version for {filename}")
+
+                    landscape_path = current_app.photo_processor.process_for_orientation(filepath, 'landscape')
+                    if landscape_path:
+                        current_app.logger.info(f"Successfully created landscape version: {landscape_path}")
+                    else:
+                        current_app.logger.error(f"Failed to create landscape version for {filename}")
+                except Exception as e:
+                    current_app.logger.error(f"Error processing image orientations: {e}")
+                    portrait_path = None
+                    landscape_path = None
 
                 photo = Photo(
                     filename=filename,
@@ -532,6 +534,9 @@ def add_to_gallery():
                 with Image.open(filepath) as img:
                     img = ImageOps.exif_transpose(img)
                     img.thumbnail((400, 400))
+                    # JPEG can't encode alpha/palette — flatten to RGB.
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
                     thumb_filename = f"thumb_{filename}"
                     thumb_path = os.path.join(thumbnails_dir, thumb_filename)
                     img.save(thumb_path, "JPEG")
@@ -657,11 +662,75 @@ def api_get_photo(photo_id):
         return jsonify({
             'id': photo.id,
             'filename': photo.filename,
+            'portrait_version': photo.portrait_version,
+            'landscape_version': photo.landscape_version,
             'thumbnail': photo.thumbnail,
             'media_type': photo.media_type,
         })
     except Exception as e:
         current_app.logger.error(f"Error fetching photo {photo_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@photos_bp.route('/api/photos/<int:photo_id>/regenerate', methods=['POST'])
+def api_regenerate_photo(photo_id):
+    """Regenerate portrait/landscape derivatives and thumbnail from the original.
+
+    Applies the current processing pipeline (including smart crop) to an already
+    uploaded photo. Useful for re-cropping existing photos after processing
+    changes land.
+    """
+    try:
+        photo = Photo.query.get_or_404(photo_id)
+
+        if photo.source == 'plugin':
+            return jsonify({'error': 'Plugin-managed photos cannot be regenerated here. Re-run the plugin instead.'}), 400
+        if photo.media_type == 'video':
+            return jsonify({'error': 'Regeneration is only supported for photos, not videos.'}), 400
+
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        thumbnails_dir = os.path.join(upload_folder, 'thumbnails')
+        os.makedirs(thumbnails_dir, exist_ok=True)
+
+        original_path = os.path.join(upload_folder, photo.filename)
+        if not os.path.isfile(original_path):
+            return jsonify({'error': f'Original file not found on disk: {photo.filename}'}), 404
+
+        thumb_filename = f"thumb_{photo.filename}"
+        try:
+            with Image.open(original_path) as img:
+                normalized_img = ImageOps.exif_transpose(img)
+                thumb_img = normalized_img.copy()
+                thumb_img.thumbnail((400, 400))
+                # JPEG can't encode alpha/palette — flatten to RGB.
+                if thumb_img.mode != 'RGB':
+                    thumb_img = thumb_img.convert('RGB')
+                thumb_img.save(os.path.join(thumbnails_dir, thumb_filename), "JPEG")
+        except Exception as e:
+            current_app.logger.error(f"Error regenerating thumbnail for photo {photo_id}: {e}")
+            return jsonify({'error': f'Thumbnail generation failed: {e}'}), 500
+
+        portrait_path = current_app.photo_processor.process_for_orientation(original_path, 'portrait')
+        landscape_path = current_app.photo_processor.process_for_orientation(original_path, 'landscape')
+        if not portrait_path or not landscape_path:
+            return jsonify({'error': 'Orientation variant generation failed; check server logs.'}), 500
+
+        photo.portrait_version = os.path.basename(portrait_path)
+        photo.landscape_version = os.path.basename(landscape_path)
+        photo.thumbnail = thumb_filename
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'id': photo.id,
+            'filename': photo.filename,
+            'portrait_version': photo.portrait_version,
+            'landscape_version': photo.landscape_version,
+            'thumbnail': photo.thumbnail,
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error regenerating photo {photo_id}: {e}")
+        current_app.logger.exception("Full traceback:")
         return jsonify({'error': str(e)}), 500
 
 

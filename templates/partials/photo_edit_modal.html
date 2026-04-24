@@ -46,6 +46,32 @@
                 <button type="button" class="btn btn-link btn-sm p-0 text-muted" onclick="resetEdits()">
                     <i class="bi bi-arrow-counterclockwise"></i> Reset all changes
                 </button>
+
+                <hr class="my-3">
+
+                <div class="mb-1">
+                    <label class="form-label fw-semibold">Preview stored versions</label>
+                    <div class="btn-group w-100" role="group" aria-label="Preview stored photo versions">
+                        <button type="button" class="btn btn-outline-info btn-sm" id="previewVariantOriginal" onclick="openVariant('original')" disabled>
+                            <i class="bi bi-box-arrow-up-right"></i> Original
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" id="previewVariantPortrait" onclick="openVariant('portrait')" disabled>
+                            <i class="bi bi-phone"></i> Portrait
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" id="previewVariantLandscape" onclick="openVariant('landscape')" disabled>
+                            <i class="bi bi-phone-landscape"></i> Landscape
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" id="previewVariantThumbnail" onclick="openVariant('thumbnail')" disabled>
+                            <i class="bi bi-image"></i> Thumbnail
+                        </button>
+                    </div>
+                    <div class="text-muted small mt-1">Opens each stored file variant in a new tab. Disabled buttons mean that variant has not been generated.</div>
+
+                    <button type="button" class="btn btn-outline-warning btn-sm w-100 mt-2" id="regenerateVariantsBtn" onclick="regenerateVariants()">
+                        <i class="bi bi-arrow-clockwise"></i> Regenerate variants from original
+                    </button>
+                    <div class="text-muted small mt-1">Re-runs the current processing pipeline (including smart crop) on the original upload. Overwrites the portrait, landscape, and thumbnail files.</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -80,36 +106,116 @@
 // Photo edit state
 let currentEditPhotoId = null;
 let currentRotation = 0;
+let currentVariants = { original: null, portrait: null, landscape: null, thumbnail: null };
 
 function editPhoto(photoId) {
     currentEditPhotoId = photoId;
     currentRotation = 0;
-    
-    // Try to find photo info from data attributes or fetch from API
+
+    // Reset variant buttons while we fetch — re-enabled once the API responds.
+    resetVariantButtons();
+
+    // Kick off preview load from DOM data-attribute if available so the modal
+    // feels instant. The API fetch populates variant buttons in parallel.
     const photoItem = document.querySelector(`.photo-item[data-photo-id="${photoId}"]`);
-    let filename = null;
-    
-    if (photoItem) {
-        filename = photoItem.dataset.filename;
+    const fastFilename = photoItem ? photoItem.dataset.filename : null;
+    if (fastFilename) {
+        loadPhotoIntoEditor(fastFilename);
     }
-    
-    if (filename) {
-        loadPhotoIntoEditor(filename);
-    } else {
-        // Fetch photo info from API
-        fetch(`/api/photos/${photoId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.filename) {
-                    loadPhotoIntoEditor(data.filename);
-                } else {
-                    showToast('Error loading photo', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching photo:', error);
-                showToast('Error loading photo', 'error');
-            });
+
+    fetch(`/api/photos/${photoId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.filename) {
+                if (!fastFilename) showToast('Error loading photo', 'error');
+                return;
+            }
+            if (!fastFilename) loadPhotoIntoEditor(data.filename);
+            populateVariantButtons(data);
+        })
+        .catch(error => {
+            console.error('Error fetching photo:', error);
+            if (!fastFilename) showToast('Error loading photo', 'error');
+        });
+}
+
+function resetVariantButtons() {
+    currentVariants = { original: null, portrait: null, landscape: null, thumbnail: null };
+    ['Original', 'Portrait', 'Landscape', 'Thumbnail'].forEach(key => {
+        const btn = document.getElementById(`previewVariant${key}`);
+        if (btn) {
+            btn.disabled = true;
+            btn.title = '';
+        }
+    });
+}
+
+function populateVariantButtons(data) {
+    currentVariants = {
+        original: data.filename || null,
+        portrait: data.portrait_version || null,
+        landscape: data.landscape_version || null,
+        thumbnail: data.thumbnail || null,
+    };
+    const apply = (key, value) => {
+        const btn = document.getElementById(`previewVariant${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+        if (!btn) return;
+        btn.disabled = !value;
+        btn.title = value ? `Open ${key} (${value}) in a new tab` : `No ${key} variant on disk yet`;
+    };
+    apply('original', currentVariants.original);
+    apply('portrait', currentVariants.portrait);
+    apply('landscape', currentVariants.landscape);
+    apply('thumbnail', currentVariants.thumbnail);
+}
+
+function openVariant(key) {
+    const filename = currentVariants[key];
+    if (!filename) {
+        showToast(`No ${key} variant available`, 'error');
+        return;
+    }
+    const encoded = encodeURIComponent(filename);
+    const url = key === 'thumbnail'
+        ? `/photos/thumbnails/${encoded}?t=${Date.now()}`
+        : `/photos/${encoded}?t=${Date.now()}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+async function regenerateVariants() {
+    if (!currentEditPhotoId) return;
+    const btn = document.getElementById('regenerateVariantsBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Regenerating...';
+    try {
+        const response = await fetch(`/api/photos/${currentEditPhotoId}/regenerate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            showToast('Regenerate failed: ' + (result.error || response.statusText), 'error');
+            return;
+        }
+        populateVariantButtons(result);
+        // Refresh in-modal preview (served from original filename).
+        if (result.filename) {
+            document.getElementById('editPreview').src = `/photos/${encodeURIComponent(result.filename)}?t=${Date.now()}`;
+        }
+        // Bust thumbnail cache in the gallery grid.
+        const photoItem = document.querySelector(`.photo-item[data-photo-id="${currentEditPhotoId}"]`);
+        if (photoItem) {
+            const img = photoItem.querySelector('img');
+            if (img) img.src = img.src.split('?')[0] + '?t=' + Date.now();
+        }
+        showToast('Variants regenerated');
+    } catch (err) {
+        console.error('Regenerate error:', err);
+        showToast('Error regenerating variants', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 }
 

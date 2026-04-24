@@ -680,61 +680,7 @@
         
         <!-- Image Adjustments -->
         {% include 'partials/settings/frame_display.html' %}
-        
-        <!-- Overlays -->
-        <div class="settings-card" id="overlaysCard">
-            <div class="settings-card-header" onclick="toggleCard('overlaysCard')">
-                <h2 class="settings-card-title">
-                    <i class="bi bi-layers icon-layers"></i>
-                    Overlays
-                </h2>
-                <i class="bi bi-chevron-down settings-card-toggle"></i>
-            </div>
-            <div class="settings-card-body">
-                <div class="toggle-group">
-                    <div class="toggle-info">
-                        <div class="toggle-label"><i class="bi bi-cloud-sun me-2"></i>Weather Information</div>
-                        <div class="toggle-description">Show current weather on the frame</div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="weatherOverlay" name="weather_overlay"
-                               {% if frame.overlay_preferences %}
-                                   {% set prefs = frame.overlay_preferences|from_json %}
-                                   {% if prefs.weather %}checked{% endif %}
-                               {% endif %}>
-                    </div>
-                </div>
-                
-                <div class="toggle-group">
-                    <div class="toggle-info">
-                        <div class="toggle-label"><i class="bi bi-info-circle me-2"></i>Photo Metadata</div>
-                        <div class="toggle-description">Display date, location, and camera info</div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="metadataOverlay" name="metadata_overlay"
-                               {% if frame.overlay_preferences %}
-                                   {% set prefs = frame.overlay_preferences|from_json %}
-                                   {% if prefs.metadata %}checked{% endif %}
-                               {% endif %}>
-                    </div>
-                </div>
-                
-                <div class="toggle-group">
-                    <div class="toggle-info">
-                        <div class="toggle-label"><i class="bi bi-qr-code me-2"></i>QR Code</div>
-                        <div class="toggle-description">Display a QR code linking to this server</div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="qrcodeOverlay" name="qrcode_overlay"
-                               {% if frame.overlay_preferences %}
-                                   {% set prefs = frame.overlay_preferences|from_json %}
-                                   {% if prefs.qrcode %}checked{% endif %}
-                               {% endif %}>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
+
         <!-- Status & Diagnostics -->
         <div class="settings-card collapsed" id="diagnosticsCard">
             <div class="settings-card-header" onclick="toggleCard('diagnosticsCard')">
@@ -1012,18 +958,14 @@ function updateColorPreview() {
 }
 
 // Preview
-function previewFinalImage() {
+function previewFrameSettings() {
     const params = new URLSearchParams({
-        preview: 'true',
         contrast_factor: document.getElementById('contrastFactor').value,
         saturation: document.getElementById('saturation').value,
         blue_adjustment: document.getElementById('blueAdjustment').value,
         padding: document.getElementById('padding').value,
-        weather: document.getElementById('weatherOverlay').checked,
-        metadata: document.getElementById('metadataOverlay').checked,
-        qrcode: document.getElementById('qrcodeOverlay').checked
     });
-    window.open(`/test/overlay/{{ frame.id }}?${params}`, '_blank');
+    window.open(`/frames/{{ frame.id }}/preview?${params}`, '_blank');
 }
 
 // Import functions

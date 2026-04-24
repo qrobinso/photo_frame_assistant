@@ -126,63 +126,6 @@ def test_mqtt():
 
 
 # ------------------------------------------------------------------------------
-# Weather routes
-# ------------------------------------------------------------------------------
-
-@integrations_bp.route('/api/weather/settings', methods=['GET'])
-def get_weather_settings():
-    from integrations.overlays.weather import WeatherIntegration
-
-    try:
-        basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        weather_config_path = os.path.join(
-            basedir, 'integrations', 'overlays', 'weather_config.json'
-        )
-        weather_integration = WeatherIntegration(weather_config_path)
-        settings = weather_integration.settings
-
-        return jsonify({'success': True, 'settings': settings})
-    except Exception as e:
-        logger.error(f"Error getting weather settings: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-
-@integrations_bp.route('/api/weather/settings', methods=['POST'])
-def update_weather_settings():
-    from integrations.overlays.weather import WeatherIntegration
-
-    try:
-        settings = request.get_json()
-        if not settings:
-            return jsonify({'success': False, 'error': 'No settings provided'})
-
-        basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        weather_config_path = os.path.join(
-            basedir, 'integrations', 'overlays', 'weather_config.json'
-        )
-        weather_integration = WeatherIntegration(weather_config_path)
-        success = weather_integration.save_settings(settings)
-
-        if success:
-            return jsonify({'success': True})
-        else:
-            return jsonify({'success': False, 'error': 'Failed to save settings'})
-
-    except Exception as e:
-        logger.error(f"Error updating weather settings: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-
-@integrations_bp.route('/api/weather/test', methods=['POST'])
-def test_weather():
-    try:
-        result = current_app.weather_integration.test_connection()
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# ------------------------------------------------------------------------------
 # Network locations routes
 # ------------------------------------------------------------------------------
 

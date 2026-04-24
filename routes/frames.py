@@ -1,11 +1,15 @@
+import io
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytz
 from flask import (Blueprint, current_app, flash, jsonify, redirect,
-                   render_template, request, url_for)
+                   render_template, request, send_file, url_for)
+from PIL import Image
 
 from helpers.frame_helpers import (
     format_relative_time, is_in_deep_sleep, calculate_sleep_interval,
@@ -260,6 +264,7 @@ def edit_frame_settings(frame_id):
         frame.saturation = int(request.form.get('saturation', 100))
         frame.blue_adjustment = int(request.form.get('blue_adjustment', 0))
         frame.padding = int(request.form.get('padding', 0))
+        frame.overshoot_guard_enabled = request.form.get('overshoot_guard_enabled') == 'on'
 
         color_map_text = request.form.get('color_map', '')
         if color_map_text:
@@ -289,17 +294,6 @@ def edit_frame_settings(frame_id):
             frame.deep_sleep_start = utc_start
             frame.deep_sleep_end = utc_end
 
-        try:
-            preferences = json.loads(frame.overlay_preferences) if frame.overlay_preferences else {}
-            preferences['weather'] = request.form.get('weather_overlay') == 'on'
-            preferences['metadata'] = request.form.get('metadata_overlay') == 'on'
-            preferences['qrcode'] = request.form.get('qrcode_overlay') == 'on'
-            frame.overlay_preferences = json.dumps(preferences)
-        except Exception as e:
-            current_app.logger.error(f"Error updating overlay preferences: {e}")
-            preferences = {'weather': False, 'metadata': False, 'qrcode': False}
-            frame.overlay_preferences = json.dumps(preferences)
-
         db.session.commit()
         flash('Settings updated successfully.')
 
@@ -325,10 +319,6 @@ def edit_frame_settings(frame_id):
 
     playlists = Playlist.query.order_by(Playlist.name).all()
 
-    weather_enabled = False
-    if hasattr(current_app, 'weather_integration') and current_app.weather_integration:
-        weather_enabled = current_app.weather_integration.settings.get('enabled', False)
-
     return render_template(
         'edit_settings.html',
         frame=frame,
@@ -336,10 +326,76 @@ def edit_frame_settings(frame_id):
         playlists=playlists,
         now=datetime.now(timezone.utc),
         timedelta=timedelta,
-        weather_enabled=weather_enabled,
-        metadata_enabled=True,
         server_settings=server_settings,
     )
+
+
+# ---------------------------------------------------------------------------
+# Frame settings preview — render a sample photo with the given image settings
+# so users can see the effect of their changes before saving.
+# ---------------------------------------------------------------------------
+
+def _pick_preview_photo(frame):
+    if frame.current_photo_id:
+        photo = db.session.get(Photo, frame.current_photo_id)
+        if photo:
+            return photo
+    if frame.playlist_id:
+        entry = (PlaylistEntry.query
+                 .filter_by(playlist_id=frame.playlist_id)
+                 .order_by(PlaylistEntry.order)
+                 .first())
+        if entry:
+            return entry.photo
+    return None
+
+
+@frames_bp.route('/frames/<frame_id>/preview', methods=['GET'])
+def preview_frame_settings(frame_id):
+    frame = db.session.get(PhotoFrame, frame_id)
+    if not frame:
+        return 'Frame not found', 404
+
+    photo = _pick_preview_photo(frame)
+    if not photo:
+        return 'No photo available for preview — add one to the frame\'s playlist.', 404
+
+    def _num(key, default, cast):
+        raw = request.args.get(key)
+        if raw is None or raw == '':
+            return default
+        try:
+            return cast(raw)
+        except (TypeError, ValueError):
+            return default
+
+    preview_frame = SimpleNamespace(
+        contrast_factor=_num('contrast_factor', frame.contrast_factor, float),
+        saturation=_num('saturation', frame.saturation, int),
+        blue_adjustment=_num('blue_adjustment', frame.blue_adjustment, int),
+        padding=_num('padding', frame.padding, int),
+        color_map=frame.color_map,
+        orientation=frame.orientation,
+        overshoot_guard_enabled=getattr(frame, 'overshoot_guard_enabled', True),
+    )
+
+    if frame.orientation == 'portrait' and photo.portrait_version:
+        filename = photo.portrait_version
+    elif frame.orientation == 'landscape' and photo.landscape_version:
+        filename = photo.landscape_version
+    else:
+        filename = photo.filename
+
+    photo_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    with Image.open(photo_path) as img:
+        enhanced = current_app.photo_processor.enhance_image(img, preview_frame)
+        if enhanced.mode != 'RGB':
+            enhanced = enhanced.convert('RGB')
+        buf = io.BytesIO()
+        enhanced.save(buf, format='JPEG', quality=90)
+        buf.seek(0)
+
+    return send_file(buf, mimetype='image/jpeg')
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +563,6 @@ def import_frame_settings(frame_id):
 
         target_frame.sleep_interval = source_frame.sleep_interval
         target_frame.orientation = source_frame.orientation
-        target_frame.overlay_preferences = source_frame.overlay_preferences
 
         if hasattr(source_frame, 'contrast_factor'):
             target_frame.contrast_factor = source_frame.contrast_factor
@@ -519,6 +574,8 @@ def import_frame_settings(frame_id):
             target_frame.padding = source_frame.padding
         if hasattr(source_frame, 'color_map'):
             target_frame.color_map = source_frame.color_map
+        if hasattr(source_frame, 'overshoot_guard_enabled'):
+            target_frame.overshoot_guard_enabled = source_frame.overshoot_guard_enabled
 
         if source_frame.playlist_id:
             target_frame.playlist_id = source_frame.playlist_id
