@@ -140,7 +140,11 @@ def _init_services(app):
 
     # Core services
     app.photo_processor = PhotoProcessor()
-    app.frame_discovery = FrameDiscovery(port=ZEROCONF_PORT)
+    # Advertise the port the server actually binds (server.py uses
+    # discovery_port); the ZEROCONF_PORT constant is only the fallback.
+    app.frame_discovery = FrameDiscovery(
+        port=load_server_settings().get('discovery_port', ZEROCONF_PORT)
+    )
 
     # Frame timing manager
     ftm_models = {'PhotoFrame': PhotoFrame, 'Photo': Photo, 'PlaylistEntry': PlaylistEntry}
