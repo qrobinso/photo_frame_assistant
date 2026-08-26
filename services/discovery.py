@@ -1,6 +1,5 @@
 from zeroconf import ServiceInfo, Zeroconf, ServiceBrowser, NonUniqueNameException
 import socket
-from queue import Queue
 from typing import Optional
 import uuid
 import os
@@ -10,9 +9,24 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# How often the maintenance loop checks that the advertisement is still
+# correct (address changes are picked up within this window).
+DEFAULT_REFRESH_INTERVAL = 30
+# How often to re-announce an unchanged service. This is a plain announcement,
+# never an unregister/register pair, so frame caches are refreshed rather than
+# purged.
+DEFAULT_REANNOUNCE_INTERVAL = 300
+
+
 class FrameDiscovery:
-    def __init__(self, port: int = 5000):
+    def __init__(self, port: int = 5000,
+                 refresh_interval: float = DEFAULT_REFRESH_INTERVAL,
+                 reannounce_interval: float = DEFAULT_REANNOUNCE_INTERVAL):
         self.port = port
+        self.refresh_interval = refresh_interval
+        self.reannounce_interval = reannounce_interval
+        self._last_announce = 0.0
+        self._consecutive_failures = 0
         self.zeroconf: Optional[Zeroconf] = None
         self.discovered_frames = {}
         self.service_info: Optional[ServiceInfo] = None
@@ -43,152 +57,226 @@ class FrameDiscovery:
             logger.warning(f"Error saving server ID: {e}")
         return server_id
 
-    def _refresh_registration(self):
-        """Periodically refresh the service registration."""
+    def _maintenance_loop(self):
+        """Keep the advertisement correct. This loop must never exit on error."""
         while self._running:
             try:
-                if self.zeroconf and self.service_info:
-                    # Re-register service instead of just updating
-                    self.zeroconf.unregister_service(self.service_info)
-                    time.sleep(0.1)  # Small delay between unregister/register
-                    self.zeroconf.register_service(self.service_info)
-                    logger.debug("Re-registered Zeroconf service")
+                self._maintenance_tick()
             except Exception as e:
-                logger.error(f"Error refreshing registration: {e}")
-                # Try to completely restart the service
-                try:
-                    self.stop()
-                    time.sleep(1)
-                    self.setup_service()
-                except Exception as re_err:
-                    logger.error(f"Error re-registering service: {re_err}")
-            time.sleep(30)  # Refresh more frequently (every 30 seconds)
+                # A tick should handle its own errors; this is the last line of
+                # defence so the thread can never die the way it used to.
+                logger.error(f"Unhandled error in discovery maintenance: {e}")
+            time.sleep(self.refresh_interval)
+        logger.info("Discovery maintenance loop exited (service stopped).")
 
-    def get_ip_address(self) -> str:
-        """Get the non-localhost IP address of the machine."""
+    def _maintenance_tick(self):
+        """One maintenance pass. Swallows its own errors by design."""
+        # Health check: if the stack collapsed, rebuild it from scratch.
+        if self.zeroconf is None or self.service_info is None:
+            logger.warning("Zeroconf stack is gone — rebuilding discovery service.")
+            try:
+                self.setup_service()
+                self._consecutive_failures = 0
+            except Exception as e:
+                self._consecutive_failures += 1
+                logger.error(f"Failed to rebuild discovery service: {e}")
+            return
+
+        try:
+            current = set(self.get_ip_addresses())
+            advertised = {socket.inet_ntoa(a) for a in self.service_info.addresses}
+
+            if current and current != advertised:
+                # The host moved (DHCP lease, interface up/down, new subnet).
+                logger.info(
+                    f"Server address changed {sorted(advertised)} -> {sorted(current)}; "
+                    "republishing mDNS advertisement."
+                )
+                new_info = self._build_service_info(sorted(current))
+                self.zeroconf.unregister_service(self.service_info)
+                self.zeroconf.register_service(new_info)
+                # Only commit after a successful register, so a failure here is
+                # retried on the next tick instead of being silently lost.
+                self.service_info = new_info
+                self._last_announce = time.monotonic()
+                self._consecutive_failures = 0
+                return
+
+            if not current:
+                logger.warning("No usable local IP address found; keeping last advertisement.")
+
+            # Steady state: re-announce periodically WITHOUT a goodbye packet.
+            if (time.monotonic() - self._last_announce) >= self.reannounce_interval:
+                self.zeroconf.update_service(self.service_info)
+                self._last_announce = time.monotonic()
+                logger.debug("Re-announced Zeroconf service")
+
+            self._consecutive_failures = 0
+
+        except Exception as e:
+            self._consecutive_failures += 1
+            logger.error(
+                f"Error maintaining Zeroconf registration "
+                f"(failure {self._consecutive_failures}): {e}"
+            )
+            # Repeated failures mean the stack itself is wedged. Drop it and let
+            # the next tick rebuild; never tear down from inside this thread the
+            # way the old code did.
+            if self._consecutive_failures >= 3:
+                logger.warning("Discovery unhealthy — tearing down for rebuild.")
+                self._teardown_zeroconf()
+
+    def _teardown_zeroconf(self):
+        """Close the Zeroconf stack. Safe to call from the maintenance thread."""
+        if self.zeroconf:
+            try:
+                self.zeroconf.unregister_all_services()
+                self.zeroconf.close()
+            except Exception as e:
+                logger.error(f"Error closing Zeroconf: {e}")
+            finally:
+                self.zeroconf = None
+                self.service_info = None
+
+    def get_ip_addresses(self) -> list:
+        """Return every usable non-loopback IPv4 address, best route first.
+
+        A multi-homed host (Wi-Fi + Ethernet, or a VPN) must advertise all of
+        its addresses. Publishing only one means a frame on the other interface
+        — or one that outlives the chosen interface — can never reach us.
+        """
         def is_valid(ip):
-            return ip and not ip.startswith('127.') and ip != '0.0.0.0'
+            return bool(ip) and not ip.startswith('127.') and ip != '0.0.0.0'
 
-        # Method 1: UDP routing trick with multiple targets (works even without internet)
+        found = []
+
+        def add(ip, how):
+            if is_valid(ip) and ip not in found:
+                found.append(ip)
+                logger.debug(f"Found IP via {how}: {ip}")
+
+        # Method 1: UDP routing trick — gives the interface with the default
+        # route, so it goes first and stays the primary advertised address.
         for target in [('8.8.8.8', 80), ('1.1.1.1', 80)]:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect(target)
-                ip = s.getsockname()[0]
+                add(s.getsockname()[0], 'UDP routing trick')
                 s.close()
-                if is_valid(ip):
-                    logger.debug(f"Found IP via UDP routing trick: {ip}")
-                    return ip
             except Exception:
                 pass
 
-        # Method 2: hostname -I (Linux; returns all IPs space-separated)
-        try:
-            import subprocess
-            result = subprocess.run(['hostname', '-I'], capture_output=True, text=True, timeout=2)
-            for ip in result.stdout.strip().split():
-                if is_valid(ip):
-                    logger.debug(f"Found IP via hostname -I: {ip}")
-                    return ip
-        except Exception:
-            pass
-
-        # Method 3: getaddrinfo on hostname
+        # Method 2: every address bound to a local interface.
         try:
             for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-                ip = info[4][0]
-                if is_valid(ip):
-                    logger.debug(f"Found IP via getaddrinfo: {ip}")
-                    return ip
+                add(info[4][0], 'getaddrinfo')
         except Exception:
             pass
 
-        # Method 4: gethostbyname_ex (returns all addresses for hostname)
+        # Method 3: hostname -I (Linux; returns all IPs space-separated).
+        try:
+            import subprocess
+            result = subprocess.run(['hostname', '-I'], capture_output=True,
+                                    text=True, timeout=2)
+            for ip in result.stdout.strip().split():
+                add(ip, 'hostname -I')
+        except Exception:
+            pass
+
+        # Method 4: gethostbyname_ex (all addresses for hostname).
         try:
             _, _, ips = socket.gethostbyname_ex(socket.gethostname())
             for ip in ips:
-                if is_valid(ip):
-                    logger.debug(f"Found IP via gethostbyname_ex: {ip}")
-                    return ip
+                add(ip, 'gethostbyname_ex')
         except Exception:
             pass
 
-        logger.error("Could not determine a valid non-localhost IP address")
-        return '0.0.0.0'
+        if not found:
+            logger.error("Could not determine any valid non-localhost IP address")
+        return found
+
+    def get_ip_address(self) -> str:
+        """Primary address (kept for callers that want a single IP)."""
+        addresses = self.get_ip_addresses()
+        return addresses[0] if addresses else '0.0.0.0'
+
+    def _build_service_info(self, addresses):
+        """Build a ServiceInfo advertising every given address."""
+        properties = {
+            'version': '1.0',
+            'server_type': 'photo_frame',
+            'server_id': self.server_id,
+            # Primary address, kept for frames that read the TXT record
+            # instead of the A record.
+            'server_ip': addresses[0],
+            'server_port': str(self.port),
+            # All addresses, comma separated, for clients that can use them.
+            'server_ips': ','.join(addresses),
+        }
+        properties_bytes = {k.encode(): v.encode() for k, v in properties.items()}
+
+        return ServiceInfo(
+            "_photoframe._tcp.local.",
+            self._service_name,
+            addresses=[socket.inet_aton(ip) for ip in addresses],
+            port=self.port,
+            properties=properties_bytes,
+            server=f"photoframe-server-{self.server_id}.local."
+        )
 
     def setup_service(self):
         """Setup and register the Zeroconf service."""
         try:
-            local_ip = self.get_ip_address()
-            logger.info(f"Registering service with IP: {local_ip}")
-            
-            # Close any existing Zeroconf instance
-            if self.zeroconf:
-                try:
-                    self.zeroconf.unregister_all_services()
-                    self.zeroconf.close()
-                except Exception as e:
-                    logger.warning(f"Error closing existing Zeroconf: {e}")
-            
-            # Create new Zeroconf instance
+            addresses = self.get_ip_addresses()
+            if not addresses:
+                raise RuntimeError("No usable local IP address to advertise")
+            logger.info(f"Registering service with addresses: {addresses}")
+
+            # Close any existing Zeroconf instance (does not touch threads).
+            self._teardown_zeroconf()
+
             self.zeroconf = Zeroconf()
-            
-            # Base service name
+
             base_name = f"PhotoFrame-Server-{self.server_id}"
-            self._service_name = f"{base_name}._photoframe._tcp.local."
-            
-            properties = {
-                'version': '1.0',
-                'server_type': 'photo_frame',
-                'server_id': self.server_id,
-                'server_ip': local_ip,
-                'server_port': str(self.port)
-            }
-            
-            properties_bytes = {
-                k.encode(): v.encode() 
-                for k, v in properties.items()
-            }
-            
-            # Try registering with numbered suffixes if name collision occurs
+
+            # Try registering with numbered suffixes if a name collision occurs
             max_attempts = 5
             for i in range(max_attempts):
                 try:
-                    name_with_suffix = self._service_name if i == 0 else f"{base_name}-{i}._photoframe._tcp.local."
-                    
-                    self.service_info = ServiceInfo(
-                        "_photoframe._tcp.local.",
-                        name_with_suffix,
-                        addresses=[socket.inet_aton(local_ip)],
-                        port=self.port,
-                        properties=properties_bytes,
-                        server=f"photoframe-server-{self.server_id}.local."
+                    self._service_name = (
+                        f"{base_name}._photoframe._tcp.local." if i == 0
+                        else f"{base_name}-{i}._photoframe._tcp.local."
                     )
-                    
+                    self.service_info = self._build_service_info(addresses)
                     self.zeroconf.register_service(self.service_info)
-                    self._service_name = name_with_suffix  # Store the successful name
-                    logger.info(f"Successfully registered service: {name_with_suffix}")
+                    logger.info(f"Successfully registered service: {self._service_name}")
                     break
-                    
+
                 except NonUniqueNameException:
                     if i == max_attempts - 1:
                         raise
-                    logger.warning(f"Service name collision, trying alternate name...")
-                    time.sleep(1)  # Brief delay before retry
+                    logger.warning("Service name collision, trying alternate name...")
+                    time.sleep(1)
                 except Exception as e:
                     logger.error(f"Error registering service: {e}")
                     raise
-            
+
+            self._last_announce = time.monotonic()
+            self._consecutive_failures = 0
+
             # Start listening for frames
             self.frame_listener = FrameListener(self.discovered_frames)
             ServiceBrowser(self.zeroconf, "_photoframe._tcp.local.", self.frame_listener)
-            
-            # Start refresh thread
+
+            # Start the maintenance thread (only if one isn't already running)
+            self._running = True
             if not self._refresh_thread or not self._refresh_thread.is_alive():
-                self._running = True
-                self._refresh_thread = threading.Thread(target=self._refresh_registration, daemon=True)
+                self._refresh_thread = threading.Thread(
+                    target=self._maintenance_loop, daemon=True,
+                    name="frame-discovery-maintenance"
+                )
                 self._refresh_thread.start()
-                
+
         except Exception as e:
             logger.error(f"Error in setup_service: {e}")
             raise
@@ -199,18 +287,27 @@ class FrameDiscovery:
             self.setup_service()
 
     def stop(self):
-        """Stop the discovery service and clean up."""
+        """Stop the discovery service and clean up.
+
+        Safe to call from the maintenance thread itself. Joining the current
+        thread raises RuntimeError, which previously aborted cleanup partway
+        and left discovery permanently dead.
+        """
         self._running = False
-        if self._refresh_thread:
-            self._refresh_thread.join(timeout=2)
-        if self.zeroconf:
-            try:
-                self.zeroconf.unregister_all_services()
-                self.zeroconf.close()
-            except Exception as e:
-                logger.error(f"Error stopping Zeroconf: {e}")
-            finally:
-                self.zeroconf = None
+        thread = self._refresh_thread
+        if thread and thread is not threading.current_thread() and thread.is_alive():
+            thread.join(timeout=2)
+        self._teardown_zeroconf()
+
+    def is_healthy(self) -> bool:
+        """True when the advertisement is live and the maintenance loop is up."""
+        return bool(
+            self._running
+            and self.zeroconf is not None
+            and self.service_info is not None
+            and self._refresh_thread is not None
+            and self._refresh_thread.is_alive()
+        )
 
     def get_service_info(self):
         """Get current service information for display."""
@@ -228,46 +325,94 @@ class FrameDiscovery:
 
     def get_discovered_frames(self):
         """Return a list of currently discovered frames."""
-        # Convert the discovered_frames dict to a list of frame data
+        # discovered_frames is keyed by device_id; expose a stable list shape
         return [
             {
-                'ip': ip,
+                'device_id': device_id,
+                'ip': frame_data.get('ip', ''),
                 'hostname': frame_data.get('hostname', ''),
+                'port': frame_data.get('port'),
                 'last_seen': frame_data.get('last_seen', ''),
-                'status': frame_data.get('status', 'unknown')
+                'status': frame_data.get('status', 'unknown'),
+                'properties': frame_data.get('properties', {}),
             }
-            for ip, frame_data in self.discovered_frames.items()
+            for device_id, frame_data in self.discovered_frames.items()
         ]
 
 
 class FrameListener:
-    def __init__(self, discovered_queue: Queue):
-        self.discovered = set()
-        self.queue = discovered_queue
-    
+    """Zeroconf listener that records frames advertising themselves.
+
+    `frames` is the shared dict owned by FrameDiscovery, keyed by device_id.
+    """
+
+    def __init__(self, frames: dict):
+        self.frames = frames
+
+    @staticmethod
+    def _decode_properties(service_info):
+        props = {}
+        for k, v in (service_info.properties or {}).items():
+            if k is None:
+                continue
+            try:
+                key = k.decode('utf-8')
+            except (AttributeError, UnicodeDecodeError):
+                continue
+            if v is None:
+                props[key] = ''
+                continue
+            try:
+                props[key] = v.decode('utf-8')
+            except (AttributeError, UnicodeDecodeError):
+                props[key] = ''
+        return props
+
     def remove_service(self, zc: Zeroconf, type_: str, name: str):
         """Handle frame going offline."""
-        service_info = zc.get_service_info(type_, name)
-        if service_info:
-            device_id = service_info.properties.get(b'device_id', b'').decode('utf-8')
-            self.discovered.discard(device_id)
-    
+        try:
+            # The record is already gone from the cache, so match on the stored name.
+            for device_id, data in list(self.frames.items()):
+                if data.get('service_name') == name:
+                    self.frames.pop(device_id, None)
+                    logger.info(f"Frame {device_id} went offline ({name})")
+        except Exception as e:
+            logger.error(f"Error handling removed service {name}: {e}")
+
     def add_service(self, zc: Zeroconf, type_: str, name: str):
         """Handle new frame discovery."""
-        service_info = zc.get_service_info(type_, name)
-        if service_info:
-            device_id = service_info.properties.get(b'device_id', b'').decode('utf-8')
-            if device_id:
-                frame_info = {
-                    'device_id': device_id,
-                    'ip_address': socket.inet_ntoa(service_info.addresses[0]),
-                    'properties': {
-                        k.decode('utf-8'): v.decode('utf-8') 
-                        for k, v in service_info.properties.items()
-                    }
-                }
-                self.discovered.add(device_id)
-                self.queue.put(frame_info)
+        try:
+            service_info = zc.get_service_info(type_, name)
+            if not service_info:
+                return
+
+            props = self._decode_properties(service_info)
+
+            # The server advertises on the same service type; ignore its own record.
+            if props.get('server_type') == 'photo_frame':
+                return
+
+            device_id = props.get('device_id')
+            if not device_id:
+                return
+
+            ip = ''
+            if service_info.addresses:
+                ip = socket.inet_ntoa(service_info.addresses[0])
+
+            self.frames[device_id] = {
+                'device_id': device_id,
+                'ip': ip,
+                'hostname': service_info.server or '',
+                'port': service_info.port,
+                'service_name': name,
+                'last_seen': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                'status': 'online',
+                'properties': props,
+            }
+            logger.info(f"Discovered frame {device_id} at {ip}:{service_info.port}")
+        except Exception as e:
+            logger.error(f"Error handling service {name}: {e}")
 
     def update_service(self, zc: Zeroconf, type_: str, name: str):
         """Handle frame updates."""

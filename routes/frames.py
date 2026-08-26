@@ -902,9 +902,16 @@ def get_frame_status(frame_id):
 def discovery_status():
     """Return current discovery enabled state and running state."""
     settings = load_server_settings()
+    discovery = current_app.frame_discovery
+    info = discovery.get_service_info() or {}
     return jsonify({
         'discovery_enabled': settings.get('discovery_enabled', True),
-        'running': current_app.frame_discovery._running,
+        'running': discovery._running,
+        # 'running' is only a flag; 'healthy' confirms the advertisement and
+        # the maintenance thread are actually alive.
+        'healthy': discovery.is_healthy(),
+        'advertised': (info.get('properties') or {}).get('server_ips'),
+        'port': info.get('port'),
     })
 
 
