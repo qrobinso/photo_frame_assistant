@@ -7,6 +7,8 @@ import threading
 import time
 import logging
 
+import psutil
+
 logger = logging.getLogger(__name__)
 
 # How often the maintenance loop checks that the advertisement is still
@@ -17,12 +19,26 @@ DEFAULT_REFRESH_INTERVAL = 30
 # purged.
 DEFAULT_REANNOUNCE_INTERVAL = 300
 
+# Interface name prefixes whose addresses are never reachable from a frame on
+# the LAN: container bridges, VPN tunnels and hypervisor networks. A Docker
+# host (this app ships with network_mode: host) always has docker0 and one
+# br-<id> per user-defined network, so every generic "what is my IP" lookup
+# returns 172.x addresses alongside the real one.
+VIRTUAL_IFACE_PREFIXES = (
+    'docker', 'br-', 'veth', 'virbr', 'vmnet', 'vboxnet',
+    'tun', 'tap', 'utun', 'wg', 'zt', 'tailscale', 'lo',
+)
+
 
 class FrameDiscovery:
     def __init__(self, port: int = 5000,
                  refresh_interval: float = DEFAULT_REFRESH_INTERVAL,
-                 reannounce_interval: float = DEFAULT_REANNOUNCE_INTERVAL):
+                 reannounce_interval: float = DEFAULT_REANNOUNCE_INTERVAL,
+                 advertise_ips: Optional[list] = None):
         self.port = port
+        # Explicit override for hosts whose addressing we cannot infer
+        # (advertise_ips in server_settings.json). Empty/None means autodetect.
+        self.advertise_ips = [ip for ip in (advertise_ips or []) if ip]
         self.refresh_interval = refresh_interval
         self.reannounce_interval = reannounce_interval
         self._last_announce = 0.0
@@ -139,12 +155,62 @@ class FrameDiscovery:
                 self.service_info = None
 
     def get_ip_addresses(self) -> list:
-        """Return every usable non-loopback IPv4 address, best route first.
+        """Return the addresses to advertise, best route first.
 
-        A multi-homed host (Wi-Fi + Ethernet, or a VPN) must advertise all of
-        its addresses. Publishing only one means a frame on the other interface
-        — or one that outlives the chosen interface — can never reach us.
+        A multi-homed host (Wi-Fi + Ethernet) must advertise all of its real
+        addresses: publishing only one means a frame on the other interface —
+        or one that outlives the chosen interface — can never reach us.
+
+        But "every local address" is too broad. On a Docker host it includes
+        the bridge gateways (172.17.0.1, 172.18.0.1), which no frame can reach
+        and which mean something different on every host. Publishing them as A
+        records is worse than useless: the responder does not preserve the
+        order we register, and a client that takes the first A record it sees
+        (the ESP32 firmware calls MDNS.address(0)) then talks to nothing.
         """
+        if self.advertise_ips:
+            logger.debug(f"Using configured advertise_ips: {self.advertise_ips}")
+            return list(self.advertise_ips)
+
+        candidates = self._candidate_ip_addresses()
+        virtual = self._virtual_interface_ips()
+        usable = [ip for ip in candidates if ip not in virtual]
+
+        if not usable:
+            # Better to advertise something questionable than nothing at all.
+            if candidates:
+                logger.warning(
+                    "Every local address looks virtual "
+                    f"({candidates}); advertising them unfiltered."
+                )
+            return candidates
+
+        if len(usable) != len(candidates):
+            logger.debug(
+                "Excluded virtual-interface addresses from advertisement: "
+                f"{[ip for ip in candidates if ip in virtual]}"
+            )
+        return usable
+
+    @staticmethod
+    def _virtual_interface_ips() -> set:
+        """IPv4 addresses bound to container/VPN/virtual interfaces."""
+        skip = set()
+        try:
+            for name, addrs in psutil.net_if_addrs().items():
+                if not name.startswith(VIRTUAL_IFACE_PREFIXES):
+                    continue
+                for addr in addrs:
+                    if addr.family == socket.AF_INET and addr.address:
+                        skip.add(addr.address)
+        except Exception as e:
+            # Without the interface map we cannot filter; advertising a
+            # superset still beats advertising nothing.
+            logger.debug(f"Could not enumerate interfaces: {e}")
+        return skip
+
+    def _candidate_ip_addresses(self) -> list:
+        """Every usable non-loopback IPv4 address, best route first."""
         def is_valid(ip):
             return bool(ip) and not ip.startswith('127.') and ip != '0.0.0.0'
 

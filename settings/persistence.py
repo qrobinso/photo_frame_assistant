@@ -23,6 +23,10 @@ def load_server_settings():
         'max_upload_size': 10,  # MB
         'discovery_port': ZEROCONF_PORT,
         'discovery_enabled': True,
+        # Optional override: the exact IPs to advertise over mDNS. Leave empty
+        # to autodetect. Set it when the host's addressing cannot be inferred
+        # (unusual bridges, multiple LANs) and frames get an unreachable IP.
+        'advertise_ips': [],
         'dark_mode': False
     }
     try:

@@ -142,8 +142,10 @@ def _init_services(app):
     app.photo_processor = PhotoProcessor()
     # Advertise the port the server actually binds (server.py uses
     # discovery_port); the ZEROCONF_PORT constant is only the fallback.
+    _server_settings = load_server_settings()
     app.frame_discovery = FrameDiscovery(
-        port=load_server_settings().get('discovery_port', ZEROCONF_PORT)
+        port=_server_settings.get('discovery_port', ZEROCONF_PORT),
+        advertise_ips=_server_settings.get('advertise_ips') or None,
     )
 
     # Frame timing manager
