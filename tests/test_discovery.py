@@ -179,5 +179,108 @@ class DiscoveryTestCase(unittest.TestCase):
         self.assertTrue(self.d._running)
 
 
+class AdvertisedAddressFilterTestCase(unittest.TestCase):
+    """Root cause 3: container/VPN addresses must never be advertised.
+
+    Observed on a live homelab (Docker host, network_mode: host). Browsing the
+    service from the LAN returned three A records:
+
+        photoframe-server-d1593d15.local.  172.17.0.1
+        photoframe-server-d1593d15.local.  172.18.0.1
+        photoframe-server-d1593d15.local.  192.168.6.235
+
+    172.17.0.1 is docker0 and 172.18.0.1 is a user-defined bridge. Neither is
+    reachable from a frame, and the responder does not preserve the order we
+    published, so a client that takes the first A record it sees (the ESP32
+    firmware calls MDNS.address(0)) usually gets an unroutable address and can
+    never reach the server. A laptop has no docker bridges, which is why the
+    same build works there.
+    """
+
+    class FakeAddr:
+        def __init__(self, address, family=socket.AF_INET):
+            self.address = address
+            self.family = family
+
+    def make(self, candidates, interfaces, **kwargs):
+        d = FrameDiscovery(port=5000, **kwargs)
+        d._candidate_ip_addresses = lambda: list(candidates)
+        disc.psutil = type("psutil", (), {
+            "net_if_addrs": staticmethod(lambda: {
+                name: [self.FakeAddr(a) for a in addrs]
+                for name, addrs in interfaces.items()
+            })
+        })
+        return d
+
+    def setUp(self):
+        self._real_psutil = disc.psutil
+
+    def tearDown(self):
+        disc.psutil = self._real_psutil
+
+    def test_docker_bridge_addresses_are_not_advertised(self):
+        d = self.make(
+            candidates=["192.168.6.235", "172.18.0.1", "172.17.0.1"],
+            interfaces={
+                "eth0": ["192.168.6.235"],
+                "docker0": ["172.17.0.1"],
+                "br-9f3c1a2b4d5e": ["172.18.0.1"],
+            },
+        )
+        self.assertEqual(d.get_ip_addresses(), ["192.168.6.235"])
+
+    def test_vpn_and_virtual_interfaces_are_not_advertised(self):
+        d = self.make(
+            candidates=["192.168.6.235", "10.8.0.2", "100.64.1.5"],
+            interfaces={
+                "eth0": ["192.168.6.235"],
+                "tun0": ["10.8.0.2"],
+                "tailscale0": ["100.64.1.5"],
+            },
+        )
+        self.assertEqual(d.get_ip_addresses(), ["192.168.6.235"])
+
+    def test_a_genuine_second_nic_is_still_advertised(self):
+        """Filtering must not undo multi-homed support."""
+        d = self.make(
+            candidates=["192.168.6.235", "192.168.9.10", "172.17.0.1"],
+            interfaces={
+                "eth0": ["192.168.6.235"],
+                "wlan0": ["192.168.9.10"],
+                "docker0": ["172.17.0.1"],
+            },
+        )
+        self.assertEqual(d.get_ip_addresses(),
+                         ["192.168.6.235", "192.168.9.10"])
+
+    def test_filtering_never_leaves_nothing_to_advertise(self):
+        """If every address looks virtual, advertise them rather than vanish."""
+        d = self.make(
+            candidates=["172.17.0.1"],
+            interfaces={"docker0": ["172.17.0.1"]},
+        )
+        self.assertEqual(d.get_ip_addresses(), ["172.17.0.1"])
+
+    def test_interface_lookup_failure_falls_back_to_all_candidates(self):
+        d = self.make(candidates=["192.168.6.235"], interfaces={})
+
+        def boom():
+            raise OSError("no /proc/net")
+
+        disc.psutil.net_if_addrs = staticmethod(boom)
+        self.assertEqual(d.get_ip_addresses(), ["192.168.6.235"])
+
+    def test_explicit_override_replaces_autodetection(self):
+        """The escape hatch for hosts we cannot reason about."""
+        d = self.make(
+            candidates=["172.17.0.1"],
+            interfaces={"docker0": ["172.17.0.1"]},
+            advertise_ips=["192.168.6.235"],
+        )
+        self.assertEqual(d.get_ip_addresses(), ["192.168.6.235"])
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
