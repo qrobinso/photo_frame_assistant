@@ -62,3 +62,7 @@ Thumbs.db
 backup/
 *.bak
 *.backup
+
+# Virtual frame test harness state
+scripts/.virtual_frame_id
+/tmp/virtual_frame/
