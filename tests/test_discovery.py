@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -280,6 +281,52 @@ class AdvertisedAddressFilterTestCase(unittest.TestCase):
         )
         self.assertEqual(d.get_ip_addresses(), ["192.168.6.235"])
 
+
+class IPv4OnlyAdvertisementTestCase(unittest.TestCase):
+    """Root cause 4: only IPv4 addresses may reach socket.inet_aton.
+
+    On a Linux host with IPv6, `hostname -I` prints IPv6 addresses alongside
+    IPv4 ones. They were accepted as candidates and passed to inet_aton, so
+    registration failed with "illegal IP address string passed to inet_aton"
+    and the server was never advertised. macOS has no `hostname -I`, which is
+    why this never showed up on a laptop.
+    """
+
+    HOSTNAME_I = "192.168.6.235 172.17.0.1 fd7a:115c:a1e0::1 2001:db8::5 fe80::1\n"
+
+    def setUp(self):
+        self._real_zc, self._real_browser = disc.Zeroconf, disc.ServiceBrowser
+        disc.Zeroconf = lambda *a, **kw: FakeZeroconf()
+        disc.ServiceBrowser = lambda *a, **kw: None
+
+    def tearDown(self):
+        disc.Zeroconf, disc.ServiceBrowser = self._real_zc, self._real_browser
+
+    def test_ipv6_from_hostname_i_is_never_a_candidate(self):
+        fake = mock.Mock(stdout=self.HOSTNAME_I)
+        with mock.patch("subprocess.run", return_value=fake):
+            candidates = FrameDiscovery(port=5000)._candidate_ip_addresses()
+        self.assertIn("192.168.6.235", candidates)
+        for ip in candidates:
+            socket.inet_aton(ip)  # raises OSError on anything non-IPv4
+        self.assertFalse([ip for ip in candidates if ":" in ip])
+
+    def test_service_registers_on_host_with_ipv6(self):
+        d = FrameDiscovery(port=5000)
+        fake = mock.Mock(stdout=self.HOSTNAME_I)
+        with mock.patch("subprocess.run", return_value=fake):
+            d.setup_service()
+        d._running = False
+        self.assertIsNotNone(d.service_info)
+
+    def test_advertise_ips_given_as_a_string_is_one_address(self):
+        d = FrameDiscovery(port=5000, advertise_ips="192.168.6.235")
+        self.assertEqual(d.get_ip_addresses(), ["192.168.6.235"])
+
+    def test_invalid_advertise_ips_entries_are_dropped(self):
+        d = FrameDiscovery(port=5000, advertise_ips=[
+            "192.168.6.235", "fd7a::1", "photoframe.lan", " 192.168.9.10 "])
+        self.assertEqual(d.get_ip_addresses(), ["192.168.6.235", "192.168.9.10"])
 
 
 if __name__ == "__main__":

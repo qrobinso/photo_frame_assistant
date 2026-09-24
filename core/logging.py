@@ -3,16 +3,19 @@ import sys
 from logging.handlers import RotatingFileHandler
 import os
 
-def setup_logger():
+def get_log_file_path():
     # Use LOG_PATH environment variable for Docker volume mounting
     # Falls back to local 'logs' directory when not running in Docker
-    log_dir = os.environ.get('LOG_PATH', 'logs')
-    
+    return os.path.join(os.environ.get('LOG_PATH', 'logs'), 'server.log')
+
+
+def setup_logger():
+    log_file = get_log_file_path()
+    log_dir = os.path.dirname(log_file)
+
     # Create logs directory if it doesn't exist
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-
-    log_file = os.path.join(log_dir, 'server.log')
 
     # Configure logging
     logging.basicConfig(
