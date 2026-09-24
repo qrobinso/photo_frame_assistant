@@ -1,4 +1,5 @@
 from zeroconf import ServiceInfo, Zeroconf, ServiceBrowser, NonUniqueNameException
+import ipaddress
 import socket
 from typing import Optional
 import uuid
@@ -30,6 +31,19 @@ VIRTUAL_IFACE_PREFIXES = (
 )
 
 
+def _is_ipv4(value) -> bool:
+    """True for a dotted-quad IPv4 string, the only form inet_aton accepts.
+
+    `hostname -I` on Linux also prints IPv6 addresses, and advertise_ips is
+    hand-edited JSON, so neither source can be trusted to be IPv4.
+    """
+    try:
+        ipaddress.IPv4Address(value)
+        return True
+    except ValueError:
+        return False
+
+
 class FrameDiscovery:
     def __init__(self, port: int = 5000,
                  refresh_interval: float = DEFAULT_REFRESH_INTERVAL,
@@ -38,7 +52,15 @@ class FrameDiscovery:
         self.port = port
         # Explicit override for hosts whose addressing we cannot infer
         # (advertise_ips in server_settings.json). Empty/None means autodetect.
-        self.advertise_ips = [ip for ip in (advertise_ips or []) if ip]
+        if isinstance(advertise_ips, str):
+            advertise_ips = advertise_ips.replace(',', ' ').split()
+        self.advertise_ips = []
+        for ip in advertise_ips or []:
+            ip = str(ip).strip()
+            if _is_ipv4(ip):
+                self.advertise_ips.append(ip)
+            elif ip:
+                logger.warning(f"Ignoring advertise_ips entry {ip!r}: not an IPv4 address")
         self.refresh_interval = refresh_interval
         self.reannounce_interval = reannounce_interval
         self._last_announce = 0.0
@@ -212,7 +234,7 @@ class FrameDiscovery:
     def _candidate_ip_addresses(self) -> list:
         """Every usable non-loopback IPv4 address, best route first."""
         def is_valid(ip):
-            return bool(ip) and not ip.startswith('127.') and ip != '0.0.0.0'
+            return _is_ipv4(ip) and not ip.startswith('127.') and ip != '0.0.0.0'
 
         found = []
 
