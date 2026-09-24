@@ -359,6 +359,42 @@
         margin: 0;
     }
     
+    /* Server Logs */
+    .log-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .log-controls .form-select {
+        width: auto;
+    }
+
+    .log-viewer {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        font-family: monospace;
+        font-size: 0.75rem;
+        line-height: 1.5;
+        height: 420px;
+        overflow: auto;
+        white-space: pre;
+        margin: 0;
+    }
+
+    .log-viewer .log-warning { color: #e5c07b; }
+    .log-viewer .log-error { color: #f48771; }
+    .log-viewer .log-debug { color: #7f848e; }
+
+    .log-meta {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
         .settings-grid {
@@ -703,6 +739,40 @@
         </div>
     </div>
 
+    <!-- Server Logs Card -->
+    <div class="info-card">
+        <div class="info-card-header">
+            <h2 class="info-card-title"><i class="bi bi-journal-text"></i> Server Logs</h2>
+            <div class="log-controls">
+                <select class="form-select form-select-sm" id="logLevelFilter" onchange="loadServerLogs()" aria-label="Minimum level">
+                    <option value="">All levels</option>
+                    <option value="INFO">Info+</option>
+                    <option value="WARNING">Warnings+</option>
+                    <option value="ERROR">Errors</option>
+                </select>
+                <select class="form-select form-select-sm" id="logLineCount" onchange="loadServerLogs()" aria-label="Number of lines">
+                    <option value="200">200 lines</option>
+                    <option value="500" selected>500 lines</option>
+                    <option value="2000">2000 lines</option>
+                </select>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="logAutoRefresh" onchange="toggleLogAutoRefresh(this.checked)">
+                    <label class="form-check-label small" for="logAutoRefresh">Auto-refresh (5s)</label>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadServerLogs()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <a class="btn btn-sm btn-outline-secondary" href="/api/server/logs/download">
+                    <i class="bi bi-download"></i> Download
+                </a>
+            </div>
+        </div>
+        <div class="info-card-body">
+            <pre class="log-viewer" id="logViewer">Loading logs…</pre>
+            <div class="log-meta" id="logMeta"></div>
+        </div>
+    </div>
+
     <!-- Open Source Libraries Card -->
     <div class="info-card">
         <div class="info-card-header">
@@ -793,6 +863,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const darkMode = document.getElementById('darkMode').checked;
     applyTheme(darkMode);
 });
+
+let logRefreshTimer = null;
+
+function loadServerLogs() {
+    const viewer = document.getElementById('logViewer');
+    const meta = document.getElementById('logMeta');
+    const params = new URLSearchParams({
+        lines: document.getElementById('logLineCount').value,
+        level: document.getElementById('logLevelFilter').value
+    });
+    // Only follow the tail if the user hasn't scrolled up to read something.
+    const atBottom = viewer.scrollHeight - viewer.scrollTop - viewer.clientHeight < 40;
+
+    fetch('/api/server/logs?' + params)
+        .then(response => response.json())
+        .then(data => {
+            viewer.replaceChildren();
+            if (!data.lines.length) {
+                viewer.textContent = 'No log entries.';
+            }
+            let cls = '';
+            for (const line of data.lines) {
+                // Continuation lines (tracebacks) inherit their entry's colour.
+                const level = line.match(/ - (DEBUG|INFO|WARNING|ERROR|CRITICAL) - /);
+                if (level) {
+                    cls = { DEBUG: 'log-debug', WARNING: 'log-warning',
+                            ERROR: 'log-error', CRITICAL: 'log-error' }[level[1]] || '';
+                }
+                const span = document.createElement('span');
+                if (cls) span.className = cls;
+                span.textContent = line + '\n';
+                viewer.appendChild(span);
+            }
+            if (atBottom || !viewer.dataset.loaded) viewer.scrollTop = viewer.scrollHeight;
+            viewer.dataset.loaded = '1';
+            const kb = (data.size / 1024).toFixed(1);
+            meta.textContent = `${data.file} · ${kb} KB · showing ${data.lines.length} lines · updated ${new Date().toLocaleTimeString()}`;
+        })
+        .catch(error => {
+            viewer.textContent = 'Could not load logs: ' + error;
+        });
+}
+
+function toggleLogAutoRefresh(enabled) {
+    clearInterval(logRefreshTimer);
+    logRefreshTimer = enabled ? setInterval(loadServerLogs, 5000) : null;
+}
+
+document.addEventListener('DOMContentLoaded', loadServerLogs);
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');

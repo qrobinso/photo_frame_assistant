@@ -11,8 +11,10 @@ from datetime import datetime, timedelta
 
 import psutil
 import pytz
-from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
 
+from core.logging import get_log_file_path
+from helpers.log_helpers import LEVELS, read_log_tail
 from helpers.system_helpers import get_system_info, get_version
 from settings.persistence import load_server_settings, save_server_settings
 
@@ -230,3 +232,41 @@ def update_server_settings():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Server logs (Settings page log viewer)
+# ---------------------------------------------------------------------------
+
+LOG_LINES_DEFAULT = 500
+LOG_LINES_MAX = 2000
+
+
+@system_bp.route('/api/server/logs')
+def get_server_logs():
+    """Return the tail of server.log, optionally filtered by minimum level."""
+    lines = request.args.get('lines', LOG_LINES_DEFAULT, type=int) or LOG_LINES_DEFAULT
+    lines = max(1, min(lines, LOG_LINES_MAX))
+    level = request.args.get('level', '').upper()
+    if level not in LEVELS:
+        level = None
+
+    path = get_log_file_path()
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        size = 0
+
+    return jsonify({
+        'lines': read_log_tail(path, max_lines=lines, min_level=level),
+        'file': os.path.basename(path),
+        'size': size,
+    })
+
+
+@system_bp.route('/api/server/logs/download')
+def download_server_logs():
+    """Download the current server.log."""
+    path = os.path.abspath(get_log_file_path())
+    if not os.path.isfile(path):
+        return jsonify({'success': False, 'error': 'No log file yet'}), 404
+    return send_file(path, mimetype='text/plain', as_attachment=True,
+                     download_name='server.log')
